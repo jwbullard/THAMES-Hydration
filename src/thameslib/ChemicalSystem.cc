@@ -20,6 +20,9 @@ ChemicalSystem::ChemicalSystem(const string &GEMfilename, const string
   double *icmolarmass, *dcmolarmass;
   char *cc;
 
+  convFactDbl2IntAff_ = 1e5;
+  convFactDbl2IntPor_ = 1e5;
+
   nodeStatus_ = NEED_GEM_AIA;
   nodeHandle_ = 0;
   iterDone_ = 0;
@@ -605,8 +608,6 @@ ChemicalSystem::ChemicalSystem(const string &GEMfilename, const string
   /// Set up the porosities for VOID and ELECTROLYTE microPhases
   ///
 
-  convFactDbl2IntAff_ = 1e5;
-  convFactDbl2IntPor_ = 1e5;
   electrolyteIntPorosity_ = convFactDbl2IntPor_;
   voidIntPorosity_ = 0;
   microPhasePorosity_[0] = 0.0; // VOID
@@ -2560,6 +2561,7 @@ int ChemicalSystem::calculateState(double time, bool isFirst = false,
   int microPhaseMembersSize_i;
 
   microPhaseMass_[ELECTROLYTEID] = microPhaseVolume_[ELECTROLYTEID] = 0.0;
+
   for (int i = FIRST_SOLID; i < numMicroPhases_; i++) {
     if (!isKinetic_[i]) {
       calcMicroPhasePorosity(i);
