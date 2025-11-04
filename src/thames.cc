@@ -42,6 +42,12 @@ int main(int argc, char **argv) {
   bool errorProgram = false;
 
   //
+  // testSimparamsFile is used in ChemicalSystem to check (or not) if a DC
+  //   identified by GEMS exists in simparams.json input file (true/false)
+  //
+  bool testSimparamsFile = false;
+
+  //
   // Main menu where user decides what kind of simulation this will be.
   //
 
@@ -153,7 +159,8 @@ int main(int argc, char **argv) {
   //
 
   try {
-    ChemSys = new ChemicalSystem(gemInputName, simParamName, VERBOSE, WARNING);
+    ChemSys = new ChemicalSystem(gemInputName, simParamName, VERBOSE, WARNING,
+                                 testSimparamsFile);
   } catch (bad_alloc &ba) {
     cout << "Bad memory allocation in ChemicalSystem constructor: " << ba.what()
          << endl;

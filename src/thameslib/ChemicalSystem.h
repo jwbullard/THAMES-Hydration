@@ -634,6 +634,21 @@ class ChemicalSystem {
   int convFactDbl2IntPor_;  /**< conversion factor for porosity - from double to integer */
   int convFactDbl2IntAff_;  /**< conversion factor for affinity - from double to integer */
 
+
+  bool testDCinSimparamsFile_;          /**< used to check (or not) if a DC identified by GEMS
+                                             exists in simparams.json input file */
+
+  std::string jobRoot_;                 /**< The root name for output files
+                                             - for test of simparams.json */
+  std::vector<bool> DCBelongsToSystem_; /**< vector of flags: true if a given DC belongs
+                                             to the system according to simparams.json
+                                             input file
+                                             - for test of simparams.json */
+  std::vector<int> unknownDC_;          /**< vector containing all DCIds identified by GEMS
+                                             as being possible in the system but do not
+                                             appear into simparams.json input file
+                                             - for test of simparams.json */
+
 public:
 
   /**
@@ -647,9 +662,12 @@ public:
   how to relate GEM phases to microstructure phases
   @param verbose is true if producing verbose output
   @param warning is true if producing verbose output
+  @param testSimparams is true if simparams.json file is tested for all
+  possible DCs identified by GEMS
   */
   ChemicalSystem(const std::string &GEMfilename, const std::string &jsonFileName,
-                 const bool verbose, const bool warning = false);
+                 const bool verbose, const bool warning = false,
+                 bool testSimparams = false);
 
   /**
   @brief Copy constructor.
@@ -6539,6 +6557,40 @@ public:
   double getKeepDCLowerLimit(int dcId) { return keepDCLowerLimit_[dcId]; }
 
   int getConvFactDbl2IntPor(void) { return convFactDbl2IntPor_;}
+
+  /**
+  @brief stops the current run if there is at least one DC identified by GEMS as being
+  possible in the system without being present into the simparams.json input file
+  @note - before to stop the program gives an example to solve this issue
+
+  @param cyc is the number of current time step
+  */
+  void testDCinSimparamsFile(int cyc);
+
+  /**
+  @brief Get the names of all the microPhases defined by default in THAMES (colorN_ map)
+  @note used in ChemicalSystem::calculateState when the chemical system definition must
+  contain additional microPhases/GEMPhases/GEMDCs
+  @note - for test of simparams.json
+
+  @return the names of all the microPhases defined by default in THAMES (colorN_ map)
+  */  
+  std::vector<std::string> getDefaultMicroPhNames(void) {
+    std::vector<std::string> vect;
+
+    for ( auto it = colorN_.begin(); it != colorN_.end(); ++it )
+      vect.push_back(it->first);
+
+    return vect;
+  }
+
+  /**
+  @brief Set the root name for simulation output files.
+  @note - for test of simparams.json
+
+  @param jobname is the root name for simulation output files
+  */
+  void setJobRoot(std::string str) { jobRoot_ = str; }
 
 }; // End of ChemicalSystem class
 

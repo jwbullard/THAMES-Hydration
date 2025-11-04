@@ -10,7 +10,7 @@ using std::string; using std::vector; using std::map;
 
 ChemicalSystem::ChemicalSystem(const string &GEMfilename, const string
                                &jsonFileName, const bool verbose,
-                               const bool warning) {
+                               const bool warning, bool testSimparams) {
 
   int i, j;
   double *amat;
@@ -22,6 +22,8 @@ ChemicalSystem::ChemicalSystem(const string &GEMfilename, const string
 
   convFactDbl2IntAff_ = 1e5;
   convFactDbl2IntPor_ = 1e5;
+
+  testDCinSimparamsFile_ = testSimparams;
 
   nodeStatus_ = NEED_GEM_AIA;
   nodeHandle_ = 0;
@@ -664,6 +666,36 @@ ChemicalSystem::ChemicalSystem(const string &GEMfilename, const string
   // checkChemSys();
 
   writeSatElectrolyteGasConditions();
+
+  if (testDCinSimparamsFile_) { // for test of simparams.json
+    DCBelongsToSystem_.clear();
+    DCBelongsToSystem_.resize(numDCs_, false);
+    unknownDC_.clear();
+    int size;
+    for (int i = ELECTROLYTEID; i < numMicroPhases_; i++) {
+      size = microPhaseDCMembers_[i].size();
+      // cout << endl << " i = " << i << "   size = " << size << endl;
+      for (int j = 0; j < size; j++) {
+        // cout << "     j = " << j << "   microPhaseDCMembers_[" << i << "][" << j << "] = "
+        //      << setw(3) << right << microPhaseDCMembers_[i][j] << "   DCName_ = "
+        //      << DCName_[microPhaseDCMembers_[i][j]] << endl;
+        DCBelongsToSystem_[microPhaseDCMembers_[i][j]] = true;
+      }
+    }
+
+    cout << endl
+         << endl << "ChemicalSystem::ChemicalSystem - these DCs belong to the system: "
+         << endl;
+    int ii = -1;
+    for (int i = 0; i < numDCs_; i++) {
+      // cout << "*** i = " << i << "   DCBelongsToSystem_[" << i << "] = " << DCBelongsToSystem_[i] << endl;
+      if (DCBelongsToSystem_[i]) {
+        ii++;
+        cout << "   ii = " << ii << "   DCId = " << i << "   DCMoles_[" << i << "] = " << DCMoles_[i]
+                << "   DCName_[" << i << "] = " << DCName_[i] << endl;
+      }
+    }
+  }
 
   totVolPors_ = 0.0;
   corPorCSHQ_ = 1.0;
@@ -2609,6 +2641,10 @@ int ChemicalSystem::calculateState(double time, bool isFirst = false,
 
   double totVolSols = 0;
   double apVolume = 0;
+
+  // for test of simparams.json
+  if (testDCinSimparamsFile_)
+    testDCinSimparamsFile(cyc);
 
   for (int i = ELECTROLYTEID; i < numMicroPhases_; i++) {
     if (verbose_) {
@@ -4621,5 +4657,85 @@ int ChemicalSystem::getMicroPhaseDCMembers(const int idx, const int jdx) {
     cout << endl << "   exit" << endl;
     exit(1);
   }
+}
+
+void ChemicalSystem::testDCinSimparamsFile(int cyc) {
+  // for test of simparams.json - initial
+
+  for (int i = 0; i < numDCs_; i++) {
+    if (DCMoles_[i] > 0 && DCBelongsToSystem_[i] == false) {
+      unknownDC_.push_back(i);
+    }
+  }
+  int unknownDC_Size = unknownDC_.size();
+  if (unknownDC_Size > 0) {
+    bool testNotGas = false;
+    cout << endl
+         << endl << "    WORNING! ChemicalSystem::calculateState - cyc = "
+         << cyc << "  :  GEMS predicts the existence of " << unknownDC_Size
+         << " new DC(s) that THAMES doesn't include into simparams.json file :"
+         << endl;
+    int dcID;
+    for (int i = 0; i < unknownDC_Size; i++) {
+      dcID = unknownDC_[i];
+      cout << "       DCId = " << setw(3) << right << dcID
+           << "   DCMoles_[DCId] = " << DCMoles_[dcID]
+           << "   DCName_[DCId] = " << setw(18) << left
+           << DCName_[dcID] << "   GEMPhaseName_[DCId] = "
+           << GEMPhaseName_[node_->DCtoPh_DBR(dcID)]
+           // << "   DCVolume = "
+           // << DCMoles_[dcID] * node_->DC_V0(dcID, P_, T_) // check!
+           << endl;
+      if (GEMPhaseName_[node_->DCtoPh_DBR(dcID)] != "gas_gen")
+        testNotGas = true;
+    }
+
+    if (testNotGas) {
+      cout << endl
+           << endl << "   - before to restart THAMES, please add this "
+                      "information to simparams.json file;" << endl;
+      cout << "        for \"gemphasename\" = aq_gen  =>  \"thamesname\" "
+              "= ELECTROLYTE." << endl;
+      cout << endl
+           << "   - if necessary, add a new THAMES phase as a new "
+              "\"thamesname\" entry;" << endl;
+      cout << "        in this case, you have to increase the \"numentries\" "
+              "value as well." << endl;
+      cout << endl
+           << "   - as a THAMES phase you can define a new one, having the "
+              "same \"thamesname\" with \"gemphasename\", or add one of the "
+              "phases defined by default (unused):"
+           << endl;
+      vector<string> defaultNames = getDefaultMicroPhNames();
+      bool nexist = true;
+      int defaultNamesSize = defaultNames.size();
+      for (int i = 0; i < defaultNamesSize; i++) {
+        nexist = true;
+        for (int j = 0; j < numMicroPhases_; j++) {
+          if (defaultNames[i] == microPhaseName_[j]) {
+            nexist = false;
+            break;
+          }
+        }
+        if (nexist)
+          cout << "          " << defaultNames[i] << endl;
+      }
+
+      cout << endl
+           << "   - have also a look to the <<" << jobRoot_
+           << ".report>> file, \"List of Dependent Components\" section"
+           << endl;
+
+      cout << endl
+           << endl << "stop"
+           << endl;
+
+      exit(0);
+    } else {
+      unknownDC_.clear();
+      cout << endl << endl;
+    }
+  }
+  // for test of simparams.json - final
 }
 
