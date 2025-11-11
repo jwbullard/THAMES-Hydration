@@ -1336,7 +1336,7 @@ vector<int> Lattice::growPhase(vector<int> growPhaseIDVect,
         }
         removeGrowthSite_grow(ste, plist[j]);
       }
-      if (affSumInt < 0.0) {
+      if (affSumInt < 0) {
         cout << endl
              << "    Lattice::growPhase test:  affSumInt = " << affSumInt
              << "  - for growthVectorSize = " << growthVectorSize << endl;

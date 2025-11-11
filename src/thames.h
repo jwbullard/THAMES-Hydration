@@ -219,7 +219,7 @@ void timeCount(clock_t time_, time_t lt_);
 @brief Delete dynamically allocated memory
 
 @param ChemSys is the pointer to the ChemicalSystem object
-@param Lattice is the pointer to the Lattice object
+@param Mic is the pointer to the Lattice object
 @param RNG is the pointer to the RanGen object
 @param ThermalStrainSolver is the pointer to the ThermalStrain object
 @param AppliedStrainSolver is the pointer to the AppliedStrain object
@@ -238,5 +238,15 @@ void deleteDynAllocMem(ChemicalSystem *ChemSys, Lattice *Mic, RanGen *RNG,
                        KineticController *KController, Controller *Ctrl,
                        clock_t st_time, time_t lt, bool errorProgram,
                        const std::string &outputFolder);
+
+/**
+@brief Write the last number of voxels for each microPhase in the system.
+
+This is the count_ vector from Lattice class.
+
+@param chemsys is the pointer to the ChemicalSystem object.
+@param mic is the pointer to the Lattice object.
+*/
+void writeLastCount(ChemicalSystem *chemsys, Lattice *mic);
 
 #endif // SRC_THAMES_H_

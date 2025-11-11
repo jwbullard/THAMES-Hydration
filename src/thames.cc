@@ -469,6 +469,7 @@ void deleteDynAllocMem(ChemicalSystem *ChemSys, Lattice *Mic, RanGen *RNG,
     delete ThermalStrainSolver;
   }
   if (Mic) {
+    writeLastCount(ChemSys, Mic);
     delete Mic;
   }
   if (ChemSys) {
@@ -734,4 +735,32 @@ void writeReport(const string &jobRoot, struct tm *itime,
 
   out.close();
   return;
+}
+
+void writeLastCount(ChemicalSystem *chemsys, Lattice *mic) {
+  std::vector<int> count;
+  count = mic->getCount();
+  int dim = count.size();
+  int numPhases = chemsys->getNumMicroPhases();
+  std::vector<string> phaseName = chemsys->getMicroPhaseName();
+  long int sumCount = 0;
+
+  if (dim == 0) {
+    count.resize(numPhases, 0);
+    dim = numPhases;
+  }
+  cout << endl << "   Last number of voxels for each microPhase <-> nVmPh(i) :"
+       << endl;
+  for (int i = 0; i < dim; i++) {
+    sumCount += count[i];
+    cout << "    " << setw(3) << right << i
+         << " - " << setw(18) << left << phaseName[i]
+         << " : " << setw(10) << right << count[i]
+         << endl;
+  }
+  cout << endl << "   nVmPh_total = " << sumCount << endl;
+  cout << "   system dimension is : dimX*dimY*dimZ = "
+       << mic->getXDim() << " * " << mic->getYDim() << " * " << mic->getZDim()
+       << " = " << mic->getXDim() * mic->getYDim() * mic->getZDim()
+       << endl;
 }
