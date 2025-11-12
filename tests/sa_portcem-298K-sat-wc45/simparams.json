@@ -15,7 +15,7 @@
     ]
   },
   "microstructure": {
-    "numentries": 18,
+    "numentries": 19,
     "phases": [
       {
         "thamesname": "Void",
@@ -90,6 +90,9 @@
               },
               {
                 "gemdcname": "CaOH+",
+                "gemdcporosity": 1
+              },
+              { "gemdcname": "Ca(HSiO3)+",
                 "gemdcporosity": 1
               },
               {
@@ -507,7 +510,38 @@
                 "gemdcname": "hemihydrate"
               }
             ]
-          },
+          }
+        ],
+        "kinetic_data": {
+          "type": "Standard",
+          "activationEnergy": 40000,
+          "dissolutionRateConst": 0.0000015,
+          "diffusionRateConstEarly": 0.000005,
+          "diffusionRateConstLate": 0.000005,
+          "dissolvedUnits": 2,
+          "siexp": 1,
+          "dfexp": 1.1,
+          "dorexp": 0.5,
+          "loi": 0
+        }
+      },
+      {
+        "thamesname": "Anhydrite",
+        "id": 9,
+        "cement_component": 1,
+        "interface_data": {
+          "affinity": [
+            {
+              "affinityphase": "Gypsum",
+              "contactanglevalue": 0
+            },
+            {
+              "affinityphase": "CSHQ",
+              "contactanglevalue": 0
+            }
+          ]
+        },
+        "gemphase_data": [
           {
             "gemphasename": "Anhydrite",
             "gemdc": [
@@ -532,7 +566,7 @@
       },
       {
         "thamesname": "Dolomite",
-        "id": 9,
+        "id": 10,
         "cement_component": 0,
         "gemphase_data": [
           {
@@ -555,7 +589,7 @@
       },
       {
         "thamesname": "Portlandite",
-        "id": 10,
+        "id": 11,
         "cement_component": 0,
         "interface_data": {
           "affinity": [
@@ -586,7 +620,7 @@
       },
       {
         "thamesname": "CSHQ",
-        "id": 11,
+        "id": 12,
         "cement_component": 0,
         "interface_data": {
           "affinity": [
@@ -914,7 +948,7 @@
       },
       {
         "thamesname": "AFm",
-        "id": 12,
+        "id": 13,
         "cement_component": 0,
         "interface_data": {
           "affinity": [
@@ -969,7 +1003,7 @@
       },
       {
         "thamesname": "AFmc",
-        "id": 13,
+        "id": 14,
         "cement_component": 0,
         "interface_data": {
           "affinity": [
@@ -1052,7 +1086,7 @@
       },
       {
         "thamesname": "Monosulfate",
-        "id": 14,
+        "id": 15,
         "cement_component": 0,
         "interface_data": {
           "affinity": [
@@ -1074,6 +1108,10 @@
             },
             {
               "affinityphase": "Bassanite",
+              "contactanglevalue": 0
+            },
+            {
+              "affinityphase": "Anhydrite",
               "contactanglevalue": 0
             },
             {
@@ -1130,7 +1168,7 @@
       },
       {
         "thamesname": "AFt",
-        "id": 15,
+        "id": 16,
         "cement_component": 0,
         "interface_data": {
           "affinity": [
@@ -1216,7 +1254,7 @@
       },
       {
         "thamesname": "Brucite",
-        "id": 16,
+        "id": 17,
         "cement_component": 0,
         "interface_data": {
           "affinity": [
@@ -1234,6 +1272,10 @@
             },
             {
               "affinityphase": "Bassanite",
+              "contactanglevalue": 0
+            },
+            {
+              "affinityphase": "Anhydrite",
               "contactanglevalue": 0
             },
             {
@@ -1259,7 +1301,7 @@
       },
       {
         "thamesname": "Hydrotalcite",
-        "id": 17,
+        "id": 18,
         "cement_component": 0,
         "gemphase_data": [
           {

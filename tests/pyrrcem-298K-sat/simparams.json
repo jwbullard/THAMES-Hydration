@@ -48,6 +48,7 @@
               { "gemdcname": "Ca(SO4)@", "gemdcporosity": 1.0 },
               { "gemdcname": "Ca+2", "gemdcporosity": 1.0 },
               { "gemdcname": "CaOH+", "gemdcporosity": 1.0 },
+              { "gemdcname": "Ca(HSiO3)+", "gemdcporosity": 1 },
               { "gemdcname": "CaSiO3@", "gemdcporosity": 1.0 },
               { "gemdcname": "Fe(CO3)@", "gemdcporosity": 1.0 },
               { "gemdcname": "Fe(HCO3)+", "gemdcporosity": 1.0 },
