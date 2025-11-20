@@ -2179,6 +2179,9 @@ public:
     return allPhId;
   }
 
+  void addSeedCSHQ(bool seedMassCEM, bool seedMassC3S,
+                   bool seedMassC2S, double massFraction);
+
 }; // End of Lattice class
 
 #endif // SRC_THAMESLIB_LATTICE_H_

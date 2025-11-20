@@ -2247,6 +2247,12 @@ void ChemicalSystem::calcMicroPhasePorosity(const unsigned int idx) {
 
   microPhasePorosityInt_[idx] = testPorInt;
   microPhasePorosity_[idx] = testPorDbl;
+
+  if (microPhaseName_[idx] == "CSHQ") {
+    cout << "    ChemicalSystem::calcMicroPhasePorosity - " << microPhaseName_[idx]
+         << " : microPhasePorosity_ = " << microPhasePorosity_[idx]
+         << "    microPhasePorosityInt_= " << microPhasePorosityInt_[idx] << endl;
+  }
   // microPhasePorosity_[idx] = porosity;
 
   return;

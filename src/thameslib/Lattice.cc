@@ -32,6 +32,35 @@ Lattice::Lattice(ChemicalSystem *cs, RanGen *rg, int seedRNG,
                  const bool warning) {
   // : chemSys_(cs), rg_(rg) {
 
+  bool seededCSH = false;
+  bool seedMassCEM = false;
+  bool seedMassC3S = true;
+  bool seedMassC2S = false;
+  double massFraction = 0.02;
+
+  if (seededCSH) {
+    cout << endl
+         << "Lattice::Lattice : for this simulation the initial configuration contains CSH seeds!"
+         << endl;
+    cout << "  - the number of seeds is computed as a mass fraction ("
+         << massFraction << ") of the total amount of ";
+    if (seedMassCEM == true) {
+      cout << "cement"<< endl;
+    } else if (seedMassC3S == true && seedMassC2S == true) {
+      cout << "alite and belite"<< endl;
+    } else if (seedMassC3S == true) {
+      cout << "alite"<< endl;
+    } else if (seedMassC2S == true) {
+      cout << "belite"<< endl;
+    }
+    cout << "  - the CSH seeds are placed randomly into the structure" << endl;
+  } else {
+    cout << endl
+         << "Lattice::Lattice : for this simulation the initial configuration doesn't "
+            "contain CSH seeds"
+         << endl;
+  }
+
   int i, j, k;
   int ii;
   string buff;
@@ -608,6 +637,7 @@ Lattice::Lattice(ChemicalSystem *cs, RanGen *rg, int seedRNG,
       // cout << "   " << i << "\t" << chemSys_->getICMoles(i)
       //     << "\t" << chemSys_->getICName(i) << endl;
     }
+
     int numDCs = chemSys_->getNumDCs();
     for (int i = 0; i < numDCs; i++) {
       chemSys_->setDCMoles(i, 0.0);
@@ -628,7 +658,6 @@ Lattice::Lattice(ChemicalSystem *cs, RanGen *rg, int seedRNG,
 
     try {
       normalizePhaseMasses(microPhaseMass);
-
       // Next we also normalize the surface areas to the same 100 g of total
       // solid in the initial microstructure
       // Calculate the surface area per 100 g solid
@@ -640,20 +669,21 @@ Lattice::Lattice(ChemicalSystem *cs, RanGen *rg, int seedRNG,
     // Set the initial total volume of the microstructure
 
     double totmicvol = 0.0;
-    // int totCount_ = 0;
-    // cout << endl << "count_ : " << endl;
+    int totCount_ = 0;
+    cout << endl << "Lattice::Lattice - volumes & count_ : " << endl;
     for (int i = 0; i < numMicroPhases_; i++) {
       microPhaseId = chemSys_->getMicroPhaseId(i);
       if (microPhaseId != VOIDID) {
-        // cout << i << "\t" << chemSys_->getMicroPhaseVolume(microPhaseId)
-        //      << "\t" << chemSys_->getMicroPhaseName(i) << " / " << count_[i]
-        //      << endl ;
+         cout << "    mPhId = " << i << "\tvolume = "
+              << chemSys_->getMicroPhaseVolume(microPhaseId)
+              << "\t" << chemSys_->getMicroPhaseName(i) << " / count_ = "
+              << count_[i] << endl ;
         totmicvol += chemSys_->getMicroPhaseVolume(microPhaseId);
-        // totCount_ += count_[i];
+        totCount_ += count_[i];
       }
     }
-    // cout << "totCount_/totmicvol: " << totCount_ << " / " << totmicvol
-    // <<endl;
+    cout << "Lattice::Lattice - totCount_/totmicvol: " << totCount_
+         << " / " << totmicvol << endl;
 
     chemSys_->setInitMicroVolume(totmicvol);
     chemSys_->setInitGEMVolume();
@@ -665,6 +695,10 @@ Lattice::Lattice(ChemicalSystem *cs, RanGen *rg, int seedRNG,
     // voxelPoreVolumeFraction_ =
     //    getVolumeFraction(ELECTROLYTEID) + getVolumeFraction(VOIDID);
 
+    if (seededCSH) {
+      addSeedCSHQ(seedMassCEM, seedMassC3S, seedMassC2S, massFraction);
+    }
+
   } catch (FloatException flex) {
     throw flex;
   } catch (EOBException eex) {
@@ -675,25 +709,26 @@ Lattice::Lattice(ChemicalSystem *cs, RanGen *rg, int seedRNG,
   electrolyteIntPorosity_ = microPhasePorosityInt_[ELECTROLYTEID];
   voidIntPorosity_ = microPhasePorosityInt_[VOIDID];
   int phId;
-  double rng;
+  // double rng;
   for (i = 0; i < numSites_; i++) {
     // stId = site_[i].getId();
     phId = site_[i].getMicroPhaseId();
     if (phId == ELECTROLYTEID) {
       site_[i].setWmc0(electrolyteIntPorosity_); // 1.e5
     } else if ((phId != VOIDID)) {
-      rng = callRNG();
-      if (rng >= thrPorosity) {
-        site_[i].setWmc0(microPhasePorosityInt_[phId]);
-      } else {
-        site_[i].setWmc0(0);
-      }
+      // rng = callRNG();
+      // if (rng >= thrPorosity) {
+      //   site_[i].setWmc0(microPhasePorosityInt_[phId]);
+      // } else {
+      //   site_[i].setWmc0(0);
+      // }
+      site_[i].setWmc0(microPhasePorosityInt_[phId]);
     } else {
       site_[i].setWmc0(voidIntPorosity_); // VOID 1.e5
     }
   }
 
-  double wmcLocInt;
+  int wmcLocInt;
   int nbIdLoc;
   for (i = 0; i < numSites_; i++) {
     site_[i].setVisit(0);
@@ -804,29 +839,29 @@ void Lattice::normalizePhaseMasses(vector<double> microPhaseMass) {
   // now we can do so in proportion to electrolyte volume
 
   double totalMass = 0;
-  cout << endl << "Lattice::normalizePhaseMasses - normalized masses:" << endl;
+  cout << endl << "  Lattice::normalizePhaseMasses - normalized masses:" << endl;
   for (int i = 1; i < numMicroPhases_; i++) {
     if (chemSys_->isCementComponent(i)) {
-      cout << setw(5) << right << i << " : " << setw(15) << left
+      cout << setw(6) << right << i << " : " << setw(15) << left
            << chemSys_->getMicroPhaseName(i) << chemSys_->getMicroPhaseMass(i)
            << " g (*)" << endl;
     } else {
-      cout << setw(5) << right << i << " : " << setw(15) << left
+      cout << setw(6) << right << i << " : " << setw(15) << left
            << chemSys_->getMicroPhaseName(i) << chemSys_->getMicroPhaseMass(i)
            << " g" << endl;
     }
     totalMass += chemSys_->getMicroPhaseMass(i);
   }
   cout << endl
-       << "   totalMass       = " << totalMass
+       << "    totalMass       = " << totalMass
        << " g <all phases including water>" << endl;
-  cout << "   totalSolidMass  = " << totalSolidMass << " g <all solid phases>"
+  cout << "    totalSolidMass  = " << totalSolidMass << " g <all solid phases>"
        << endl;
-  cout << "   totalCementMass = " << totalCementMass
+  cout << "    totalCementMass = " << totalCementMass
        << " g <only cement phases (*)>" << endl;
-  cout << "   wsRatio_        = " << wsRatio_
+  cout << "    wsRatio_        = " << wsRatio_
        << "   <waterMass/totalSolidMass>>" << endl;
-  cout << "   wcRatio_        = " << wcRatio_
+  cout << "    wcRatio_        = " << wcRatio_
        << "   <waterMass/totalCementMass>" << endl;
 
   // chemSys_->setInitScaledCementMass(cementMass * 100 / solidMass);
@@ -1018,6 +1053,88 @@ void Lattice::findInterfaces(void) {
   */
 
   // cout << "***   findInterfaces exit" << endl; exit(0);
+
+  /*
+  //**************************** test for modifying affinities (contact angles)
+  vector<int> nbC3S_tot, nbCSH_tot, nbC3S_woCSH, nbCSH_woC3S;
+  nbC3S_tot.clear();
+  nbCSH_tot.clear();
+  nbC3S_woCSH.clear();
+  nbCSH_woC3S.clear();
+  nbC3S_tot.resize(19, 0);
+  nbCSH_tot.resize(19, 0);
+  nbC3S_woCSH.resize(19, 0);
+  nbCSH_woC3S.resize(19, 0);
+  int inbC3S_tot, inbCSH_tot; // , inbCSH_woC3S, inbC3S_woCSH;
+  int siteID, nbPhId;
+  Site *stenb;
+
+  int cshqID = chemSys_->getMicroPhaseId("CSHQ");
+  int aliteID = chemSys_->getMicroPhaseId("Alite");
+  vector<Isite> isite;
+  isite = interface_[cshqID].getGrowthSites();
+  int dimIsite = isite.size();
+  for (int jj = 0; jj < dimIsite; jj++) {
+    siteID = isite[jj].getId();
+    inbC3S_tot = 0;
+    inbCSH_tot = 0;
+    // inbC3S_woCSH = 0;
+    // inbCSH_woC3S = 0;
+    for (int i = 0; i < NN_NNN; i++) {
+      stenb = site_[siteID].nb(i);
+      nbPhId = stenb->getMicroPhaseId();
+      if (nbPhId == cshqID){
+        inbCSH_tot++;
+      }
+      if (nbPhId == aliteID){
+        inbC3S_tot++;
+      }
+    }
+    nbCSH_tot[inbCSH_tot]++;
+    nbC3S_tot[inbC3S_tot]++;
+    if (inbC3S_tot == 0) {
+      nbCSH_woC3S[inbCSH_tot]++;
+    }
+    if (inbCSH_tot == 0) {
+      nbC3S_woCSH[inbC3S_tot]++;
+    }
+  }
+
+  ofstream outfs;
+  string outfilename;
+
+  outfilename = "nbCSH_tot.csv";
+  outfs.open(outfilename.c_str());
+  for (i = 0; i < 19; i++) {
+    outfs << i << "," << nbCSH_tot[i] << endl;
+  }
+  outfs.close();
+
+  outfilename = "nbC3S_tot.csv";
+  outfs.open(outfilename.c_str());
+  for (i = 0; i < 19; i++) {
+    outfs << i << "," << nbC3S_tot[i] << endl;
+  }
+  outfs.close();
+
+  outfilename = "nbCSH_woC3S.csv";
+  outfs.open(outfilename.c_str());
+  for (i = 0; i < 19; i++) {
+    outfs << i << "," << nbCSH_woC3S[i] << endl;
+  }
+  outfs.close();
+
+  outfilename = "nbC3S_woCSH.csv";
+  outfs.open(outfilename.c_str());
+  for (i = 0; i < 19; i++) {
+    outfs << i << "," << nbC3S_woCSH[i] << endl;
+  }
+  outfs.close();
+
+  // cout << endl << "exit Lattice::findInterfaces" << endl;
+  // exit(0);
+  //**************************** test for modifying affinities (contact angles)
+  */
 
   return;
 }
@@ -1364,16 +1481,7 @@ vector<int> Lattice::growPhase(vector<int> growPhaseIDVect,
       ///
 
       // double por = chemSys_->getMicroPhasePorosity(phaseID);
-      if (microPhasePorosityInt_[phaseID] > 0) {
-        rng = callRNG();
-        if (rng >= thrPorosity) {
-          wmcEnd = microPhasePorosityInt_[phaseID];
-        } else {
-          wmcEnd = 0;
-        }
-      } else {
-        wmcEnd = 0;
-      }
+      wmcEnd = microPhasePorosityInt_[phaseID];
       ste->setWmc0(wmcEnd);
 
       // dwmcval = chemSys_->getMicroPhasePorosity(phaseid) -
@@ -1827,14 +1935,7 @@ int Lattice::nucleatePhaseRnd(const int phaseID, const int numToNucleate) {
     ///
 
     // double por = chemSys_->getMicroPhasePorosity(phaseID);
-    wmcEnd = 0;
-    if (microPhasePorosityInt_[phaseID] > 0) {
-      rng = callRNG();
-      if (rng >= thrPorosity) {
-        wmcEnd = microPhasePorosityInt_[phaseID];
-      }
-    }
-
+    wmcEnd = microPhasePorosityInt_[phaseID];
     ste->setWmc0(wmcEnd);
 
     dwmcval = wmcEnd - wmcIni;
@@ -2244,16 +2345,7 @@ int Lattice::nucleatePhaseAff(const int phaseID, const int numToNucleate) {
     ///
 
     // double por = chemSys_->getMicroPhasePorosity(phaseID);
-    if (microPhasePorosityInt_[phaseID] > 0) {
-      rng = callRNG();
-      if (rng >= thrPorosity) {
-        wmcEnd = microPhasePorosityInt_[phaseID];
-      } else {
-        wmcEnd = 0;
-      }
-    } else {
-      wmcEnd = 0;
-    }
+    wmcEnd = microPhasePorosityInt_[phaseID];
     ste->setWmc0(wmcEnd);
 
     dwmcval = wmcEnd - wmcIni;
@@ -6628,7 +6720,7 @@ vector<int> Lattice::transformLiqSol(Site *ste, int growPhID, int totalTRC) {
   // double steWmc, stenbWmc;
   int wmcIni, wmcEnd, dwmcval;
   int steWmc, stenbWmc;
-  double rng;
+  // double rng;
 
   int mPhId;
   int pos;
@@ -6678,16 +6770,7 @@ vector<int> Lattice::transformLiqSol(Site *ste, int growPhID, int totalTRC) {
   /// between the growing phase's porosity and the template's porosity.
 
   // double por = chemSys_->getMicroPhasePorosity(growPhID);
-  if (microPhasePorosityInt_[growPhID] > 0) {
-    rng = callRNG();
-    if (rng >= thrPorosity) {
-      wmcEnd = microPhasePorosityInt_[growPhID];
-    } else {
-      wmcEnd = 0;
-    }
-  } else {
-    wmcEnd = 0;
-  }
+  wmcEnd = microPhasePorosityInt_[growPhID];
   ste->setWmc0(wmcEnd);
 
   dwmcval = wmcEnd - wmcIni;
@@ -7876,4 +7959,257 @@ void Lattice::checkSite(int stId) {
       cout.flush();
     }
   }
+}
+
+void Lattice::addSeedCSHQ(bool seedMassCEM, bool seedMassC3S,
+                          bool seedMassC2S, double massFraction) {
+
+  double rng;
+  int cshqId = chemSys_->getMicroPhaseId("CSHQ");
+  double density = 0, porosity = 0, avMolarMass = 0.0, avMolarVol = 0.0;
+
+  std::vector<double> DCporosities = chemSys_->getMicroPhaseDCPorosities(cshqId);
+
+  double numMoles = 0;
+
+
+  double conc;
+  double molarVol, molarMass;
+  cout << endl << "  Lattice::addSeedCSHQ - microPhaseId = "
+       << cshqId << " => DC components :" << endl;
+
+  std::vector<int> compDC = chemSys_->getMicroPhaseDCMembers(cshqId);
+  int sizeCompDC = compDC.size();
+  for (int i = 0; i < sizeCompDC; i++) {
+    numMoles = chemSys_->getDCMoles(compDC[i]);
+    molarVol = chemSys_->getDCMolarVolume(compDC[i]);
+    molarMass = chemSys_->getDCMolarMass(compDC[i]);
+
+    conc = chemSys_->getDCConcentration(compDC[i]);
+    avMolarMass += (conc * molarMass);    // g/mol
+    avMolarVol += (conc * molarVol);      // m3/mol
+    cout << "    " << i << "\tDCId: " << compDC[i]
+         << "    DCName = " << setw(12) << left << chemSys_->getDCName(compDC[i])
+         << "    Molar mass = " << molarMass
+         << " g/mol     Molar volume = " << molarVol
+         << " m3/mol     porosity = " <<  DCporosities[i] << endl;
+  }
+  density = avMolarMass / avMolarVol / 1.0e6; // g/cm3
+  porosity = chemSys_->getMicroPhasePorosity(cshqId);
+  cout << endl << "  Lattice::addSeedCSHQ - CSHQ : "
+       << " avMolarMass = " << avMolarMass
+       << " g/mol    avMolarVol = " << avMolarVol
+       << " m3/mol    density = " << density
+       << " g/cm3    porosity = " << porosity
+       << endl;
+
+  microPhasePorosityInt_[cshqId] = chemSys_->getMicroPhasePorosityInt(cshqId);
+
+  std::vector<std::string> microPhaseName = chemSys_->getMicroPhaseName();
+  std::vector<double> microPhaseMass = chemSys_->getMicroPhaseMass();
+
+  double totalInitMass = 0.0;
+  double seedMassCSHQ = 0.0;
+
+
+  if (seedMassCEM == true) {
+    for (int i = FIRST_SOLID; i < numMicroPhases_; i++) {
+      if (chemSys_->isCementComponent(i))
+        totalInitMass += microPhaseMass[i];
+    }
+  } else if (seedMassC3S == true && seedMassC2S == true) {
+    for (int i = FIRST_SOLID; i < numMicroPhases_; i++) {
+      if (microPhaseName[i] == "Alite" || microPhaseName[i] == "Belite")
+        totalInitMass += microPhaseMass[i];
+    }
+  } else if (seedMassC3S == true) {
+    for (int i = FIRST_SOLID; i < numMicroPhases_; i++) {
+      if (microPhaseName[i] == "Alite") {
+        totalInitMass = microPhaseMass[i];
+        break;
+      }
+    }
+  } else if (seedMassC2S == true) {
+    for (int i = FIRST_SOLID; i < numMicroPhases_; i++) {
+      if (microPhaseName[i] == "Belite") {
+        totalInitMass = microPhaseMass[i];
+        break;
+      }
+    }
+  } else {
+    // error!
+    cout << endl << "  Lattice::addSeedCSHQ - ERROR : " << endl;
+    cout << "    you decided to create some CSHQ seeds but all next variables are false :"
+         << endl;
+    cout << "      seedMassCEM, seedMassC3S, seedMassC2S" << endl;
+    cout << endl << "    => at least one of them must be true!" << endl;
+    cout << endl << "  exit" << endl;
+    exit(0);
+  }
+
+  if (massFraction <= 0.0) {
+    // error!
+    cout << endl << "  Lattice::addSeedCSHQ - ERROR : " << endl;
+    cout << "    massFraction <= 0.0 !!  :  massFraction = " << massFraction
+         << "   while massFraction must be positive!!!" << endl;
+    cout << endl << "  exit" << endl;
+    exit(0);
+  }
+
+  seedMassCSHQ = totalInitMass * massFraction;
+  cout << endl << "  Lattice::addSeedCSHQ : totalInitMass = "
+       << totalInitMass << "  &  massFraction = " << massFraction
+       << "  =>  seedMassCSHQ = " << seedMassCSHQ << endl;
+
+  cout << endl << "  Lattice::addSeedCSHQ - VOIDS/ELECTROLYTE : count_[1] = "
+       << count_[1] << "  &  count_[2] = " <<  count_[2] << endl;
+
+  double numMolesCSHQ = 0;
+  double seedSolidVolCSHQ = 0;
+  if (avMolarMass > 0) {
+    double sum = 0;
+    numMolesCSHQ = seedMassCSHQ / avMolarMass;
+    cout << endl << "  Lattice::addSeedCSHQ : numMolesCSHQ = "
+         << numMolesCSHQ << " :" << endl;
+    for (int i = 0; i < sizeCompDC; i++) {
+      conc = chemSys_->getDCConcentration(compDC[i]);
+      numMoles = numMolesCSHQ * conc;
+      cout << "    i = " << i << "    DCId = " << compDC[i]
+           << "    DCName = " << setw(12) << left << chemSys_->getDCName(compDC[i])
+           << "    numMoles = " << numMoles << endl;
+      chemSys_->setDCMoles(compDC[i], numMoles);
+      sum += numMoles;
+    }
+    cout << "  Lattice::addSeedCSHQ : sum(numMoles)  = " << sum << endl;
+  } else {
+    // error!
+    cout << endl
+         << "  Lattice::addSeedCSHQ - ERROR :" << endl;
+    cout << "    not positive average molar mass of CSHQ!! : avMolarMass = "
+         << avMolarMass << endl;
+    cout << endl << "  exit" << endl;
+    exit(0);
+  }
+
+  // in Lattice:
+  seedSolidVolCSHQ = numMolesCSHQ * avMolarVol; // [mol] * [m3/mol]
+  chemSys_->setMicroPhaseVolume(cshqId, seedSolidVolCSHQ);
+  cout << endl << "  Lattice::addSeedCSHQ : seedSolidVolCSHQ = "
+       << seedSolidVolCSHQ << " m3"<< endl;
+
+  double varWaterMoles = seedSolidVolCSHQ / waterMolarVol_;
+  cout << "  Lattice::addSeedCSHQ : varWaterMoles    = " << varWaterMoles << endl;
+  double waterMoles = chemSys_->getDCMoles(waterDCId_);
+  cout << "  Lattice::addSeedCSHQ : waterMoles       = " << waterMoles << " (old)" << endl;
+  waterMoles -= varWaterMoles;
+  cout << "  Lattice::addSeedCSHQ : waterMoles       = " << waterMoles << " (new)" << endl;
+  chemSys_->setDCMoles(waterDCId_, waterMoles);
+  chemSys_->setMicroPhaseVolume(ELECTROLYTEID, waterMoles * waterMolarVol_);
+
+  double seedApVolCSHQ = seedSolidVolCSHQ / (1 - porosity);
+  cout << endl << "  Lattice::addSeedCSHQ : seedApVolCSHQ    = " << seedApVolCSHQ
+       << " m3" << endl;
+
+  int numVoxelsApVolCSHQ = seedApVolCSHQ * numSites_ / initialMicrostructureVolume_;
+  cout << "  Lattice::addSeedCSHQ  =>  numVoxelsApVolCSHQ = " << numVoxelsApVolCSHQ
+       << " !!!" << endl;
+
+  // cout << endl << "  Lattice::addSeedCSHQ - DCMoles:" << endl;
+  // int numDCs = chemSys_->getNumDCs();
+  // for (int i = 0; i < numDCs; i++) {
+  //   cout << "    i = " << i << "   DCName = " << chemSys_->getDCName(i)
+  //        << "   DCMoles = " << chemSys_->getDCMoles(i) << endl;
+  // }
+
+  // ******************************************************************
+  //replace numVoxelsApVolCSHQ sites of electrolyte with CSHQ - random
+  vector<int> waterNucSites;
+  int numRemaining = numVoxelsApVolCSHQ;
+
+  cout << endl
+       << "  Lattice::addSeedCSHQ phaseID = " << cshqId
+       << "   namePhase = CSHQ"  << endl;
+  cout << "    sites to add        : numVoxelsApVolCSHQ = "
+       << numVoxelsApVolCSHQ << endl;
+  cout << "    sites in the system : count_[" << cshqId
+       << "] = " << count_[cshqId] << endl;
+  cout << "    void sites          : count_[0] = " << count_[0] << endl;
+  cout << "    electrolyte sites   : count_[1] = " << count_[1] << endl;
+
+  // make a list of all saturated sites capable of hosting nucleation
+  waterNucSites.clear();
+  for (int k = 0; k < numSites_; ++k) {
+    if (site_[k].getMicroPhaseId() == ELECTROLYTEID) {
+      waterNucSites.push_back(k);
+    }
+  }
+  int sizeWS = waterNucSites.size();
+  cout << endl
+     << "  Lattice::addSeedCSHQ  - eligible water sites : sizeWS = "
+     << sizeWS << endl;
+  if (numVoxelsApVolCSHQ > sizeWS) {
+    cout << endl
+         << "      Lattice::addSeedCSHQ : requested number of seeds is"
+            " larger than the number of all possible nucleation sites (sizeWSs)!"
+         << endl;
+    cout << "     numVoxelsApVolCSHQ > all possible nuc sites : "
+         << numVoxelsApVolCSHQ << " > " << sizeWS << endl;
+  }
+
+  int siteId, pos ;
+  while ((sizeWS > 0) && (numRemaining > 0)) {
+    rng = callRNG();
+    pos = static_cast<int>(rng * sizeWS);
+    if (pos == sizeWS)
+      pos--;
+
+    siteId = waterNucSites[pos];
+    site_[siteId].setMicroPhaseId(cshqId);
+    count_[ELECTROLYTEID]--;
+    count_[cshqId]++;
+
+    numRemaining--;
+
+    waterNucSites[pos] = waterNucSites[sizeWS - 1];
+    waterNucSites.pop_back();
+
+    sizeWS--;
+  }
+
+  if (numRemaining > 0) {
+    cout << endl
+         << "      Lattice::addSeedCSHQ - END ERROR : requested numSeedsCSHQ = "
+         << numVoxelsApVolCSHQ << " while number of added seeds = "
+         << numVoxelsApVolCSHQ - numRemaining << endl;
+    cout << endl
+         << "      exit" << endl;
+    exit(0);
+
+  } else {
+
+    double totmicvol = 0.0;
+    int totCount_ = 0;
+    int mPhId;
+    cout << endl
+         << "  Lattice::addSeedCSHQ - volumes & count_ : " << endl;
+    for (int i = 0; i < numMicroPhases_; i++) {
+      mPhId = chemSys_->getMicroPhaseId(i);
+      if (mPhId != VOIDID) {
+        cout << "    mPhId = " << i << "\tvolume = " << chemSys_->getMicroPhaseVolume(mPhId)
+             << "\t" << chemSys_->getMicroPhaseName(i)
+             << " / count_ = " << count_[i] << endl;
+        totmicvol += chemSys_->getMicroPhaseVolume(mPhId);
+        totCount_ += count_[i];
+      }
+    }
+    cout << "  Lattice::addSeedCSHQ - totCount_/totmicvol : "
+         << totCount_ << " / " << totmicvol << endl;
+
+    cout << endl
+         << "  Lattice::addSeedCSHQ - END OK : a number of numSeedsCSHQ = "
+         << numVoxelsApVolCSHQ << " CSHQ sites have been nucleated (seeds) !" << endl;
+  }
+
+  // cout << endl << "exit Lattice::addSeedCSHQ" << endl;
+  // exit(0);
 }
