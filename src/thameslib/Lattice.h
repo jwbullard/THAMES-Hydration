@@ -195,6 +195,9 @@ private:
   std::vector<std::vector<bool>> growthTemplate_;
   std::vector<int> microPhasePorosityInt_;
 
+  double oneFaceAreaPerHundredGramSolid_; /** surface area of one voxel's face per 100g of
+                                              the initial solid mass of the system*/
+
   // int DAMAGEID_;
 
 public:
@@ -2181,6 +2184,13 @@ public:
 
   void addSeedCSHQ(bool seedMassCEM, bool seedMassC3S,
                    bool seedMassC2S, double massFraction);
+
+  /**
+  @brief Calculate the surface area of one voxel's face per 100g of
+  the initial solid mass of the system (in units of m2 per 100 g of 
+  total solids)
+  */
+  void calcOneFaceAreaPerHundredGramSolid(void);
 
 }; // End of Lattice class
 

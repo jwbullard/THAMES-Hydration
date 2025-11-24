@@ -617,6 +617,7 @@ Lattice::Lattice(ChemicalSystem *cs, RanGen *rg, int seedRNG,
     // Set the water-solids mass ratio based on the initial microstructure
 
     initSolidMass_ = solidMass;
+    calcOneFaceAreaPerHundredGramSolid();
     chemSys_->setInitSolidMass(initSolidMass_);
 
     wsRatio_ = microPhaseMass[ELECTROLYTEID] / solidMass;
@@ -7019,6 +7020,7 @@ void Lattice::calcSurfaceArea(int phaseid) {
   // But all our normalizations are on a basis of 100 g
   // So we further multiply by 100 to get m2 per 100 g of initial solid
 
+  /*
   double oneFaceAreaPerHundredGramSolid;
 
   if (initSolidMass_ > 0.0) {
@@ -7042,6 +7044,7 @@ void Lattice::calcSurfaceArea(int phaseid) {
     string msg = "Divide by zero error:  initSolidMass_ = 0";
     throw FloatException("Lattice", "calcSurfaceArea", msg);
   }
+  */
 
   // if (phaseid > -1 && phaseid < surfaceArea_.size()) {
   double d_convFactDbl2IntPor = static_cast<double> (convFactDbl2IntPor_);
@@ -7062,7 +7065,7 @@ void Lattice::calcSurfaceArea(int phaseid) {
   //                       surfaceArea_.size(), phaseid);
   // }
 
-  surfaceArea_[phaseid] *= oneFaceAreaPerHundredGramSolid;
+  surfaceArea_[phaseid] *= oneFaceAreaPerHundredGramSolid_;
 
   // Calculate specific surface area of this phase by dividing
   // this surface area by the phase mass (g per 100 g of all solid)
@@ -8212,4 +8215,55 @@ void Lattice::addSeedCSHQ(bool seedMassCEM, bool seedMassC3S,
 
   // cout << endl << "exit Lattice::addSeedCSHQ" << endl;
   // exit(0);
+}
+
+void Lattice::calcOneFaceAreaPerHundredGramSolid(void) {
+
+  // Explanation of the normalization factor
+  //
+  // The surface area initially calculated is just in units of voxel faces
+  // We want it to ultimately have units of m2 per 100 g of solid
+  // So we must divide surface area by a factor with units of 100 g per m2 per
+  // voxel
+  //
+  // areaPerFace_ has units of m2 per voxel face
+  // surfaceArea_ has units of voxel faces per microstructure
+  // volumePerVoxel_ has units of m3 per voxel
+  // numSites_ has units of voxels
+  // initSolidMass_ has units of g per cm3 of whole microstructure
+  // 1.0e6 has units of cm3 per m3
+  // So new surfaceArea values have units of
+  // m2*(m3/cm3)(cm3/g)*(1/voxel)*(voxel/m3)
+  // So the normalization below would be m2 / g of initial solid
+  // But all our normalizations are on a basis of 100 g
+  // So we further multiply by 100 to get m2 per 100 g of initial solid
+
+  // double oneFaceAreaPerHundredGramSolid;
+
+  if (initSolidMass_ > 0.0) {
+    double oneFaceAreaPerMicrostructure =
+        areaPerFace_ /
+        (static_cast<double>(numSites_)); // m2/face/microstructure
+    double oneFaceAreaPerMeterCubed = oneFaceAreaPerMicrostructure /
+                                      volumePerVoxel_; // m2/face/
+                                                       // (m3 of microstructure)
+
+    double oneFaceAreaPerCmCubed =
+        1.0e-6 * oneFaceAreaPerMeterCubed; // m2/face/
+                                           // (cm3 of microstructure)
+    double oneFaceAreaPerGramSolid =
+        oneFaceAreaPerCmCubed / initSolidMass_; // m2/face/
+                                                // (g of solid)
+    oneFaceAreaPerHundredGramSolid_ =
+        100.0 * oneFaceAreaPerGramSolid; // m2/face/
+                                         // (100 g of solid)
+  } else {
+    string msg = "Divide by zero error:  initSolidMass_ = 0";
+    throw FloatException("Lattice", "calcOneFaceAreaPerHundredGramSolid", msg);
+  }
+
+  cout << endl
+       << "  Lattice::calcOneFaceAreaPerHundredGramSolid : "
+                  "oneFaceAreaPerHundredGramSolid_ = "
+       << oneFaceAreaPerHundredGramSolid_ << endl;
 }
