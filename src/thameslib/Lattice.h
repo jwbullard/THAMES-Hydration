@@ -1678,18 +1678,15 @@ public:
   void applyExpansion(std::vector<int> alnb, double exp);
 
   /**
-  @brief Estimate the surface areas of all solid phases
-  with the aqueous solution, in units of m2 per 100 g of
-  total solids
-
-  @param solidMass is the mass of all solids in g
+  @brief Estimate the surface areas and specific surface area of all solid phases
+  with the aqueous solution, in units of m2 per 100 g of total solids
   */
   void calcSurfaceAreas(void) {
     double scaledMass;
     surfaceArea_.resize(numMicroPhases_, 0.0);
     specificSurfaceArea_.resize(numMicroPhases_, 0.0);
     for (int i = 0; i < numMicroPhases_; ++i) {
-      calcSurfaceArea(i);
+      calcSurfaceAreaInit(i);
 
       // Calculate specific surface area of this phase by dividing
       // this surface area by the phase mass (g per 100 g of all solid)
@@ -1714,6 +1711,7 @@ public:
   @param phaseid is the id of the microstructure phase
   */
   void calcSurfaceArea(int phaseid);
+  void calcSurfaceAreaInit(int phaseid);
 
   /**
   @brief Return the current surface area of a phase with the aqueous

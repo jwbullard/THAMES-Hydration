@@ -543,11 +543,13 @@ Lattice::Lattice(ChemicalSystem *cs, RanGen *rg, int seedRNG,
     }
 
     // DAMAGEID_ = chemSys_->getMicroPhaseId("DAMAGE");
+
     if (numSites_ > 0) {
       for (microPhaseId = 0; microPhaseId < numMicroPhases_; microPhaseId++) {
         myname = chemSys_->getMicroPhaseName(microPhaseId);
         vfrac = (static_cast<double>(count_[microPhaseId])) /
                 (static_cast<double>(numSites_));
+
         if (vfrac > 0.0) {
           try {
             volumeFraction_[microPhaseId] = vfrac;
@@ -675,10 +677,10 @@ Lattice::Lattice(ChemicalSystem *cs, RanGen *rg, int seedRNG,
     for (int i = 0; i < numMicroPhases_; i++) {
       microPhaseId = chemSys_->getMicroPhaseId(i);
       if (microPhaseId != VOIDID) {
-         cout << "    mPhId = " << i << "\tvolume = "
-              << chemSys_->getMicroPhaseVolume(microPhaseId)
-              << "\t" << chemSys_->getMicroPhaseName(i) << " / count_ = "
-              << count_[i] << endl ;
+        cout << "    mPhId = " << i << "\tvolume = "
+             << chemSys_->getMicroPhaseVolume(microPhaseId)
+             << "\t" << chemSys_->getMicroPhaseName(i) << " / count_ = "
+             << count_[i] << endl ;
         totmicvol += chemSys_->getMicroPhaseVolume(microPhaseId);
         totCount_ += count_[i];
       }
@@ -698,6 +700,7 @@ Lattice::Lattice(ChemicalSystem *cs, RanGen *rg, int seedRNG,
 
     if (seededCSH) {
       addSeedCSHQ(seedMassCEM, seedMassC3S, seedMassC2S, massFraction);
+      calcSurfaceAreas();
     }
 
   } catch (FloatException flex) {
@@ -884,7 +887,7 @@ void Lattice::normalizePhaseMasses(vector<double> microPhaseMass) {
   //        << "\t" << chemSys_->getDCClassCode(i)
   //        << "\t" << chemSys_->getDCName(i) << endl;
   // }
-  // cout << endl << "normalizePhaseMasses DCs:" << endl << endl;
+  // cout << endl << "normalizePhaseMasses OK!" << endl << endl;
 
   return;
 }
@@ -1056,7 +1059,7 @@ void Lattice::findInterfaces(void) {
   // cout << "***   findInterfaces exit" << endl; exit(0);
 
   /*
-  //**************************** test for modifying affinities (contact angles)
+  // **************************** test for modifying affinities (contact angles)
   vector<int> nbC3S_tot, nbCSH_tot, nbC3S_woCSH, nbCSH_woC3S;
   nbC3S_tot.clear();
   nbCSH_tot.clear();
@@ -1134,7 +1137,7 @@ void Lattice::findInterfaces(void) {
 
   // cout << endl << "exit Lattice::findInterfaces" << endl;
   // exit(0);
-  //**************************** test for modifying affinities (contact angles)
+  // **************************** test for modifying affinities (contact angles)
   */
 
   return;
@@ -8178,8 +8181,30 @@ void Lattice::calcOneFaceAreaPerHundredGramSolid(void) {
 
   cout << endl
        << "  Lattice::calcOneFaceAreaPerHundredGramSolid : "
-                  "oneFaceAreaPerHundredGramSolid_ = "
+          "oneFaceAreaPerHundredGramSolid_ = "
        << oneFaceAreaPerHundredGramSolid_ << endl;
+}
+
+
+void Lattice::calcSurfaceAreaInit(int phId) {
+  // in m2 / (100g of solid)
+
+  Site *ste, *stenb;
+
+  double d_convFactDbl2IntPor = static_cast<double> (convFactDbl2IntPor_);
+  for (int i = 0; i < numSites_; i++) {
+    ste = &site_[i];
+    if (ste->getMicroPhaseId() == phId) {
+      for (int j = 0; j < NUM_NEAREST_NEIGHBORS; j++) {
+        stenb = ste->nb(j);
+        surfaceArea_[phId] += (microPhasePorosityInt_[stenb->getMicroPhaseId()] /
+            d_convFactDbl2IntPor);
+      }
+    }
+  }
+  surfaceArea_[phId] *= oneFaceAreaPerHundredGramSolid_;
+
+  return;
 }
 
 void Lattice::calcSurfaceArea(int phId) {
