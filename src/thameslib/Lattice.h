@@ -1681,28 +1681,7 @@ public:
   @brief Estimate the surface areas and specific surface area of all solid phases
   with the aqueous solution, in units of m2 per 100 g of total solids
   */
-  void calcSurfaceAreas(void) {
-    double scaledMass;
-    surfaceArea_.resize(numMicroPhases_, 0.0);
-    specificSurfaceArea_.resize(numMicroPhases_, 0.0);
-    for (int i = 0; i < numMicroPhases_; ++i) {
-      calcSurfaceAreaInit(i);
-
-      // Calculate specific surface area of this phase by dividing
-      // this surface area by the phase mass (g per 100 g of all solid)
-      // Units of specific surface are will be m2 per kg of this phase,
-      // to make it consistent with legacy Parrot-Killoh model which
-      // uses traditional Blaine fineness units
-      scaledMass = chemSys_->getMicroPhaseMass(i);
-      if (scaledMass > 0.0) {
-        // The factor of 1000.0 converts units from m2/g to m2/kg
-        specificSurfaceArea_[i] = 1000.0 * surfaceArea_[i] / scaledMass;
-      } else {
-        specificSurfaceArea_[i] = 0.0;
-      }
-
-    }
-  }
+  void calcSurfaceAreas(void);
 
   /**
   @brief Estimate the surface area of a phase with the aqueous
@@ -1711,7 +1690,6 @@ public:
   @param phaseid is the id of the microstructure phase
   */
   void calcSurfaceArea(int phaseid);
-  void calcSurfaceAreaInit(int phaseid);
 
   /**
   @brief Return the current surface area of a phase with the aqueous
