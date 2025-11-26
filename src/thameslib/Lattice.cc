@@ -6998,92 +6998,6 @@ void Lattice::applyExpansion(vector<int> alnb, double exp) {
   return;
 }
 
-void Lattice::calcSurfaceArea(int phaseid) {
-  Site *ste, *stenb;
-
-  // Explanation of the normalization factor
-  //
-  // The surface area initially calculated is just in units of voxel faces
-  // We want it to ultimately have units of m2 per 100 g of solid
-  // So we must divide surface area by a factor with units of 100 g per m2 per
-  // voxel
-  //
-  // areaPerFace_ has units of m2 per voxel face
-  // surfaceArea_ has units of voxel faces per microstructure
-  // volumePerVoxel_ has units of m3 per voxel
-  // numSites_ has units of voxels
-  // initSolidMass_ has units of g per cm3 of whole microstructure
-  // 1.0e6 has units of cm3 per m3
-  // So new surfaceArea values have units of
-  // m2*(m3/cm3)(cm3/g)*(1/voxel)*(voxel/m3)
-  // So the normalization below would be m2 / g of initial solid
-  // But all our normalizations are on a basis of 100 g
-  // So we further multiply by 100 to get m2 per 100 g of initial solid
-
-  /*
-  double oneFaceAreaPerHundredGramSolid;
-
-  if (initSolidMass_ > 0.0) {
-    double oneFaceAreaPerMicrostructure =
-        areaPerFace_ /
-        (static_cast<double>(numSites_)); // m2/face/microstructure
-    double oneFaceAreaPerMeterCubed = oneFaceAreaPerMicrostructure /
-                                      volumePerVoxel_; // m2/face/
-                                                       // (m3 of microstructure)
-
-    double oneFaceAreaPerCmCubed =
-        1.0e-6 * oneFaceAreaPerMeterCubed; // m2/face/
-                                           // (cm3 of microstructure)
-    double oneFaceAreaPerGramSolid =
-        oneFaceAreaPerCmCubed / initSolidMass_; // m2/face/
-                                                // (g of solid)
-    oneFaceAreaPerHundredGramSolid =
-        100.0 * oneFaceAreaPerGramSolid; // m2/face/
-                                         // (100 g of solid)
-  } else {
-    string msg = "Divide by zero error:  initSolidMass_ = 0";
-    throw FloatException("Lattice", "calcSurfaceArea", msg);
-  }
-  */
-
-  // if (phaseid > -1 && phaseid < surfaceArea_.size()) {
-  double d_convFactDbl2IntPor = static_cast<double> (convFactDbl2IntPor_);
-  for (int i = 0; i < numSites_; i++) { // site_.size()
-    ste = &site_[i];
-    if (ste->getMicroPhaseId() == phaseid) {
-      for (int j = 0; j < NUM_NEAREST_NEIGHBORS; j++) { // ste->nbSize(1)
-        stenb = ste->nb(j);
-        // surfaceArea_[phaseid] +=
-        //     chemSys_->getMicroPhasePorosity(stenb->getMicroPhaseId());
-        surfaceArea_[phaseid] += (microPhasePorosityInt_[stenb->getMicroPhaseId()] /
-            d_convFactDbl2IntPor);
-      }
-    }
-  }
-  // } else {
-  //   throw EOBException("Lattice", "calcSurfaceArea", "surfaceArea_",
-  //                       surfaceArea_.size(), phaseid);
-  // }
-
-  surfaceArea_[phaseid] *= oneFaceAreaPerHundredGramSolid_;
-
-  // Calculate specific surface area of this phase by dividing
-  // this surface area by the phase mass (g per 100 g of all solid)
-  // Units of specific surface are will be m2 per kg of this phase,
-  // to make it consistent with legacy Parrot-Killoh model which
-  // uses traditional Blaine fineness units
-
-  double scaledMass = chemSys_->getMicroPhaseMass(phaseid);
-  if (scaledMass > 0.0) {
-    // The factor of 1000.0 converts units from m2/g to m2/kg
-    specificSurfaceArea_[phaseid] = 1000.0 * surfaceArea_[phaseid] / scaledMass;
-  } else {
-    specificSurfaceArea_[phaseid] = 0.0;
-  }
-
-  return;
-}
-
 int Lattice::findDomainSize(int siteid, int maxsize) {
 
   int boxhalf = maxsize / 2;
@@ -8266,4 +8180,30 @@ void Lattice::calcOneFaceAreaPerHundredGramSolid(void) {
        << "  Lattice::calcOneFaceAreaPerHundredGramSolid : "
                   "oneFaceAreaPerHundredGramSolid_ = "
        << oneFaceAreaPerHundredGramSolid_ << endl;
+}
+
+void Lattice::calcSurfaceArea(int phId) {
+  // in m2 / (100g of solid)
+
+  Site *stenb;
+  int stId;
+
+  vector<Isite> isite = interface_[phId].getDissolutionSites();
+  int size = isite.size();
+  double d_convFactDbl2IntPor = static_cast<double> (convFactDbl2IntPor_);
+
+  for (int i = 0; i < size; i++) {
+    stId = isite[i].getId();
+    // for (int j = 0; j < NN_NNN; j++) {
+    for (int j = 0; j < NUM_NEAREST_NEIGHBORS; j++) {
+      stenb = site_[stId].nb(j); //ste->nb(j);
+      surfaceArea_[phId] += (microPhasePorosityInt_[stenb->getMicroPhaseId()] /
+          d_convFactDbl2IntPor);
+    }
+  }
+
+  // surfaceArea_[phId] = (numTotEle + numTotCSHQ * porCSHQ) * oneFaceAreaPerHundredGramSolid_;
+  surfaceArea_[phId] *= oneFaceAreaPerHundredGramSolid_;
+
+  return;
 }

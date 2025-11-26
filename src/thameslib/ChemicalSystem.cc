@@ -2208,7 +2208,8 @@ void ChemicalSystem::calcMicroPhasePorosity(const unsigned int idx) {
       sumvol += vol;
       if (verbose_) {
         cout << "    " << getDCName(DCId) << " (" << DCId
-             << ") concentration = " << conc << endl;
+             << ") concentration = " << conc
+             << "   DCMoles_ = " << DCMoles_[DCId] << endl;
         cout << "    " << getDCName(DCId) << " (" << DCId
              << ") porosity = " << porosity << endl;
         cout << "    " << getDCName(DCId) << " (" << DCId
@@ -2337,7 +2338,7 @@ int ChemicalSystem::calculateState(double time, bool isFirst = false,
   if (verbose_) {
     cout << endl << endl
          << "ChemicalSystem::calculateState Entering GEM_from_MT cyc = " << cyc
-         << endl;
+         << "    time = " << time << endl;
     cout << "DCMoles:" << endl;
     for (int i = 0; i < numDCs_; ++i) {
       cout << "    " << i << "   " << DCName_[i] << ": " << DCMoles_[i] << ", ["
@@ -2347,6 +2348,11 @@ int ChemicalSystem::calculateState(double time, bool isFirst = false,
     cout << "ICMoles:" << endl;
     for (int i = 0; i < numICs_; ++i) {
       cout << "    " << ICName_[i] << ": " << ICMoles_[i] << endl;
+    }
+    cout.flush();
+    cout << "specificSurfaceArea_:" << endl;
+    for (int i = 0; i < numGEMPhases_; ++i) {
+      cout << "    " << GEMPhaseName_[i] << ": " << specificSurfaceArea_[i] << endl;
     }
     cout.flush();
   }
@@ -2570,7 +2576,7 @@ int ChemicalSystem::calculateState(double time, bool isFirst = false,
   if (verbose_) {
     cout << endl << "Done!" << endl;
     cout << "ChemicalSystem::calculateState Exiting GEM_to_MT cyc = " << cyc
-         << endl;
+         << "    time = " << time << endl;
     cout << "DCMoles:" << endl;
     for (int i = 0; i < numDCs_; ++i) {
       cout << "    " << DCName_[i] << ": " << DCMoles_[i] << ", ["
@@ -2579,6 +2585,10 @@ int ChemicalSystem::calculateState(double time, bool isFirst = false,
     cout << "ICMoles:" << endl;
     for (int i = 0; i < numICs_; ++i) {
       cout << "    " << ICName_[i] << ": " << ICMoles_[i] << endl;
+    }
+    cout << "specificSurfaceArea_:" << endl;
+    for (int i = 0; i < numGEMPhases_; ++i) {
+      cout << "    " << GEMPhaseName_[i] << ": " << specificSurfaceArea_[i] << endl;
     }
     cout << "after GEM_to_MT...Ms_ = " << Ms_ << ", Hs_ = " << Hs_ << endl;
     cout.flush();

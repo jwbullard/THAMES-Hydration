@@ -1685,10 +1685,25 @@ public:
   @param solidMass is the mass of all solids in g
   */
   void calcSurfaceAreas(void) {
+    double scaledMass;
     surfaceArea_.resize(numMicroPhases_, 0.0);
     specificSurfaceArea_.resize(numMicroPhases_, 0.0);
     for (int i = 0; i < numMicroPhases_; ++i) {
       calcSurfaceArea(i);
+
+      // Calculate specific surface area of this phase by dividing
+      // this surface area by the phase mass (g per 100 g of all solid)
+      // Units of specific surface are will be m2 per kg of this phase,
+      // to make it consistent with legacy Parrot-Killoh model which
+      // uses traditional Blaine fineness units
+      scaledMass = chemSys_->getMicroPhaseMass(i);
+      if (scaledMass > 0.0) {
+        // The factor of 1000.0 converts units from m2/g to m2/kg
+        specificSurfaceArea_[i] = 1000.0 * surfaceArea_[i] / scaledMass;
+      } else {
+        specificSurfaceArea_[i] = 0.0;
+      }
+
     }
   }
 

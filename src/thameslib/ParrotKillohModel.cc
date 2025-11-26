@@ -236,8 +236,8 @@ void ParrotKillohModel::calculateKineticStep(const double timestep,
 
       if (verbose_) {
         cout << "~~~~>DOR for " << name_ << " = " << DOR
-             << "   initScaledMass_/scaledMass_ : " << initScaledMass_ << " / "
-             << scaledMass_ << endl;
+             << "   initScaledMass_/scaledMass_/ssaFactor_ : " << initScaledMass_ << " / "
+             << scaledMass_ << " / " << ssaFactor_ << endl;
         cout.flush();
       }
     } else {

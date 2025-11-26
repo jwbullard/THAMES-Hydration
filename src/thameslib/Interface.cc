@@ -48,15 +48,15 @@ Interface::Interface(ChemicalSystem *csys, vector<Site *> gv,
 
   affinityInt_.clear();
   affinityInt_ = chemSys_->getAffinityInt(microPhaseId_);
-  int affSize = affinityInt_.size();
-  cout << endl
-       << "Interface::Interface - affinity for microPhaseId_ = "
-       << microPhaseId_ << "   affinityInt_.size() = " << affSize
-       << " : " << endl;
-  for (int i = 0; i < affSize; i++) {
-    cout << "   i = " << i << "    affinityInt_[" << i << "] = "
-         << affinityInt_[i] << endl;
-  }
+  // int affSize = affinityInt_.size();
+  // cout << endl
+  //      << "Interface::Interface - affinity for microPhaseId_ = "
+  //      << microPhaseId_ << "   affinityInt_.size() = " << affSize
+  //      << " : " << endl;
+  // for (int i = 0; i < affSize; i++) {
+  //   cout << "   i = " << i << "    affinityInt_[" << i << "] = "
+  //        << affinityInt_[i] << endl;
+  // }
 
   dissolutionSites_.clear();
   growthSites_.clear();
