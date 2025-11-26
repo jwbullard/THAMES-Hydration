@@ -8185,26 +8185,98 @@ void Lattice::calcOneFaceAreaPerHundredGramSolid(void) {
        << oneFaceAreaPerHundredGramSolid_ << endl;
 }
 
+double Lattice::calcEffAreaForC3S(void) {
 
-void Lattice::calcSurfaceAreaInit(int phId) {
+  double effArea = 0;   // in m2 / (100g of solid)
+
+  Site *stenb; // , *ste;
+  int stId, nbPhId;
+  int numEle = 0, numCSH =0;
+  int numTotEle = 0, numTotCSH = 0;
+
+
+  int phIdC3S = chemSys_->getMicroPhaseId("Alite");
+  int phIdCSH = chemSys_->getMicroPhaseId("CSHQ");
+  vector<Isite> isite = interface_[phIdC3S].getDissolutionSites();
+  int size = isite.size();
+
+  numTotEle = 0;
+  numTotCSH = 0;
+  for (int i = 0; i < size; i++) {
+    stId = isite[i].getId();
+    // ste = &site_[stId];
+    numEle = 0;
+    numCSH = 0;
+
+    for (int j = 0; j < NUM_NEAREST_NEIGHBORS; j++) {
+      stenb = site_[stId].nb(j); //ste->nb(j);
+      nbPhId = stenb->getMicroPhaseId();
+      if (nbPhId == ELECTROLYTEID) numEle++;
+      if (nbPhId == phIdCSH) numCSH++;
+    }
+
+    /*
+    for (int j = 0; j < NN_NNN; j++) {
+      stenb = site_[stId].nb(j); //ste->nb(j);
+      nbPhId = stenb->getMicroPhaseId();
+      if (nbPhId == ELECTROLYTEID) numTotEle++;
+      if (nbPhId == phIdCSH) numTotCSH++;
+    }
+    */
+
+    numTotEle += numEle;
+    numTotCSH += numCSH;
+  }
+
+  // double porCSHQ = chemSys_->getMicroPhasePorosity(phIdCSH);
+  double porCSHQ = microPhasePorosityInt_[phIdCSH] / static_cast<double> (convFactDbl2IntPor_);
+  effArea = (numTotEle + numTotCSH * porCSHQ) * oneFaceAreaPerHundredGramSolid_;
+
+  // cout << endl << "Lattice::calcEffAreaForC3S : size/numTotEle/numTotCSH/porCSHQ/areaPerFace_/effArea = "
+  //      << size << " / " << numTotEle << " / " << numTotCSH << " / " << porCSHQ
+  //      << " / " << areaPerFace_ << " / " << effArea
+  //      << endl;
+
+  return effArea;
+}
+
+void Lattice::calcSurfaceAreas(void) {
   // in m2 / (100g of solid)
 
+  double scaledMass;
   Site *ste, *stenb;
-
   double d_convFactDbl2IntPor = static_cast<double> (convFactDbl2IntPor_);
-  for (int i = 0; i < numSites_; i++) {
-    ste = &site_[i];
-    if (ste->getMicroPhaseId() == phId) {
-      for (int j = 0; j < NUM_NEAREST_NEIGHBORS; j++) {
-        stenb = ste->nb(j);
-        surfaceArea_[phId] += (microPhasePorosityInt_[stenb->getMicroPhaseId()] /
-            d_convFactDbl2IntPor);
+
+  surfaceArea_.resize(numMicroPhases_, 0.0);
+  specificSurfaceArea_.resize(numMicroPhases_, 0.0);
+
+  for (int phId = 0; phId < numMicroPhases_; ++phId) {
+    for (int i = 0; i < numSites_; i++) {
+      ste = &site_[i];
+      if (ste->getMicroPhaseId() == phId) {
+        for (int j = 0; j < NUM_NEAREST_NEIGHBORS; j++) {
+          stenb = ste->nb(j);
+          surfaceArea_[phId] += (microPhasePorosityInt_[stenb->getMicroPhaseId()] /
+                                 d_convFactDbl2IntPor);
+        }
       }
     }
-  }
-  surfaceArea_[phId] *= oneFaceAreaPerHundredGramSolid_;
+    surfaceArea_[phId] *= oneFaceAreaPerHundredGramSolid_;
 
-  return;
+    // Calculate specific surface area of this phase by dividing
+    // this surface area by the phase mass (g per 100 g of all solid)
+    // Units of specific surface are will be m2 per kg of this phase,
+    // to make it consistent with legacy Parrot-Killoh model which
+    // uses traditional Blaine fineness units
+    scaledMass = chemSys_->getMicroPhaseMass(phId);
+    if (scaledMass > 0.0) {
+      // The factor of 1000.0 converts units from m2/g to m2/kg
+      specificSurfaceArea_[phId] = 1000.0 * surfaceArea_[phId] / scaledMass;
+    } else {
+      specificSurfaceArea_[phId] = 0.0;
+    }
+  }
+
 }
 
 void Lattice::calcSurfaceArea(int phId) {

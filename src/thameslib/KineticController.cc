@@ -179,14 +179,14 @@ KineticController::KineticController(ChemicalSystem *cs, Lattice *lattice,
   int phID;
   initScaledCementMass_ = 0;
   cout << endl << "KineticController::KineticController(...) :" << endl;
-  cout << "  - only these phases (controlled by the P-K model) "
+  cout << "  - only these phases (controlled by the ParrotKillohModel or C3SKineticModel) "
           "contribute to initScaledCementMass_ & scaledCementMass_ :"
        << endl;
 
   for (int i = 0; i < pKMsize_; i++) {
     modelName = phaseKineticModel_[i]->getModelName();
     // cout << endl << "    modelName = " << modelName << endl;
-    if (modelName == "ParrotKillohModel") {
+    if (modelName == "ParrotKillohModel" || modelName == "C3SKineticModel") {
       phID = phaseKineticModel_[i]->getMicroPhaseId();
       initScaledCementMass_ += chemSys_->getMicroPhaseMass(phID);
       cout << "      microPhaseID/microPhaseName/microPhaseMass : " << setw(3)
@@ -367,6 +367,13 @@ void KineticController::parseKineticData(const json::iterator p,
       } catch (DataException dex) {
         throw dex;
       }
+    } else if (kineticData.type == C3SType) {
+      typefound = true;
+      try {
+        parseKineticDataForC3S(p, kineticData);
+      } catch (DataException dex) {
+        throw dex;
+      }
     } else {
       throw HandleException("KineticController", "parseKineticData", "type",
                             "Model type not found");
@@ -424,6 +431,65 @@ void KineticController::parseKineticDataForParrotKilloh(
   // Activation energy
   pp = p.value().find("activationEnergy");
   kineticData.activationEnergy = pp.value();
+
+  return;
+}
+
+void KineticController::parseKineticDataForC3S(
+    const json::iterator p, struct KineticData &kineticData) {
+
+  if (verbose_) {
+    cout << "--->Parsing C3S kinetic data for " << kineticData.name
+         << endl;
+    cout.flush();
+  }
+
+  // How much to multiply the microstructure phase's surface
+  // area to account for unresolved structure, roughness, etc.
+  // This is an optional input, default value is 1.0
+  json::iterator pp = p.value().find("surfaceAreaMultiplier");
+  if (pp != p.value().end()) {
+    kineticData.surfaceAreaMultiplier = pp.value();
+  } else {
+    kineticData.surfaceAreaMultiplier = 1.0;
+  }
+
+  // C3S constants
+  // Dissolution rate constant input with units (mol/m2/s)
+  // But immediately convert it to mol/m2/h within model
+  pp = p.value().find("kC3S");
+  if (pp != p.value().end()) {
+    kineticData.kC3S = pp.value();
+    kineticData.kC3S *= S_PER_H;
+  } else {
+    throw DataException("KineticController", "parseKineticDataForC3S",
+                        "kC3S not found");
+  }
+
+  pp = p.value().find("C1");
+  if (pp != p.value().end()) {
+    kineticData.C1 = pp.value();
+  } else {
+    throw DataException("KineticController", "parseKineticDataForC3S",
+                        "C1 not found");
+  }
+
+  pp = p.value().find("r");
+  if (pp != p.value().end()) {
+    kineticData.r = pp.value();
+  } else {
+    throw DataException("KineticController", "parseKineticDataForC3S",
+                        "r not found");
+  }
+
+  // Activation energy
+  pp = p.value().find("activationEnergy");
+  if (pp != p.value().end()) {
+    kineticData.activationEnergy  = pp.value();
+  } else {
+    throw DataException("KineticController", "parseKineticDataForC3S",
+                        "activationEnergy not found");
+  }
 
   return;
 }
@@ -742,13 +808,17 @@ void KineticController::makeModel(struct KineticData &kineticData) {
     km = new ParrotKillohModel(chemSys_, lattice_, kineticData, verbose_,
                                warning_);
   } else if (kineticData.type == StandardType) {
-    // Read remaining pozzolanic model parameters
+    // Read remaining Standard model parameters
     km = new StandardKineticModel(chemSys_, lattice_, kineticData, verbose_,
                                   warning_);
   } else if (kineticData.type == PozzolanicType) {
-    // Read remaining pozzolanic model parameters
+    // Read remaining Pozzolanic model parameters
     km = new PozzolanicModel(chemSys_, lattice_, kineticData, verbose_,
                              warning_);
+  } else if (kineticData.type == C3SType) {
+    // Read remaining C3S model parameters
+    km = new C3SKineticModel(chemSys_, lattice_, kineticData, verbose_,
+                                  warning_);
   }
 
   phaseKineticModel_.push_back(km);
@@ -958,19 +1028,20 @@ void KineticController::calculateKineticStep(double time, const double timestep,
         totalDOR = (initScaledCementMass_ - chemSys_->getScaledCementMass()) /
                    initScaledCementMass_;
       } else {
-        int numPKMphases = 0;
+        int numPKMorC3SKMphases = 0;
         for (int midx = 0; midx < pKMsize_; ++midx) {
-          if (phaseKineticModel_[midx]->getModelName() == "ParrotKillohModel")
-            numPKMphases++;
+          if (phaseKineticModel_[midx]->getModelName() == "ParrotKillohModel" ||
+              phaseKineticModel_[midx]->getModelName() == "C3SKineticModel")
+            numPKMorC3SKMphases++;
         }
 
-        // This next block only if there are ParrotKilloh model phases
-        if (numPKMphases > 0) {
+        // This next block only if there are ParrotKilloh or C3S kinetic model phases
+        if (numPKMorC3SKMphases > 0) {
 
           cout << endl
                << "   KineticController::calculateKineticStep error - "
-                  "initScaledCementMass_ = 0  while numPKMphases = "
-               << numPKMphases << " :" << endl;
+                  "initScaledCementMass_ = 0  while numPKMorC3SKMphases = "
+               << numPKMorC3SKMphases << " :" << endl;
           for (int midx = 0; midx < pKMsize_; ++midx) {
             phaseDissolvedId[midx] =
                 phaseKineticModel_[midx]->getMicroPhaseId();
@@ -1003,6 +1074,7 @@ void KineticController::calculateKineticStep(double time, const double timestep,
         throw DataException("KineticController", "calculateKineticStep",
                             "totalDOR < 0");
       }
+
       if (!doTweak) {
         cout << "    KineticController::calculateKineticStep - cyc = " << cyc
              << " :  scaledCementMass = " << chemSys_->getScaledCementMass()
@@ -1018,7 +1090,8 @@ void KineticController::calculateKineticStep(double time, const double timestep,
         scaledMass = scaledMassIni_[midx];
         runKM = true;
         if (scaledMass == 0.0 &&
-            phaseKineticModel_[midx]->getModelName() == "ParrotKillohModel") {
+            ((phaseKineticModel_[midx]->getModelName() == "ParrotKillohModel") ||
+             (phaseKineticModel_[midx]->getModelName() == "C3SKineticModel"))) {
           runKM = false;
         }
 

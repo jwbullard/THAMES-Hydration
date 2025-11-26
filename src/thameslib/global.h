@@ -107,6 +107,10 @@ inline const char ParrotKillohType[] = "ParrotKilloh";
 // String indicating the Standard Dissolution Model
 inline const char StandardType[] = "Standard";
 
+// String indicating the C3S Dissolution Model according to
+// Bullard et al., Cement and Concrete Research 74(2015)26
+inline const char C3SType[] = "C3S_dissKM";
+
 // String indicating the Pozzolanic Reaction Model
 inline const char PozzolanicType[] = "Pozzolanic";
 

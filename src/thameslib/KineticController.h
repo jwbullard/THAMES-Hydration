@@ -20,6 +20,7 @@ different kinetic models that govern the rate of hydration.
 #include "ParrotKillohModel.h"
 #include "PozzolanicModel.h"
 #include "StandardKineticModel.h"
+#include "C3SKineticModel.h"
 #include "Exceptions.h"
 
 // using json = nlohmann::json;
@@ -216,6 +217,18 @@ public:
   */
   void parseKineticDataForStandard(const json::iterator pp,
                                    struct KineticData &kineticData);
+
+  /**
+  @brief Parse the kinetic data for the C3S kinetic model.
+
+  @todo Need error checking for what to do if a required entry is not present
+
+  @param pp is an iterator over the JSON data
+  @param kineticData is a reference to the KineticData structure for temporarily
+  storing the input parameters.
+  */
+  void parseKineticDataForC3S(const json::iterator pp,
+                              struct KineticData &kineticData);
 
   /**
   @brief Parse the kinetic data for the pozzolanic kinetic model.

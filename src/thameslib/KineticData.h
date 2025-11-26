@@ -92,5 +92,13 @@ struct KineticData {
   double rhFactor_;      /**< relative humidity factor, i.e. the correction
                               of the hydration rate taking into account the
                               ambient relative humidity */
+
+  // for new C3S_dissKM <=> eq. 2 from Bullard et al.,Cem. Concr. Res. 74(2015)26:
+  double kC3S; /**< dissolution rate constant [mol/m2/s] */
+  double C1;   /**< unitless constant - determined by fitting experimental 
+                    data from Nicoleau et al., Cem. Concr. Res. 47(2013)14 */
+  double r;    /**< unitless constant - determined by fitting experimental 
+                    data from Nicoleau et al., Cem. Concr. Res. 47(2013)14 */
+
 };
 #endif // SRC_THAMESLIB_KINETICDATA_H_

@@ -1,0 +1,176 @@
+{
+  "environment": {
+    "temperature": 298.15,
+    "reftemperature": 298.15,
+    "saturated": 0
+  },
+  "microstructure": {
+    "numentries": 5,
+    "phases": [
+      {
+        "thamesname": "Void",
+        "id": 0,
+        "cement_component": 0,
+        "display_data": { "red": 0.0, "green": 0.0, "blue": 0.0, "gray": 0.0 }
+      },
+      {
+        "thamesname": "Electrolyte",
+        "id": 1,
+        "cement_component": 0,
+        "display_data": { "red": 50, "green": 255, "blue": 0.0, "gray": 50 },
+        "gemphase_data": [
+          {
+            "gemphasename": "aq_gen",
+            "gemdc": [{ "gemdcname": "H2O@", "gemdcporosity": 1.0 }]
+          }
+        ]
+      },
+      {
+        "thamesname": "Alite",
+        "id": 2,
+        "cement_component": 1,
+        "gemphase_data": [
+          {
+            "gemphasename": "Alite",
+            "gemdc": [{ "gemdcname": "C3S" }]
+          }
+        ],
+        "impurity_data": {
+          "k2ocoeff": 0.0,
+          "na2ocoeff": 0.0,
+          "mgocoeff": 0.0,
+          "so3coeff": 0.0
+        },
+        "kinetic_data": {
+          "type": "C3S_dissKM",
+          "kC3S": 0.0001253,
+          "C1": 21.05,
+          "r": 3.73,
+          "surfaceAreaMultiplier": 0.0001,
+          "activationEnergy": 40000
+        }
+      },
+      {
+        "thamesname": "Portlandite",
+        "id": 3,
+        "cement_component": 0,
+        "interface_data": {
+          "affinity": [
+            { "affinityphase": "CSHQ", "contactanglevalue": 0 },
+            { "affinityphase": "Alite", "contactanglevalue": 180 }
+          ]
+        },
+        "gemphase_data": [
+          {
+            "gemphasename": "Portlandite",
+            "gemdc": [{ "gemdcname": "Portlandite" }]
+          }
+        ]
+      },
+      {
+        "thamesname": "CSHQ",
+        "id": 4,
+        "cement_component": 0,
+        "interface_data": {
+          "affinity": [
+            { "affinityphase": "Alite", "contactanglevalue": 30 },
+            { "affinityphase": "Portlandite", "contactanglevalue": 0 }
+          ]
+        },
+        "gemphase_data": [
+          {
+            "gemphasename": "CSHQ",
+            "gemdc": [
+              { "gemdcname": "CSHQ-JenD", "gemdcporosity": 0.2004 },
+              { "gemdcname": "CSHQ-JenH", "gemdcporosity": 0.2004 },
+              { "gemdcname": "CSHQ-TobD", "gemdcporosity": 0.4935 },
+              { "gemdcname": "CSHQ-TobH", "gemdcporosity": 0.4935 },
+              { "gemdcname": "KSiOH", "gemdcporosity": 0.1825 },
+              { "gemdcname": "NaSiOH", "gemdcporosity": 0.1825 }
+            ]
+          }
+        ],
+        "poresize_distribution": [
+          { "diameter": 0.23228, "volumefraction": 0.01684781722375019 },
+          { "diameter": 0.49089, "volumefraction": 0.02276126023357459 },
+          { "diameter": 0.72108, "volumefraction": 0.029511617160234132 },
+          { "diameter": 0.98879, "volumefraction": 0.03330516053249656 },
+          { "diameter": 1.24669, "volumefraction": 0.03581553408506234 },
+          { "diameter": 1.49484, "volumefraction": 0.03721026788047437 },
+          { "diameter": 1.72364, "volumefraction": 0.03726604986833206 },
+          { "diameter": 1.99014, "volumefraction": 0.03525771420648546 },
+          { "diameter": 2.23709, "volumefraction": 0.03085056896778847 },
+          { "diameter": 2.48431, "volumefraction": 0.02778219143767598 },
+          { "diameter": 2.75073, "volumefraction": 0.025383381860825577 },
+          { "diameter": 2.98861, "volumefraction": 0.023263482223263608 },
+          { "diameter": 3.23612, "volumefraction": 0.021589838488563145 },
+          { "diameter": 3.49314, "volumefraction": 0.019804630778147304 },
+          { "diameter": 3.74069, "volumefraction": 0.018354114994877588 },
+          { "diameter": 3.98824, "volumefraction": 0.01684781722375019 },
+          { "diameter": 4.23585, "volumefraction": 0.015676395478738746 },
+          { "diameter": 4.48344, "volumefraction": 0.014393225659042096 },
+          { "diameter": 4.72156, "volumefraction": 0.013444747766491573 },
+          { "diameter": 4.9883, "volumefraction": 0.012552235960768569 },
+          { "diameter": 5.24554, "volumefraction": 0.011826886019648796 },
+          { "diameter": 5.49324, "volumefraction": 0.011101720177498855 },
+          { "diameter": 5.74097, "volumefraction": 0.010488118311064288 },
+          { "diameter": 5.9887, "volumefraction": 0.009874332345659894 },
+          { "diameter": 6.23646, "volumefraction": 0.00942807644279839 },
+          { "diameter": 6.48417, "volumefraction": 0.008702910600648449 },
+          { "diameter": 6.74146, "volumefraction": 0.008256470598817118 },
+          { "diameter": 6.99872, "volumefraction": 0.007642868732382551 },
+          { "diameter": 7.23693, "volumefraction": 0.007085048853805671 },
+          { "diameter": 7.49421, "volumefraction": 0.006583010963086481 },
+          { "diameter": 7.73244, "volumefraction": 0.00613657096125515 },
+          { "diameter": 7.98975, "volumefraction": 0.005746097046251335 },
+          { "diameter": 8.23755, "volumefraction": 0.005467187106962896 },
+          { "diameter": 8.49487, "volumefraction": 0.005132495179816769 },
+          { "diameter": 8.74268, "volumefraction": 0.004909367228386016 },
+          { "diameter": 12.0, "volumefraction": 0.0015534255057322317 },
+          { "diameter": 15.0, "volumefraction": 0.00272492417632637 },
+          { "diameter": 17.0, "volumefraction": 0.0033001847202133072 },
+          { "diameter": 20.0, "volumefraction": 0.004337822158874359 },
+          { "diameter": 23.0, "volumefraction": 0.005273625367665351 },
+          { "diameter": 26.0, "volumefraction": 0.006142693285742837 },
+          { "diameter": 29.0, "volumefraction": 0.007043723319901984 },
+          { "diameter": 32.0, "volumefraction": 0.008080913465303721 },
+          { "diameter": 35.0, "volumefraction": 0.00897834375043533 },
+          { "diameter": 38.0, "volumefraction": 0.009721701016706174 },
+          { "diameter": 41.0, "volumefraction": 0.01077285587748314 },
+          { "diameter": 44.0, "volumefraction": 0.011589497649770731 },
+          { "diameter": 47.0, "volumefraction": 0.01262257207894466 },
+          { "diameter": 50.0, "volumefraction": 0.013466392608488387 },
+          { "diameter": 52.0, "volumefraction": 0.013268521061538297 },
+          { "diameter": 55.0, "volumefraction": 0.013807734626341025 },
+          { "diameter": 58.0, "volumefraction": 0.014538359814615225 },
+          { "diameter": 61.0, "volumefraction": 0.014990723777949314 },
+          { "diameter": 64.0, "volumefraction": 0.01566147271843026 },
+          { "diameter": 67.0, "volumefraction": 0.016802876079524846 },
+          { "diameter": 70.0, "volumefraction": 0.017163156580334505 },
+          { "diameter": 73.0, "volumefraction": 0.017129420963162383 },
+          { "diameter": 76.0, "volumefraction": 0.01745964516260557 },
+          { "diameter": 79.0, "volumefraction": 0.01811002849163405 },
+          { "diameter": 82.0, "volumefraction": 0.01815315493167048 },
+          { "diameter": 85.0, "volumefraction": 0.0189718434975009 },
+          { "diameter": 87.0, "volumefraction": 0.01830075636877286 },
+          { "diameter": 90.0, "volumefraction": 0.017913476793453408 },
+          { "diameter": 93.0, "volumefraction": 0.018873239641531554 },
+          { "diameter": 96.0, "volumefraction": 0.017989599001311234 },
+          { "diameter": 99.0, "volumefraction": 0.0189581029096103 }
+        ],
+        "Rd": [
+          { "Rdelement": "K", "Rdvalue": 0.42 },
+          { "Rdelement": "Na", "Rdvalue": 0.42 }
+        ]
+      }
+    ]
+  },
+  "time_parameters": {
+    "finaltime": 56.0,
+    "outtimes": [0.01, 0.021, 0.042, 0.084, 0.126, 0.25, 0.5, 1.0,
+                 2.0, 3.0, 4.0, 5.0, 7.0, 14.0, 28.0],
+    "beginattacktime": -1,
+    "endattacktime": -1,
+    "attacktimeinterval": -1
+  }
+}
