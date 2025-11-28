@@ -1,11 +1,11 @@
 /**
 @file thames.h
-@brief Header for the main THAMES program.
+@brief Header for the main thames program.
 
 */
 
 /**
-@mainpage THAMES Overview
+@mainpage THAMES-Hydration Overview
 
 @author Jeffrey W. Bullard, NIST
 @author Pan Feng, Southeast University
@@ -15,7 +15,7 @@
 
 @section intro_sec Introduction
 
-THAMES is a model of 3-D microstructure development in cement paste.
+THAMES-Hydration is a model of 3-D microstructure development in cement paste.
 The overall philosophy of the model is that, if a kinetic model of
 clinker phase consumption can be developed, then that model can be
 used to establish the change in concentration of dissolved species
@@ -35,22 +35,22 @@ the pore solution at each time step, and then used the GEMS
 geochemical model [6,7] to predict speciation and hydration product
 mass fractions.
 
-THAMES uses this same modeling philosophy, but adds the extra
+THAMES-Hydration uses this same modeling philosophy, but adds the extra
 dimension that the microstructure itself is simulated as a function of
 time, using simple nucleation and dissolution/growth rules for each phase.
 The 3-D microstructure is in the form of a digital image (called a
 lattice), with each lattice site assuming a unique integer
 value corresponding to a valid phase.  Data about the phases are stored
 in a database which must also be input at the beginning of a
-simulation.  The microstructure representation used by THAMES is similar to
-the CEMHYD3D cellular automaton model, developed primarily by
-Bentz [8], between 1994 and 2002 at the National
-Institute of Standards and Technology (NIST).  In turn, CEMHYD3D
-is based on other numerical modeling work on cement microstructures
-undertaken at NIST starting in 1988.
+simulation.  The microstructure representation used by THAMES-Hydration is
+similar to the CEMHYD3D cellular automaton model, developed primarily by Bentz
+[8], between 1994 and 2002 at the National Institute of Standards and Technology
+(NIST).  In turn, CEMHYD3D is based on other numerical modeling work on cement
+microstructures undertaken at NIST starting in 1988.
 
-The overall flow of THAMES is shown in the figure.
-To achieve this flow, THAMES needs to link to the GEM3K kernel library.
+The overall flow of THAMES-Hydration is shown in the figure.
+To achieve this flow, THAMES-Hyeration needs to link to the GEM3K kernel
+library.
 
 @image html THAMES-Concrete-Modules-small.png
 @image latex THAMES-Concrete-Modules-scaled.png
@@ -67,7 +67,7 @@ mass fractions of each hydrated phase.  The microstructure evolver
 updates the microstructure, and the process is repeated until the desired
 final time is achieved.
 
-THAMES is written in C++ and is heavily object-oriented.  We believe
+THAMES-Hydration is written in C++ and is heavily object-oriented.  We believe
 that this feature makes it easier to encapsulate and operate on data.
 Fewer specialized functions are required as a result, and much more of
 the tedious details can be conveniently hidden from the casual user if
@@ -77,7 +77,7 @@ rest of the programs.
 
 This document contains just the main executable program and its associated
 header file.  The details of the various classes that are defined for
-THAMES are contained in library files.
+THAMES-Hydration are contained in library files.
 
 @section ref_sec References
 
@@ -109,11 +109,10 @@ Department of Commerce, April, 2000.
 #ifndef SRC_THAMES_H_
 #define SRC_THAMES_H_
 
-#include "thameslib/global.h"
-#include "thameslib/Exceptions.h"
 #include "thameslib/AppliedStrain.h"
 #include "thameslib/ChemicalSystem.h"
 #include "thameslib/Controller.h"
+#include "thameslib/Exceptions.h"
 #include "thameslib/Interface.h"
 #include "thameslib/KineticController.h"
 #include "thameslib/Lattice.h"
@@ -121,6 +120,7 @@ Department of Commerce, April, 2000.
 #include "thameslib/Site.h"
 #include "thameslib/StrainEnergy.h"
 #include "thameslib/ThermalStrain.h"
+#include "thameslib/global.h"
 // #include "version.h"
 
 #include <getopt.h>
@@ -194,7 +194,7 @@ void prepOutputFolder(const std::string &outputFolder, std::string &jobRoot,
 Almost all the actual formatted output is done by the ChemicalSystem object
 through its `writeChemSys` method.
 
-@param jobRoot is the root name of the THAMES simulation
+@param jobRoot is the root name of the THAMESHYD simulation
 @param itime is the start time of the job
 @param initMicName is name of the initial microstructure image file
 @param simParamName is the name of the simulation parameter file

@@ -24,7 +24,7 @@ Vicksburg, Mississippi USA 39183
 
 -----------------------------------------------------------------------------
 
-THAMES uses two finite element solvers originally created and written in
+THAMES-HYDRATION uses two finite element solvers originally created and written in
 Fortran by
 
 Edward J. Garboczi, PhD
@@ -33,7 +33,7 @@ Materials Measurement Laboratory
 Boulder, Colorado USA
 
 
-THAMES also uses the GEM3K thermodynamic equilibrium and speciation
+THAMES-HYDRATOIN also uses the GEM3K thermodynamic equilibrium and speciation
 library created and written in C++ by
 
 Dmitrii Kulik, PhD

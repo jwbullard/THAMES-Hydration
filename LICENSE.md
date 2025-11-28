@@ -1,4 +1,4 @@
-# THAMES LICENSE
+# THAMES-HYDRATION LICENSE
 
 Copyright (c) 2020-present Jeffrey W. Bullard
 

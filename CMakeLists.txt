@@ -1,17 +1,12 @@
 cmake_minimum_required(VERSION 3.30)
 
-project (THAMES)
+project (THAMES_HYDRATION)
 
-set (THAMES_VERSION 5.1)
-set (THAMES_VERSION_MAJOR 5)
-set (THAMES_VERSION_MINOR 1)
+set (THAMES_HYDRATION_VERSION 5.2)
+set (THAMES_HYDRATION_VERSION_MAJOR 5)
+set (THAMES_HYDRATION_VERSION_MINOR 2)
 
 # configure a header file to pass some CMake settings to source code
-
-configure_file (
-    "${CMAKE_SOURCE_DIR}/src/vcctl2thames/vcctl2thames.h.in"
-    "${CMAKE_SOURCE_DIR}/src/vcctl2thames/vcctl2thames.h"
-    )
 
 option(BUILD_DOC "Build API documentation" ON)
 # look for doxygen capability
@@ -93,19 +88,19 @@ else ()
     message (FATAL_ERROR "Did not find MATH lib")
 endif ()
 
-set (THAMES_INCLUDE_PATH "-I${CMAKE_SOURCE_DIR}/src -I/usr/local/include")
+set (THAMES_HYDRATION_INCLUDE_PATH "-I${CMAKE_SOURCE_DIR}/src -I/usr/local/include")
 
 message ("c++ compiler is : ${CMAKE_CXX_COMPILER_ID}")
 
 # Set the list of compiler flags for GNU compiler
 if(${CMAKE_CXX_COMPILER_ID} MATCHES "GNU")
-  set (CMAKE_CXX_FLAGS "-O2 -std=c++17 -DIPMGEMPLUGIN -Wall -Wno-misleading-indentation -Wno-ignored-attributes -Wno-pedantic -Wno-variadic-macros -Wno-deprecated ${THAMES_INCLUDE_PATH}")
-  #set (CMAKE_CXX_FLAGS "-O2 -std=c++17 -DIPMGEMPLUGIN ${THAMES_INCLUDE_PATH}")
+  set (CMAKE_CXX_FLAGS "-O2 -std=c++17 -DIPMGEMPLUGIN -Wall -Wno-misleading-indentation -Wno-ignored-attributes -Wno-pedantic -Wno-variadic-macros -Wno-deprecated ${THAMES_HYDRATION_INCLUDE_PATH}")
+  #set (CMAKE_CXX_FLAGS "-O2 -std=c++17 -DIPMGEMPLUGIN ${THAMES_HYDRATION_INCLUDE_PATH}")
 endif()
 
 # Set the list of compiler flags for Clang compiler
 if(${CMAKE_CXX_COMPILER_ID} MATCHES "Clang")
-  add_compile_options(-O2 -std=c++17 -DIPMGEMPLUGIN -Wall -Wno-ignored-attributes -Wno-pedantic -Wno-variadic-macros -Wno-deprecated ${THAMES_INCLUDE_PATH})
+  add_compile_options(-O2 -std=c++17 -DIPMGEMPLUGIN -Wall -Wno-ignored-attributes -Wno-pedantic -Wno-variadic-macros -Wno-deprecated ${THAMES_HYDRATION_INCLUDE_PATH})
 endif()
 
 message ("Top level CMAKE_CXX_FLAGS: " ${CMAKE_CXX_FLAGS})

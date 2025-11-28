@@ -2,18 +2,18 @@
 
 ## INTRODUCTION
 
-This file describes how to install THAMES v4.0.  The instructions in this file
+This file describes how to install THAMES-Hydration v5.2.  The instructions in this file
 are for the most common use cases, and cover the command line tools.
 
 For further information, or in case of problems, please contact the author,
 Jeff Bullard (jwbullard@tamu.edu).
 
-The API documentation of THAMES is available in PDF and HTML formats.  It
+The API documentation of THAMES-Hydration is available in PDF and HTML formats.  It
 is not bundled with the software but can be created during the installation
 of the software.
 
-For more information about THAMES, see the API documentation overview, or
-the accompanying user guide (coming soon).  More information about THAMES and
+For more information about THAMES-Hydration, see the API documentation overview, or
+the accompanying user guide (coming soon).  More information about THAMES-Hydration and
 its applications can also be found in the following references:
 
    * Bullard, J.W., Lothenbach, B., Stutzman, P.E., Snyder, K.A., Coupling thermodynamics and digital image models to simulate hydration and microstructure development of portland cement pastes, _Journal of Materials Research_ 26, (2011) 609-622.
@@ -33,8 +33,8 @@ its applications can also be found in the following references:
     * Clang 17.0 or newer
     * GNU Compiler Collection (gcc/g++ 14.0 or newer)
 
-* CMake (>= 3.30), the build system used by THAMES
- * Required for building THAMES
+* CMake (>= 3.30), the build system used by THAMES-Hydration
+ * Required for building THAMES-Hydration
 
 * Doxygen (>= 1.8.13), the API documentation software
  * Required for creating the API documentation
@@ -49,11 +49,11 @@ its applications can also be found in the following references:
 
 ## Building on Mac OS
 
-Modern Mac OS uses the Apple Clang compiler by default, and it seems to work for THAMES without further modifications.
+Modern Mac OS uses the Apple Clang compiler by default, and it seems to work for THAMES-Hydration without further modifications.
 
 ### Build GEMS3K library
 
-* cd /PathToTHAMES/THAMES/src/GEMS3K-standalone
+* cd /PathToTHAMES-Hydration/THAMES-Hydration/src/GEMS3K-standalone
 * Open the file `install.sh` with your favorite text editor.
 
 
@@ -73,13 +73,13 @@ cmake .. -DCMAKE_C_COMPILER=/opt/homebrew/bin/gcc -DCMAKE_CXX_COMPILER=/opt/home
 * Save the `install.sh` file and close it
 * Run the command `./install.sh`
 
-### Build THAMES
-Next, build and install THAMES. The recommended way to configure THAMES is to do an out-of-source
+### Build THAMES-Hydration
+Next, build and install THAMES-Hydration. The recommended way to configure THAMES-Hydration is to do an out-of-source
 build, which means that the original files and directories are left untouched.
 Doing this makes the re-compiling and cleaning of the installation files
 much simpler.
 
-* cd /PathToTHAMES/THAMES/build
+* cd /PathToTHAMES-Hydration/THAMES-Hydration/build
 * Run one of the following commands, depending on your C++ compiler
 
 #### Apple's Clang Compiler
@@ -97,31 +97,31 @@ cmake -DCMAKE_C_COMPILER=/opt/homebrew/bin/gcc -DCMAKE_CXX_COMPILER=/opt/homebre
 * `make`
 * `make install`
 
-This will install the "thames" executable in the /PathToTHAMES/bin directory, and the
-static libraries in the PathToTHAMES/lib directory.
+This will install the "thames" executable in the /PathToTHAMES-Hydration/bin directory, and the
+static libraries in the PathToTHAMES-Hydration/lib directory.
 
 
 ## Building on Unix or Linux
 
 ### Build GEMS3K library
 
-1. cd /PathToTHAMES/THAMES/src/GEMS3K-standalone
+1. cd /PathToTHAMES-Hydration/THAMES-Hydration/src/GEMS3K-standalone
 2. ./install.sh
 
-### Build THAMES
-Next, build and install THAMES. The recommended way to configure THAMES is to do an out-of-source
+### Build THAMES-Hydration
+Next, build and install THAMES-Hydration. The recommended way to configure THAMES-Hydration is to do an out-of-source
 build, which means that the original files and directories are left untouched.
 Doing this makes the re-compiling and cleaning of the installation files
 much simpler.
 
-1. cd /PathToTHAMES/THAMES/build
+1. cd /PathToTHAMES-Hydration/THAMES-Hydration/build
 2. `cmake ..`
 3. `make`
 4. `make install`
 5. `make doc`
 
-This will install the "thames" executable in the /PathToTHAMES/bin directory, and the
-static libraries in the PathToTHAMES/lib directory.
+This will install the "thames" executable in the /PathToTHAMES-Hydration/bin directory, and the
+static libraries in the PathToTHAMES-Hydration/lib directory.
 
 ## Building on Windows
 
@@ -142,9 +142,9 @@ of system for compiling C/C++ code, but it they have made it easier to get a ful
 - sudo apt install git
 - sudo apt install cmake
 - sudo apt install build-essential
-- git clone https://github.com/jwbullard/THAMES.git
-- Wait for the THAMES folder to fully download
-- In the Windows file explorer, navigate to Linux/home/THAMES/src/GEMS3K-standalone
+- git clone https://github.com/jwbullard/THAMES-Hydration.git
+- Wait for the THAMES-Hydration folder to fully download
+- In the Windows file explorer, navigate to Linux/home/THAMES-Hydration/src/GEMS3K-standalone
 - Open the file install.h with Notepad
 - Comment out the line that begins with `cmake ..` by placing a `#` in the first column.
 - Add a line directly below it that reads
@@ -153,7 +153,7 @@ of system for compiling C/C++ code, but it they have made it easier to get a ful
 cmake .. -DCMAKE_C_COMPILER=/usr/bin/gcc -DCMAKE_CXX_COMPILER=/usr/bin/g++ -DCMAKE_CXX_FLAGS=-fPIC -DCMAKE_BUILD_TYPE=Release -DCMAKE_INSTALL_PREFIX=../../Resources 
 ```
 - Save the `install.sh` file and close the file explorer
-- Back in the powershell, `cd THAMES/src/GEMS3K-standalone`
+- Back in the powershell, `cd THAMES-Hydration/src/GEMS3K-standalone`
 - ./install.sh
 - cd ../../build
 - Run this command:
@@ -163,7 +163,7 @@ cmake .. -DCMAKE_C_COMPILER=/usr/bin/gcc -DCMAKE_CXX_COMPILER=/usr/bin/g++ -DCMA
 - make
 - make install
 
-This procedure should install the `thames` and `viz` executables in the Linux/home/THAMES/bin folder
+This procedure should install the `thames` and `viz` executables in the Linux/home/THAMES-Hydration/bin folder
 
 ## UNINSTALLING
 
