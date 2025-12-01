@@ -331,7 +331,8 @@ int main(int argc, char **argv) {
 
   try {
     KController =
-        new KineticController(ChemSys, Mic, simParamName, VERBOSE, WARNING);
+        new KineticController(ChemSys, Mic, simParamName, simtype,
+                              VERBOSE, WARNING);
   } catch (bad_alloc &ba) {
     cout << "Bad memory allocation in KineticController constructor: "
          << ba.what() << endl;

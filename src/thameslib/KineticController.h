@@ -106,6 +106,8 @@ private:
                                        before to start the dissolution for a given
                                        time step */
 
+  int simType_;                  /**< Hydration, leaching, or sulfate attack for now */
+
 public:
   /**
   @brief Default constructor.
@@ -126,12 +128,13 @@ public:
   @param lattice is a pointer to the Lattice object holding the microstructure
   @param jsonFileName is the name of the JSON file with the input for the
   kinetic model
+  @param simtype is the type of simulation to run
   @param verbose is true if verbose output should be produced
   @param warning is false if suppressing warning output
   */
   KineticController(ChemicalSystem *cs, Lattice *lattice,
-                    const std::string &jsonFileName, const bool verbose,
-                    const bool warning);
+                    const std::string &jsonFileName, int simtype,
+                    const bool verbose, const bool warning);
 
   /**
   @brief Destructor does nothing.

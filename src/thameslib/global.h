@@ -166,6 +166,11 @@ inline const int FIRST_SOLID = ELECTROLYTEID + 1;
 inline const int NUMCLINKERPHASES = 4;
 // inline const double thrPorosity = 0.0355255;
 
+// threshold for the total Degree Of Reaction
+// in KineticController::calculateKineticStep, under HYDRATION conditions :
+// if(totalDOR >= cementThrDOR) => program stops
+inline const double cementThrDOR = 0.9999;
+
 // The number of face, edge, and corner neighbors to a cubic lattice site
 inline const int NUM_NEAREST_NEIGHBORS = 6;
 inline const int NUM_SECONDNEAREST_NEIGHBORS = 12;

@@ -49,9 +49,12 @@ KineticController::KineticController() {
 }
 
 KineticController::KineticController(ChemicalSystem *cs, Lattice *lattice,
-                                     const string &jsonFileName,
+                                     const string &jsonFileName, int simtype,
                                      const bool verbose, const bool warning)
     : chemSys_(cs), lattice_(lattice) {
+
+  simType_ = simtype;
+
   ///
   /// Clear out the vectors so they can be populated with values from the
   ///
@@ -1073,6 +1076,37 @@ void KineticController::calculateKineticStep(double time, const double timestep,
              << chemSys_->getScaledCementMass() << " / " << totalDOR << endl;
         throw DataException("KineticController", "calculateKineticStep",
                             "totalDOR < 0");
+      } else {
+        if (totalDOR > cementThrDOR) {
+          if (simType_ == HYDRATION) {
+            cout << endl << endl
+                 << "**********************************"
+                 << endl;
+            cout << endl
+                 << "    KineticController::calculateKineticStep - cyc = " << cyc
+                 << " :  scaledCementMass = " << chemSys_->getScaledCementMass()
+                 << "   totalDOR = " << totalDOR << "   &   cementThrDOR = "
+                 << cementThrDOR << " (in global.h)"
+                 << endl;
+            cout << endl
+                 << "    KineticController::calculateKineticStep -> normal end of the"
+                    " program under HYDRATION conditions"
+                 << endl;
+            cout << endl;
+            cout << endl
+                 << "**********************************"
+                 << endl << endl;
+            bool is_Error = false;
+            throw MicrostructureException("KineticController", "calculateKineticStep",
+                                          "no cement to react", is_Error);
+          } else {
+
+            // *************************************
+            // ** modify the beginAttackTime_ ?!? **
+            // *************************************
+
+          }
+        }
       }
 
       if (!doTweak) {
