@@ -502,6 +502,12 @@ Lattice::Lattice(ChemicalSystem *cs, RanGen *rg, int seedRNG,
     count_[pid]++;
   }
 
+  // cout << endl
+  //      << "testSurfaceArea ini: " << endl;
+  // testSurfaceArea(25);
+  // cout << "testSurfaceArea end" << endl;
+  // exit(0);
+
   ///
   /// Done with the input microstructure file, so close it.
   ///
@@ -8304,3 +8310,66 @@ void Lattice::calcSurfaceArea(int phId) {
 
   return;
 }
+
+void Lattice::testSurfaceArea(int r0) {
+  // int x0 = 50, y0 = 50, z0 = 50;
+  // int r0 = 25;
+  int x0 = xdim_ / 2;
+  int y0 = ydim_ / 2;
+  int z0 = zdim_ / 2;
+  int x, y, z;
+  int i, j;
+
+  for (i = 0; i < numSites_; i++) {
+    site_[i].setMicroPhaseId(0);
+  }
+
+  for (i = 0; i < numSites_; i++) {
+    x = site_[i].getX();
+    y = site_[i].getY();
+    z = site_[i].getZ();
+    if (((x-x0)*(x-x0) + (y-y0)*(y-y0) + (z-z0)*(z-z0)) < r0 * r0)
+      site_[i].setMicroPhaseId(1);
+  }
+
+  string timeInit = "000y000d00h00m";
+  writeLattice(timeInit);
+  writeLatticePNG(timeInit);
+  writeLatticeXYZ(0.0, timeInit);
+
+  int numNNNNN = 0, numNN = 0;
+  Site * nbPt;
+  for (i = 0; i < numSites_; i++) {
+    if (site_[i].getMicroPhaseId() == 1) {
+      for (j = 0; j < NN_NNN; j++) {
+        nbPt = site_[i].nb(j);
+        if (nbPt->getMicroPhaseId() == 0) {
+          numNNNNN++;
+          if (j < NUM_NEAREST_NEIGHBORS)
+            numNN++;
+        }
+      }
+    }
+  }
+
+  cout << "  surf_numNN    = " << numNN
+       << " elementary faces of 1um^2 in contact with the electrolyte"
+       << endl;
+  cout << "  surf_numNNNNN = " << numNNNNN
+       << endl;
+  cout << "  surf_Sf(r=" << r0 << " um) = " << 4 * Pi * r0 * r0 << " um^2"
+       << endl;
+
+  cout << endl
+       << "  pi_numNN    = "
+       << (static_cast<double>(numNN)) / (static_cast<double>(4*r0*r0))
+       << endl;
+  cout << "  pi_numNNNNN = "
+       << (static_cast<double>(numNNNNN)) / (static_cast<double>(4*r0*r0))
+       << endl;
+
+  // surf_numNN = 11646 faces in contact with the electrolyte   &   surf_numNNNNN = 44802
+  // surf_Sf(r=25 arb. units) = 7.853981633975000e+03 (arb. units)^2
+  // pi_numNN = 4.658400000000000e+00   &   pi_numNNNNN = 1.792080000000000e+01
+}
+

@@ -2185,6 +2185,15 @@ public:
 
   double calcEffAreaForC3S(void);
 
+  /**
+  @brief Compare the estimation of a C3S sphere surface area taking
+  into account the electrolyte and CSH nn and nnn voxels with the surface
+  area of a geometrical sphere having the same radius r0
+
+  @param r0 is the sphere radius
+  */
+  void testSurfaceArea(int r0);
+
 }; // End of Lattice class
 
 #endif // SRC_THAMESLIB_LATTICE_H_
