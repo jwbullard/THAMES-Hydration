@@ -39,8 +39,8 @@ private:
   std::string arrayname_;    /**< Name of the array accessed */
   std::string classname_;    /**< Name of the class that accessed the array */
   std::string functionname_; /**< Name of the method that accessed the array */
-  int sizelimit_;       /**< Number of elements contained in the array */
-  int indx_;            /**< Out-of-bounds element number that was queried */
+  int sizelimit_;            /**< Number of elements contained in the array */
+  int indx_; /**< Out-of-bounds element number that was queried */
 
 public:
   /**
@@ -252,7 +252,7 @@ private:
   std::string description_;  /**< Description of the handle exception */
   std::string classname_;    /**< Name of the class that threw the exception */
   std::string functionname_; /**< Number of function that threw the exception */
-  std::string handle_;       /**< Description of the handle causing the exception */
+  std::string handle_; /**< Description of the handle causing the exception */
 
 public:
   /**

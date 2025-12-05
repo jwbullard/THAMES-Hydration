@@ -5,7 +5,8 @@
 */
 #include "ParrotKillohModel.h"
 
-using std::cout; using std::endl;
+using std::cout;
+using std::endl;
 
 ParrotKillohModel::ParrotKillohModel() {
   ///
@@ -81,8 +82,8 @@ ParrotKillohModel::ParrotKillohModel(ChemicalSystem *cs, Lattice *lattice,
 #ifdef DEBUG
   verbose_ = true;
   warning_ = true;
-  cout << "ParrotKillohModel::ParrotKillohModel Constructor" << endl;
-  cout.flush();
+  std::clog << "ParrotKillohModel::ParrotKillohModel Constructor" << endl;
+  std::clog.flush();
 #else
   verbose_ = verbose;
   warning_ = warning;
@@ -169,8 +170,9 @@ ParrotKillohModel::ParrotKillohModel(ChemicalSystem *cs, Lattice *lattice,
 }
 
 void ParrotKillohModel::calculateKineticStep(const double timestep,
-                                             double &scaledMass, double &massDissolved,
-                                             int cyc, double totalDOR, bool doTweak,
+                                             double &scaledMass,
+                                             double &massDissolved, int cyc,
+                                             double totalDOR, bool doTweak,
                                              bool &doNotModif) {
 
   ///
@@ -201,17 +203,18 @@ void ParrotKillohModel::calculateKineticStep(const double timestep,
     // from precipitating.
 
     if (verbose_) {
-      cout << "ParrotKillohModel::calculateKineticStep for " << name_ << endl;
-      cout.flush();
+      std::clog << "ParrotKillohModel::calculateKineticStep for " << name_
+                << endl;
+      std::clog.flush();
     }
 
     if (!doTweak)
-      cout << "      ParrotKillohModel::calculateKineticStep    - "
-              "microPhaseId_/mPhName/SI : "       
-           << setw(3) << right << microPhaseId_ << " / "
-           << setw(15) << left << name_ << " / "
-           << chemSys_->getMicroPhaseSI(microPhaseId_)
-           << " (SI not used in PK model)" << endl;
+      std::clog << "      ParrotKillohModel::calculateKineticStep    - "
+                   "microPhaseId_/mPhName/SI : "
+                << std::setw(3) << std::right << microPhaseId_ << " / "
+                << std::setw(15) << std::left << name_ << " / "
+                << chemSys_->getMicroPhaseSI(microPhaseId_)
+                << " (SI not used in PK model)" << endl;
 
     // RH factor is the same for all clinker phases
 
@@ -235,10 +238,11 @@ void ParrotKillohModel::calculateKineticStep(const double timestep,
       DOR = (initScaledMass_ - scaledMass_) / initScaledMass_;
 
       if (verbose_) {
-        cout << "~~~~>DOR for " << name_ << " = " << DOR
-             << "   initScaledMass_/scaledMass_/ssaFactor_ : " << initScaledMass_ << " / "
-             << scaledMass_ << " / " << ssaFactor_ << endl;
-        cout.flush();
+        std::clog << "~~~~>DOR for " << name_ << " = " << DOR
+                  << "   initScaledMass_/scaledMass_/ssaFactor_ : "
+                  << initScaledMass_ << " / " << scaledMass_ << " / "
+                  << ssaFactor_ << endl;
+        std::clog.flush();
       }
     } else {
       throw FloatException("ParrotKillohModel", "calculateKineticStep",
@@ -311,36 +315,40 @@ void ParrotKillohModel::calculateKineticStep(const double timestep,
       scaledMass = scaledMass_;
 
       if (verbose_) {
-        cout << endl << "    ParrotKillohModel::calculateKineticStep "
-                "rate/wcFactor/massDissolved : "
-             << rate << " / " << wcFactor << " / " << massDissolved << endl;
-        cout << "  ****************** PKM_hT = " << timestep
-             << "    cyc = " << cyc << "    microPhaseId_ = " << microPhaseId_
-             << "    microPhase = " << name_
-             << "    GEMPhaseIndex = " << GEMPhaseId_ << " ******************"
-             << endl;
-        cout << "   PKM_hT   " << "pfk_: " << pfk_ << "    k1 = " << k1_
-             << "    n1 = " << n1_ << "    k2 = " << k2_ << "    k3 = " << k3_
-             << "    n3 = " << n3_ << endl;
-        cout << "   PKM_hT   " << "dorHcoeff_: " << dorHcoeff_
-             << "    Ea = " << activationEnergy_ << endl;
-        cout << "   PKM_hT   "
-             << "specificSurfaceArea_ = " << specificSurfaceArea_
-             << "    refSpecificSurfaceArea_ = " << refSpecificSurfaceArea_
-             << "    ssaFactor_ = " << ssaFactor_ << endl;
-        cout << "   PKM_hT   " << "wcRatio_: " << wcRatio_
-             << "\twsRatio_: " << wsRatio_ << endl;
-        cout << "   PKM_hT   " << "ngrate: " << ngrate << "\thsrate: " << hsrate
-             << "\tdiffrate: " << diffrate << "\trate: " << rate << endl;
-        cout << "   PKM_hT   " << "wcFactor: " << wcFactor
-             << "\trhFactor_: " << rhFactor_ << "\tarrhenius_: " << arrhenius_
-             << endl;
-        cout << "   PKM_hT   " << "DOR: " << DOR << "\tnewDOR: " << newDOR
-             << "\ttotalDOR: " << totalDOR
-             << "\tinitScaledMass_: " << initScaledMass_
-             << "\tscaledMass_: " << scaledMass_
-             << "\tmassDissolved: " << massDissolved << endl;
-        cout.flush();
+        std::clog << endl
+                  << "    ParrotKillohModel::calculateKineticStep "
+                     "rate/wcFactor/massDissolved : "
+                  << rate << " / " << wcFactor << " / " << massDissolved
+                  << endl;
+        std::clog << "  ****************** PKM_hT = " << timestep
+                  << "    cyc = " << cyc
+                  << "    microPhaseId_ = " << microPhaseId_
+                  << "    microPhase = " << name_
+                  << "    GEMPhaseIndex = " << GEMPhaseId_
+                  << " ******************" << endl;
+        std::clog << "   PKM_hT   " << "pfk_: " << pfk_ << "    k1 = " << k1_
+                  << "    n1 = " << n1_ << "    k2 = " << k2_
+                  << "    k3 = " << k3_ << "    n3 = " << n3_ << endl;
+        std::clog << "   PKM_hT   " << "dorHcoeff_: " << dorHcoeff_
+                  << "    Ea = " << activationEnergy_ << endl;
+        std::clog << "   PKM_hT   "
+                  << "specificSurfaceArea_ = " << specificSurfaceArea_
+                  << "    refSpecificSurfaceArea_ = " << refSpecificSurfaceArea_
+                  << "    ssaFactor_ = " << ssaFactor_ << endl;
+        std::clog << "   PKM_hT   " << "wcRatio_: " << wcRatio_
+                  << "\twsRatio_: " << wsRatio_ << endl;
+        std::clog << "   PKM_hT   " << "ngrate: " << ngrate
+                  << "\thsrate: " << hsrate << "\tdiffrate: " << diffrate
+                  << "\trate: " << rate << endl;
+        std::clog << "   PKM_hT   " << "wcFactor: " << wcFactor
+                  << "\trhFactor_: " << rhFactor_
+                  << "\tarrhenius_: " << arrhenius_ << endl;
+        std::clog << "   PKM_hT   " << "DOR: " << DOR << "\tnewDOR: " << newDOR
+                  << "\ttotalDOR: " << totalDOR
+                  << "\tinitScaledMass_: " << initScaledMass_
+                  << "\tscaledMass_: " << scaledMass_
+                  << "\tmassDissolved: " << massDissolved << endl;
+        std::clog.flush();
       }
 
     } else {

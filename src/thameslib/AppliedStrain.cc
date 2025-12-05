@@ -4,7 +4,8 @@
 */
 #include "AppliedStrain.h"
 
-using std::cout; using std::endl;
+using std::cout;
+using std::endl;
 using std::string;
 
 // AppliedStrain::AppliedStrain(int nx, int ny, int nz, int dim, int nphase,
@@ -24,18 +25,19 @@ AppliedStrain::AppliedStrain(int nx, int ny, int nz, int dim,
 #endif
 
 #ifdef DEBUG
-  cout << "AppliedStrain::AppliedStrain Constructor" << endl;
-  cout.flush();
+  std::clog << "AppliedStrain::AppliedStrain Constructor" << endl;
+  std::clog.flush();
 #endif
 
   exx_ = eyy_ = ezz_ = 0.0;
   exz_ = eyz_ = exy_ = 0.0;
 
   kmax_ = 40; // 3;
-  cout << endl
-       << "AppliedStrain::AppliedStrain - "
-          "the number of relaxation steps for elastic computation :  kmax_ = "
-       << kmax_ << endl;
+  std::clog
+      << endl
+      << "AppliedStrain::AppliedStrain - "
+         "the number of relaxation steps for elastic computation :  kmax_ = "
+      << kmax_ << endl;
 
   is_[0] = 26;
   is_[1] = 2;
@@ -1060,8 +1062,8 @@ void AppliedStrain::relax(int kmax) {
   ///
 
 #ifdef DEBUG
-  cout << "AppliedStrain::relax Entering energy" << endl;
-  cout.flush();
+  std::clog << "AppliedStrain::relax Entering energy" << endl;
+  std::clog.flush();
 #endif
 
   int ldemb = 50, ltot = 0;
@@ -1107,11 +1109,11 @@ void AppliedStrain::relax(int kmax) {
     utot = energy();
 
     if (verbose_) {
-      cout << "AppliedStrain::relax Energy = " << utot << ", gg_ = " << gg_
-           << endl;
-      cout << "AppliedStrain::relax Number of conjugate steps = " << ltot
-           << endl;
-      cout.flush();
+      std::clog << "AppliedStrain::relax Energy = " << utot << ", gg_ = " << gg_
+                << endl;
+      std::clog << "AppliedStrain::relax Number of conjugate steps = " << ltot
+                << endl;
+      std::clog.flush();
     }
 
     ///
@@ -1130,17 +1132,20 @@ void AppliedStrain::relax(int kmax) {
       stress();
 
 #ifdef DEBUG
-      cout << "AppliedStrain::relax stresses: xx,    yy,    zz,    xz,    yz,  "
-              "  xy"
-           << endl;
-      cout << "AppliedStrain::relax         " << strxx_ << " " << stryy_ << " "
-           << strzz_ << " " << strxz_ << " " << stryz_ << " " << strxy_ << endl;
-      cout << "AppliedStrain::relax strains: xx,    yy,    zz,    xz,    yz,   "
-              " xy"
-           << endl;
-      cout << "AppliedStrain::relax         " << sxx_ << " " << syy_ << " "
-           << szz_ << " " << sxz_ << " " << syz_ << " " << sxy_ << endl;
-      cout.flush();
+      std::clog
+          << "AppliedStrain::relax stresses: xx,    yy,    zz,    xz,    yz,  "
+             "  xy"
+          << endl;
+      std::clog << "AppliedStrain::relax         " << strxx_ << " " << stryy_
+                << " " << strzz_ << " " << strxz_ << " " << stryz_ << " "
+                << strxy_ << endl;
+      std::clog
+          << "AppliedStrain::relax strains: xx,    yy,    zz,    xz,    yz,   "
+             " xy"
+          << endl;
+      std::clog << "AppliedStrain::relax         " << sxx_ << " " << syy_ << " "
+                << szz_ << " " << sxz_ << " " << syz_ << " " << sxy_ << endl;
+      std::clog.flush();
 #endif
 
     } else {
@@ -1153,17 +1158,19 @@ void AppliedStrain::relax(int kmax) {
   stress();
 
   if (verbose_) {
-    cout << "AppliedStrain::relax stresses: xx,    yy,    zz,    xz,    yz,    "
-            "xy"
-         << endl;
-    cout << "AppliedStrain::relax         " << strxx_ << " " << stryy_ << " "
-         << strzz_ << " " << strxz_ << " " << stryz_ << " " << strxy_ << endl;
-    cout
+    std::clog
+        << "AppliedStrain::relax stresses: xx,    yy,    zz,    xz,    yz,    "
+           "xy"
+        << endl;
+    std::clog << "AppliedStrain::relax         " << strxx_ << " " << stryy_
+              << " " << strzz_ << " " << strxz_ << " " << stryz_ << " "
+              << strxy_ << endl;
+    std::clog
         << "AppliedStrain::relax strains: xx,    yy,    zz,    xz,    yz,    xy"
         << endl;
-    cout << "AppliedStrain::relax         " << sxx_ << " " << syy_ << " "
-         << szz_ << " " << sxz_ << " " << syz_ << " " << sxy_ << endl;
-    cout.flush();
+    std::clog << "AppliedStrain::relax         " << sxx_ << " " << syy_ << " "
+              << szz_ << " " << sxz_ << " " << syz_ << " " << sxy_ << endl;
+    std::clog.flush();
   }
 
   return;
@@ -1194,15 +1201,16 @@ void AppliedStrain::calc(vector<int> *p_vectPhId, double exx, double eyy,
 
 #ifdef DEBUG
   for (int i = 0; i < nphase_; i++) {
-    cout << "AppliedStrain::calc Phase " << i << " bulk = " << phasemod_[i][0]
-         << " shear = " << phasemod_[i][1] << endl;
+    std::clog << "AppliedStrain::calc Phase " << i
+              << " bulk = " << phasemod_[i][0] << " shear = " << phasemod_[i][1]
+              << endl;
   }
 
   for (int i = 0; i < nphase_; i++) {
-    cout << "AppliedStrain::calc Volume fraction of phase " << i << "  is "
-         << prob_[i] << endl;
+    std::clog << "AppliedStrain::calc Volume fraction of phase " << i << "  is "
+              << prob_[i] << endl;
   }
-  cout.flush();
+  std::clog.flush();
 #endif
 
   ///
@@ -1220,12 +1228,13 @@ void AppliedStrain::calc(vector<int> *p_vectPhId, double exx, double eyy,
   exy_ = exy;
 
 #ifdef DEBUG
-  cout << "AppliedStrain::calc Applied engineering strains" << endl;
-  cout << "AppliedStrain::calc  exx_,   eyy_,   ezz_,   exz_,   eyz_,   exy_"
-       << endl;
-  cout << "AppliedStrain::calc " << exx_ << "   " << eyy_ << "   " << ezz_
-       << "   " << exz_ << "   " << eyz_ << "   " << exy_ << endl;
-  cout.flush();
+  std::clog << "AppliedStrain::calc Applied engineering strains" << endl;
+  std::clog
+      << "AppliedStrain::calc  exx_,   eyy_,   ezz_,   exz_,   eyz_,   exy_"
+      << endl;
+  std::clog << "AppliedStrain::calc " << exx_ << "   " << eyy_ << "   " << ezz_
+            << "   " << exz_ << "   " << eyz_ << "   " << exy_ << endl;
+  std::clog.flush();
 #endif
 
   ///
@@ -1283,12 +1292,12 @@ double AppliedStrain::getBulkModulus(vector<int> *p_vectPhId) {
   double Stress, Strain;
   // Stress = Strain = 0.0;
 
-  // cout << "AppliedStrain::getBulkModulus - bf-calc" << endl;
+  // std::clog << "AppliedStrain::getBulkModulus - bf-calc" << endl;
 
   // calc(fileName, 0.1, 0.1, 0.1, 0.05, 0.05, 0.05);
   calc(p_vectPhId, 0.1, 0.1, 0.1, 0.05, 0.05, 0.05);
 
-  // cout << "AppliedStrain::getBulkModulus - af-calc" << endl;
+  // std::clog << "AppliedStrain::getBulkModulus - af-calc" << endl;
 
   // for (int i = 0; i < 3; i++) {
   //   Stress += getStress(i);

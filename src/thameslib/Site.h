@@ -6,9 +6,9 @@
 #ifndef SRC_THAMESLIB_SITE_H_
 #define SRC_THAMESLIB_SITE_H_
 
-#include "global.h"
-#include "Exceptions.h"
 #include "ChemicalSystem.h"
+#include "Exceptions.h"
+#include "global.h"
 
 /**
 @class Site
@@ -29,13 +29,16 @@ protected:
   int z_ = 0;            /**< y-coordinate in mesh coordinate frame */
   int id_ = 0;           /**< Unique id in the 1D array of all sites */
   int microPhaseId_ = 0; /**< The microstructure phase assignment */
-  ChemicalSystem *chemSys_; /**< Pointer to simulation's ChemicalSystem object */
+  ChemicalSystem
+      *chemSys_; /**< Pointer to simulation's ChemicalSystem object */
   std::vector<int> growth_; /**< Vector of phases that can grow at this site */
   double stressFreeVolume_; /**< Stress-free volume of the site */
   double trueVolume_;       /**< Actual volume of site, accounting for stress */
   bool damage_ = false;     /**< True if site is damaged, false otherwise */
-  std::vector<Site *> nb_;  /**< List of site ids that are neighbors to this site */
-  std::vector<int> nbSA_;   /**< List of site ids that are neighbors to this site */
+  std::vector<Site *>
+      nb_; /**< List of site ids that are neighbors to this site */
+  std::vector<int>
+      nbSA_; /**< List of site ids that are neighbors to this site */
 
   /**
   @brief Ranking of potential for dissolution if the site is an interface site.
@@ -62,33 +65,35 @@ protected:
 
   This provides a ranking of dissolution potential only.
   */
-  int wmc_;          /**< total porosity ("surface curvature") at this site */
-  int wmc0_;         /**< this site internal porosity
-                          (its own contribution at wmc_ value) */
+  int wmc_;  /**< total porosity ("surface curvature") at this site */
+  int wmc0_; /**< this site internal porosity
+                  (its own contribution at wmc_ value) */
 
   double expstrain_; /**< Assigned expansion strain by phase
                           constrained transformation or an applied load */
 
-  bool verbose_;     /**< Flag to determine verbose output */
+  bool verbose_; /**< Flag to determine verbose output */
 
-  std::vector<int> inGrowInterfacePos_; /**< vector of the site position in each
-                                             growth interface (-1 if the site doesn't
-                                             belong to a growth interface) */
-  int inDissInterfacePos_;              /**< site position in the corresponding
-                                             dissolution interface (-1 if the site
-                                             doesn't belong to the dissolution
-                                             interface) */
+  std::vector<int>
+      inGrowInterfacePos_; /**< vector of the site position in each
+                                growth interface (-1 if the site doesn't
+                                belong to a growth interface) */
+  int inDissInterfacePos_; /**< site position in the corresponding
+                                dissolution interface (-1 if the site
+                                doesn't belong to the dissolution
+                                interface) */
 
-  std::vector<int> inGrowthVectorPos_;  /**< vector of the site position in the
-                                             growth vector (-1 if the site doesn't
-                                             belong to the growth vector) */
-  int inDissolutionVectorPos_;          /**< vector of the site position in the
-                                             dissolution vector (-1 if the site doesn't
-                                             belong to the growth vector) */
+  std::vector<int>
+      inGrowthVectorPos_;      /**< vector of the site position in the
+                                    growth vector (-1 if the site doesn't
+                                    belong to the growth vector) */
+  int inDissolutionVectorPos_; /**< vector of the site position in the
+                                    dissolution vector (-1 if the site doesn't
+                                    belong to the growth vector) */
 
-  int visit_;                           /**< flag used to avoid acting twice or more
-                                             on the site (or its neighborhood) during
-                                             a current action */
+  int visit_; /**< flag used to avoid acting twice or more
+                   on the site (or its neighborhood) during
+                   a current action */
 
 public:
   /**
@@ -140,18 +145,20 @@ public:
   given microPhase (having microPhaseId = phId)
 
   @param phId is the microPhaseId
-  @param pos is the site position on the growth interface of the given microPhase,
-  having microPhaseId = phId
+  @param pos is the site position on the growth interface of the given
+  microPhase, having microPhaseId = phId
   */
-  void setInGrowInterfacePos(int phId, int pos) { inGrowInterfacePos_[phId] = pos; }
+  void setInGrowInterfacePos(int phId, int pos) {
+    inGrowInterfacePos_[phId] = pos;
+  }
 
   /**
   @brief Get the site position on a growth interface corresponding to a given
   microPhase (having microPhaseId = phId)
 
   @param phId is the microPhaseId
-  @return the site position on the growth interface corresponding to the microPhase
-  having microPhaseId = phId
+  @return the site position on the growth interface corresponding to the
+  microPhase having microPhaseId = phId
   */
   int getInGrowInterfacePos(int phId) { return inGrowInterfacePos_[phId]; }
 
@@ -177,8 +184,8 @@ public:
   std::vector<int> getInGrowInterfacePosVector() { return inGrowInterfacePos_; }
 
   /**
-  @brief Set the site position (pos) on the dissolution interface corresponding to
-  the microPhase occupying this site
+  @brief Set the site position (pos) on the dissolution interface corresponding
+  to the microPhase occupying this site
 
   @param pos is the site position on the dissolution interface of the microPhase
   occupying this site
@@ -186,8 +193,8 @@ public:
   void setInDissInterfacePos(int pos) { inDissInterfacePos_ = pos; }
 
   /**
-  @brief Get the site position (inDissInterfacePos_) on the dissolution interface
-  corresponding to the microPhase occupying this site
+  @brief Get the site position (inDissInterfacePos_) on the dissolution
+  interface corresponding to the microPhase occupying this site
 
   @return the site position (inDissInterfacePos_) on the dissolution interface
   corresponding to the microPhase occupying this site
@@ -196,25 +203,27 @@ public:
 
   /**
   @brief Set the site position (pos) corresponding to a given microPhase
-  (having microPhaseId = phId) on the current growth vector (-1 if the site doesn't
-  belong, for the given phId, to the current growth vector)
+  (having microPhaseId = phId) on the current growth vector (-1 if the site
+  doesn't belong, for the given phId, to the current growth vector)
 
   @param phId is the microPhaseId
   @param pos is the site position corresponding to the given microPhase, having
-  microPhaseId = phId, on the current growth vector (-1 if the site doesn't belong,
-  for the given phId, to the current growth vector)
+  microPhaseId = phId, on the current growth vector (-1 if the site doesn't
+  belong, for the given phId, to the current growth vector)
   */
-  void setInGrowthVectorPos(int phId, int pos) { inGrowthVectorPos_[phId] = pos; }
+  void setInGrowthVectorPos(int phId, int pos) {
+    inGrowthVectorPos_[phId] = pos;
+  }
 
   /**
   @brief Get the site position corresponding to a given microPhase
-  (having microPhaseId = phId) on the current growth vector (-1 if the site doesn't
-  belong, for the given phId, to the current growth vector)
+  (having microPhaseId = phId) on the current growth vector (-1 if the site
+  doesn't belong, for the given phId, to the current growth vector)
 
   @param phId is the microPhaseId
   @return the site position corresponding to the given microPhase, having
-  microPhaseId = phId, on the current growth vector (-1 if the site doesn't belong,
-  for the given phId, to the current growth vector)
+  microPhaseId = phId, on the current growth vector (-1 if the site doesn't
+  belong, for the given phId, to the current growth vector)
   */
   int getInGrowthVectorPos(int phId) { return inGrowthVectorPos_[phId]; }
 
@@ -451,8 +460,10 @@ public:
   void dWmc(int dwmcval) {
     wmc_ += dwmcval;
     if (wmc_ < 0) {
-      cout << endl << "Site::dWmc error :  wmc_ < 0! i.e. wmc_ = " << wmc_ << endl;
-      cout << endl << "exit" << endl;
+      std::clog << std::endl
+                << "Site::dWmc error :  wmc_ < 0! i.e. wmc_ = " << wmc_
+                << std::endl;
+      std::clog << std::endl << "exit" << std::endl;
       exit(0);
     }
   }

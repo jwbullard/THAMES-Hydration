@@ -10,21 +10,55 @@
 // #define DEBUG
 // #endif
 
+#include "../version.h"
+#include <ctime>
+#include <fstream>
 #include <iomanip>
 #include <iostream>
+#include <map>
+#include <sstream>
 #include <stdexcept>
 #include <string>
 #include <vector>
-#include <map>
-#include <fstream>
-#include <sstream>
-#include <ctime>
-#include "../version.h"
 
 #include "../GEMS3K-standalone/GEMS3K/node.h"
 #include "../Resources/include/nlohmann/json.hpp"
 
 using json = nlohmann::json;
+
+/**
+@ brief Namespace for setting up global logging to a file
+*/
+namespace lgf {
+inline std::string time_stamp() {
+  const std::time_t t = std::time(nullptr);
+  std::string str = std::ctime(std::addressof(t));
+  str.pop_back();
+  return str;
+}
+
+struct init_helper {
+  explicit init_helper(std::string log_file_name) {
+
+    // note: std:ios:out will overwrite the log file
+    //       use std::ios:app to keep appending to the logfile
+    fbuf.open(log_file_name, std::ios::app);
+    old_buf = std::clog.rdbuf(std::addressof(fbuf));
+  }
+
+  ~init_helper() { std::clog.rdbuf(old_buf); }
+
+  // non copyable, non assignable
+  init_helper(const init_helper &) = delete;
+  init_helper(init_helper &&) = delete;
+  init_helper &operator=(const init_helper &) = delete;
+  init_helper &operator=(init_helper &&) = delete;
+
+private:
+  std::filebuf fbuf;
+  std::streambuf *old_buf;
+};
+} // namespace lgf
 
 // String indicating THAMES version in the input microstructure file
 inline const char VERSIONSTRING[] = "#THAMES:Version:";
@@ -61,7 +95,7 @@ inline const char FerriteDCName[] = "C4AF";
 
 // String indicating the liquid solution GEM Phase name
 // @todo Make this general somehow
-inline const char ElectrolyteGEMName[] = "aq_gen";
+inline const char ElectrolyteGEMName[] = "Electrolyte";
 
 // String indicating the liquid water DC name
 // @todo Make this general somehow

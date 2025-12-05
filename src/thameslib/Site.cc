@@ -6,7 +6,8 @@
 
 #include "Site.h"
 
-using std::cout; using std::endl;
+using std::cout;
+using std::endl;
 using std::vector;
 
 Site::Site() {
@@ -95,19 +96,20 @@ void Site::removeGrowthSite(int pid) {
     }
   }
   if (found == false) {
-    cout << endl << " stop - void removeGrowthSite(int pid) " << endl;
-    cout.flush();
-    cout << endl << "i size pid " << i << " " << size << " " << pid << endl;
+    std::clog << endl << " stop - void removeGrowthSite(int pid) " << endl;
+    std::clog.flush();
+    std::clog << endl
+              << "i size pid " << i << " " << size << " " << pid << endl;
     exit(1);
   }
 }
 
 void Site::setStressFreeVolume(double vol) {
   if (vol < 0) {
-    cout
+    std::clog
         << "in the setStrfreevolume function...volume should not be negative."
         << endl;
-    cerr
+    std::cerr
         << "in the setStrfreevolume function...volume should not be negative."
         << endl;
     exit(1);
@@ -118,10 +120,12 @@ void Site::setStressFreeVolume(double vol) {
 
 void Site::setTrueVolume(double vol) {
   if (vol < 0) {
-    cout << "in the setTrueVolume function...volume should not be negative."
-         << endl;
-    cerr << "in the setTrueVolume function...volume should not be negative."
-         << endl;
+    std::clog
+        << "in the setTrueVolume function...volume should not be negative."
+        << endl;
+    std::cerr
+        << "in the setTrueVolume function...volume should not be negative."
+        << endl;
     exit(1);
   } else {
     trueVolume_ = vol;

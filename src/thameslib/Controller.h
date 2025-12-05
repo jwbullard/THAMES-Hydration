@@ -6,27 +6,27 @@
 #ifndef SRC_THAMESLIB_CONTROLLER_H_
 #define SRC_THAMESLIB_CONTROLLER_H_
 
-#include "global.h"
 #include "Exceptions.h"
 #include "KineticController.h"
 #include "Lattice.h"
 #include "Site.h"
 #include "ThermalStrain.h"
+#include "global.h"
 
 struct RestoreSite {
   // for each site in site_:
-  int microPhaseId;                    /**< The microstructure phase assignment */
-  std::vector<int> growth;             /**< vector of phases that can grow at this
-                                            site */
+  int microPhaseId;        /**< The microstructure phase assignment */
+  std::vector<int> growth; /**< vector of phases that can grow at this
+                                site */
   std::vector<int> inGrowInterfacePos; /**< vector of the site position in each
                                             growth interface */
-  int inDissInterfacePos;     /**< site position in the corresponding dissolution
-                                   interface */
-  int wmc;                    /**< total porosity ("surface curvature") at this
-                                   site */
-  int wmc0;                   /**< this site internal porosity (its own contribution
-                                   at wmc_ value) */
-  int visit;                  /**< reset to 0 */
+  int inDissInterfacePos; /**< site position in the corresponding dissolution
+                               interface */
+  int wmc;                /**< total porosity ("surface curvature") at this
+                               site */
+  int wmc0;               /**< this site internal porosity (its own contribution
+                               at wmc_ value) */
+  int visit;              /**< reset to 0 */
 };
 
 struct RestoreInterface {
@@ -69,8 +69,8 @@ struct RestoreSystem {
 //   std::vector<Site> site_;     /**< 1D list of Site objects (site = voxel) */
 //   for each site in site_:
 //     unsigned int microPhaseId_;   // The microstructure phase assignment
-//     std::vector<unsigned int> growth_; // Vector of phases that can grow at this
-//     site
+//     std::vector<unsigned int> growth_; // Vector of phases that can grow at
+//     this site
 //    double wmc_;                  // total porosity ("surface curvature") at
 //    this site double wmc0_;                 // this site internal porosity
 //    (its own contribution at wmc_ value)
@@ -79,8 +79,8 @@ struct RestoreSystem {
 //   from Interface
 //     microPhaseId_; /**< The phase id of the voxels at this interface */
 //     std::vector<Isite> growthSites_; /**< The list of all sites eligible
-//     foradjacent growth */ std::vector<Isite> dissolutionSites_; /**< The list of
-//     sites eligible for self-dissolution */ for each Isite:
+//     foradjacent growth */ std::vector<Isite> dissolutionSites_; /**< The list
+//     of sites eligible for self-dissolution */ for each Isite:
 //       unsigned int id_; /**< The id of the corresponding Site */
 //       int affinity_;    /**< The affinity for growth of a phase at the site
 //       */
@@ -124,8 +124,8 @@ time step.
 class Controller {
 
 protected:
-  std::string jobRoot_;   /**< Root name for all output files */
-  Lattice *lattice_;      /**< Pointer to microstructure lattice object */
+  std::string jobRoot_; /**< Root name for all output files */
+  Lattice *lattice_;    /**< Pointer to microstructure lattice object */
   KineticController *kineticController_; /**< Pointer to kinetic controller
                                               object */
   ThermalStrain *thermalstr_;            /**< Pointer to the finite element
@@ -136,12 +136,12 @@ protected:
                                               each iteration */
   std::vector<double> timeInitial_;      /**< List of simulation times for
                                               each iteration */
-  vector<double> outputImageTime_; /**< List of times to output image */
-  double outputImageTimeInterval_; /**< Frequency to output images */
+  vector<double> outputImageTime_;       /**< List of times to output image */
+  double outputImageTimeInterval_;       /**< Frequency to output images */
 
   int simType_; /**< Hydration, leaching, or sulfate attack for now */
 
-  bool attack_; /**< for sulfate attack */
+  bool attack_;                     /**< for sulfate attack */
   double beginAttackTime_;          /**< Simulation time at which to begin the
                                          attack (leach/sulfate attack) */
   double endAttackTime_;            /**< Simulation time at which to stop the
@@ -163,11 +163,11 @@ private:
                             damaged before the current cycle */
   int newDamageCount_; /**< Number of pixels in the system damaged during the
                             current cycle */
-  int allDamageCount_; /**< Total number of pixels in the system that are damaged
-                            at the end of the current cycle */
+  int allDamageCount_; /**< Total number of pixels in the system that are
+                          damaged at the end of the current cycle */
 
-  bool verbose_;  /**< Flag for verbose output */
-  bool warning_;  /**< Flag for warning output */
+  bool verbose_; /**< Flag for verbose output */
+  bool warning_; /**< Flag for warning output */
   // bool xyz_;   /**< Flag for 3D movie data output */
   bool xyzMovie_; /**< Flag for 3D movie data output */
   bool xyzFiles_; /**< Flag for 3D files (.xyz) data output */
@@ -187,6 +187,7 @@ private:
   double deltaTime_;
   double lastGoodTime_;
   double stepTimeTHR_;
+
 public:
   /**
   @brief The constructor.

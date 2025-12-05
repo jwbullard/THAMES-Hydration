@@ -5,7 +5,8 @@
 */
 #include "KineticModel.h"
 
-using std::cout; using std::endl;
+using std::cout;
+using std::endl;
 
 KineticModel::KineticModel() {
   ///
@@ -41,8 +42,8 @@ KineticModel::KineticModel() {
 void KineticModel::setKineticDCMoles() {
 
 #ifdef DEBUG
-  cout << "KineticModel::setKineMicDCmoles" << endl;
-  cout.flush();
+  std::clog << "KineticModel::setKineMicDCmoles" << endl;
+  std::clog.flush();
 #endif
 
   try {

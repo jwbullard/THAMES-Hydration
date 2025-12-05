@@ -107,8 +107,6 @@ message ("Top level CMAKE_CXX_FLAGS: " ${CMAKE_CXX_FLAGS})
 message ("Linked libraries are: " ${EXTRA_LIBS})
 
 add_subdirectory (${CMAKE_SOURCE_DIR}/src/thameslib)
-add_subdirectory (${CMAKE_SOURCE_DIR}/src/vcctl2thames)
-add_subdirectory (${CMAKE_SOURCE_DIR}/src/viz)
 
 file (GLOB SOURCES "${CMAKE_SOURCE_DIR}/src/*.cc")
 
@@ -119,7 +117,7 @@ add_executable (thames ${SOURCES})
 
 target_link_libraries (thames thameslib ${EXTRA_LIBS})
 
-install (TARGETS thames viz vcctl2thames DESTINATION ${CMAKE_SOURCE_DIR}/bin)
+install (TARGETS thames DESTINATION ${CMAKE_SOURCE_DIR}/bin)
 if (EXISTS ${CMAKE_SOURCE_DIR}/build/html)
   install (DIRECTORY ${CMAKE_SOURCE_DIR}/build/html DESTINATION ${CMAKE_SOURCE_DIR}/doc)
 endif ()

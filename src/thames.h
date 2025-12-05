@@ -121,9 +121,10 @@ Department of Commerce, April, 2000.
 #include "thameslib/StrainEnergy.h"
 #include "thameslib/ThermalStrain.h"
 #include "thameslib/global.h"
-// #include "version.h"
-
+#include <fstream>
 #include <getopt.h>
+#include <sstream>
+#include <string>
 
 /**
 @brief Flag for verbose output
@@ -143,7 +144,7 @@ bool XYZ;
 /**
 @brief Name of output folder for simulation results
 */
-string outputFolder;
+std::string OutputFolder;
 
 /**
 @brief The vector of component elastic energies.
@@ -168,22 +169,22 @@ This functions uses the GNU getopt_long functionality
 
 @param argc is the number of command line arguments
 @param argv is the array of the command line arguments
-@param outputFolder is the name of the folder for output data files
+@param OutputFolder is the name of the folder for output data files
 @return 0 if no errors, non-zero if error
 */
-int checkArgs(int argc, char **argv, std::string &outputFolder);
+int checkArgs(int argc, char **argv, std::string &OutputFolder);
 
 /**
 @brief Create output folder and copy input files to it
 
-@param outputFolder is the output folder name to create
+@param OutputFolder is the output folder name to create
 @param jobRoot is the root name of the simulation job
 @param gemInputName is the name of the master GEM input file
 @param statFileName is the name of the master GEM input file
 @param initMicName is name of the initial microstructure image file
 @param simParamName is name of the simulation parameter file
 */
-void prepOutputFolder(const std::string &outputFolder, std::string &jobRoot,
+void prepOutputFolder(const std::string &OutputFolder, std::string &jobRoot,
                       const std::string &gemInputName,
                       std::string &statFileName, const std::string &initMicName,
                       const std::string &simParamName);
@@ -228,7 +229,7 @@ void timeCount(clock_t time_, time_t lt_);
 @param time_ is the start time
 @param lt_ is the start time (?)
 @param errorProgram is true if the program is exiting due to an error
-@param outputFolder is the name of the folder for output data files
+@param OutputFolder is the name of the folder for output data files
 
 If a file is not present, the file name should be given as an empty string.
 */
@@ -237,7 +238,7 @@ void deleteDynAllocMem(ChemicalSystem *ChemSys, Lattice *Mic, RanGen *RNG,
                        AppliedStrain *AppliedStrainSolver,
                        KineticController *KController, Controller *Ctrl,
                        clock_t st_time, time_t lt, bool errorProgram,
-                       const std::string &outputFolder);
+                       const std::string &OutputFolder);
 
 /**
 @brief Write the last number of voxels for each microPhase in the system.

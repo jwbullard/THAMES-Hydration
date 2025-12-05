@@ -57,11 +57,11 @@ component
 #include "global.h"
 
 struct KineticData {
-  std::string name;       /**< Name of the microstructure phase */
-  int microPhaseId;       /**< Integer id of the microstructure phase */
-  int GEMPhaseId;         /**< Integer id of the phase in the GEM CSD */
-  int DCId;               /**< Integer id of the DC making up the phase */
-  std::string type;       /**< Specifies kinetic or thermodynamic control */
+  std::string name;  /**< Name of the microstructure phase */
+  int microPhaseId;  /**< Integer id of the microstructure phase */
+  int GEMPhaseId;    /**< Integer id of the phase in the GEM CSD */
+  int DCId;          /**< Integer id of the DC making up the phase */
+  std::string type;  /**< Specifies kinetic or thermodynamic control */
   double scaledMass; /**< Mass percent on a total solids basis */
   double surfaceAreaMultiplier; /**< How much to multiply the surface area to
                                    account  for internal structure, roughness,
@@ -75,7 +75,7 @@ struct KineticData {
   double n1;        /**< Parrot and Killoh <i>N</i><sub>1</sub> parameter */
   double n3;        /**< Parrot and Killoh <i>N</i><sub>3</sub> parameter */
   double dorHcoeff; /**< Lothenbach-Kulik H coefficient to compute critDOR */
-  double critDOR;   /**< Critical degree of reaction (hydration) for w/c effect */
+  double critDOR; /**< Critical degree of reaction (hydration) for w/c effect */
   double dissolutionRateConst;    /**< Generic rate constant [mol/m2/s] */
   double diffusionRateConstEarly; /**< Generic rate constant [mol/m2/s] */
   double diffusionRateConstLate;  /**< Generic rate constant [mol/m2/s] */

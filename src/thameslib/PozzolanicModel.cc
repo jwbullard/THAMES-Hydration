@@ -5,7 +5,8 @@
 */
 #include "PozzolanicModel.h"
 
-using std::cout; using std::endl;
+using std::cout;
+using std::endl;
 
 PozzolanicModel::PozzolanicModel() {
 
@@ -81,9 +82,9 @@ PozzolanicModel::PozzolanicModel(ChemicalSystem *cs, Lattice *lattice,
 #ifdef DEBUG
   verbose_ = true;
   warning_ = true;
-  cout << "PozzolanicModel::PozzolanicModel Constructor sio2 value = "
-       << kineticData.sio2 << endl;
-  cout.flush();
+  std::clog << "PozzolanicModel::PozzolanicModel Constructor sio2 value = "
+            << kineticData.sio2 << endl;
+  std::clog.flush();
 #else
   verbose_ = verbose;
   warning_ = warning;
@@ -145,8 +146,9 @@ PozzolanicModel::PozzolanicModel(ChemicalSystem *cs, Lattice *lattice,
 }
 
 void PozzolanicModel::calculateKineticStep(const double timestep,
-                                           double &scaledMass, double &massDissolved,
-                                           int cyc, double totalDOR, bool doTweak,
+                                           double &scaledMass,
+                                           double &massDissolved, int cyc,
+                                           double totalDOR, bool doTweak,
                                            bool &doNotModif) {
 
   ///
@@ -260,11 +262,11 @@ void PozzolanicModel::calculateKineticStep(const double timestep,
     double saturationIndex = chemSys_->getMicroPhaseSI(microPhaseId_);
 
     if (!doTweak)
-      cout << "      PozzolanicModel::calculateKineticStep      - "
-              "microPhaseId_/mPhName/SI : "       
-           << setw(3) << right << microPhaseId_ << " / "
-           << setw(15) << left << name_ << " / "
-           << chemSys_->getMicroPhaseSI(microPhaseId_) << endl;
+      std::clog << "      PozzolanicModel::calculateKineticStep      - "
+                   "microPhaseId_/mPhName/SI : "
+                << std::setw(3) << std::right << microPhaseId_ << " / "
+                << std::setw(15) << std::left << name_ << " / "
+                << chemSys_->getMicroPhaseSI(microPhaseId_) << endl;
 
     // activity of water
     double waterActivity = chemSys_->getDCActivity(chemSys_->getDCId("H2O@"));
@@ -336,8 +338,9 @@ void PozzolanicModel::calculateKineticStep(const double timestep,
     massDissolved = rate * timestep * chemSys_->getDCMolarMass(DCId_); //
 
     if (verbose_) {
-      cout << "    PozzolanicModel::calculateKineticStep rate/massDissolved : "
-           << rate << " / " << massDissolved << endl;
+      std::clog
+          << "    PozzolanicModel::calculateKineticStep rate/massDissolved : "
+          << rate << " / " << massDissolved << endl;
     }
 
     if (chemSys_->getKeepDCLowerLimit(DCId_) > 0) {
@@ -352,10 +355,11 @@ void PozzolanicModel::calculateKineticStep(const double timestep,
     scaledMass = scaledMass_ - massDissolved;
 
     if (verbose_) {
-      cout << endl << "    PozzolanicModel::calculateKineticStep "
-              "rate/massDissolved/scaledMass_/scaledMass : "
-           << rate << " / " << massDissolved << " / " << scaledMass_ << " / "
-           << scaledMass << endl;
+      std::clog << endl
+                << "    PozzolanicModel::calculateKineticStep "
+                   "rate/massDissolved/scaledMass_/scaledMass : "
+                << rate << " / " << massDissolved << " / " << scaledMass_
+                << " / " << scaledMass << endl;
     }
 
     if (scaledMass < 0) {
@@ -365,21 +369,22 @@ void PozzolanicModel::calculateKineticStep(const double timestep,
     scaledMass_ = scaledMass;
 
     if (verbose_) {
-      cout << endl << "  ****************** PZM_hT = " << timestep << "\tcyc = " << cyc
-           << "\tmicroPhaseId_ = " << microPhaseId_
-           << "    microPhase = " << name_
-           << "\tGEMPhaseIndex = " << GEMPhaseId_ << " ******************"
-           << endl;
-      cout << "   PZM_hT   " << "rhFacto_r: " << rhFactor_
-           << "\tarrhenius_: " << arrhenius_
-           << "\tsaturationIndex: " << saturationIndex
-           << "\twaterActivity: " << waterActivity << endl;
-      cout << "   PZM_hT   " << "dissrate: " << dissrate
-           << "\tdiffrate: " << diffrate << "\trate: " << rate << endl;
-      cout << "   PZM_hT   " << "initScaledMass_: " << initScaledMass_
-           << "\tscaledMass_: " << scaledMass_
-           << "\tmassDissolved: " << massDissolved << endl;
-      cout.flush();
+      std::clog << endl
+                << "  ****************** PZM_hT = " << timestep
+                << "\tcyc = " << cyc << "\tmicroPhaseId_ = " << microPhaseId_
+                << "    microPhase = " << name_
+                << "\tGEMPhaseIndex = " << GEMPhaseId_ << " ******************"
+                << endl;
+      std::clog << "   PZM_hT   " << "rhFacto_r: " << rhFactor_
+                << "\tarrhenius_: " << arrhenius_
+                << "\tsaturationIndex: " << saturationIndex
+                << "\twaterActivity: " << waterActivity << endl;
+      std::clog << "   PZM_hT   " << "dissrate: " << dissrate
+                << "\tdiffrate: " << diffrate << "\trate: " << rate << endl;
+      std::clog << "   PZM_hT   " << "initScaledMass_: " << initScaledMass_
+                << "\tscaledMass_: " << scaledMass_
+                << "\tmassDissolved: " << massDissolved << endl;
+      std::clog.flush();
     }
 
   } catch (EOBException eex) {

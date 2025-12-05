@@ -5,7 +5,8 @@
 */
 #include "StandardKineticModel.h"
 
-using std::cout; using std::endl;
+using std::cout;
+using std::endl;
 
 StandardKineticModel::StandardKineticModel() {
 
@@ -127,8 +128,9 @@ StandardKineticModel::StandardKineticModel(ChemicalSystem *cs, Lattice *lattice,
 }
 
 void StandardKineticModel::calculateKineticStep(const double timestep,
-                                                double &scaledMass, double &massDissolved,
-                                                int cyc, double totalDOR, bool doTweak,
+                                                double &scaledMass,
+                                                double &massDissolved, int cyc,
+                                                double totalDOR, bool doTweak,
                                                 bool &doNotModif) {
   ///
   /// Initialize local variables
@@ -188,15 +190,16 @@ void StandardKineticModel::calculateKineticStep(const double timestep,
     double saturationIndex = chemSys_->getMicroPhaseSI(microPhaseId_);
 
     if (!doTweak)
-      cout << "      StandardKineticModel::calculateKineticStep - "
-              "microPhaseId_/mPhName/SI : "
-           << setw(3) << right << microPhaseId_ << " / "
-           << setw(15) << left << name_ << " / "
-           << chemSys_->getMicroPhaseSI(microPhaseId_) << endl;
+      std::clog << "      StandardKineticModel::calculateKineticStep - "
+                   "microPhaseId_/mPhName/SI : "
+                << std::setw(3) << std::right << microPhaseId_ << " / "
+                << std::setw(15) << std::left << name_ << " / "
+                << chemSys_->getMicroPhaseSI(microPhaseId_) << endl;
 
     /*
     if (!doTweak) {
-      cout << "      StandardKineticModel::calculateKineticStep - 0y - cyc = "
+      std::clog << "      StandardKineticModel::calculateKineticStep - 0y - cyc
+    = "
            << cyc << "   DCId_ = " << DCId_ << "   keepDCLowerLimit = "
            << chemSys_->getKeepDCLowerLimit(DCId_)
            << "   massDissolved/scaledMass_ : "
@@ -204,7 +207,8 @@ void StandardKineticModel::calculateKineticStep(const double timestep,
            << "   doNotModif = " << doNotModif
            << endl;
     } else {
-      cout << "      StandardKineticModel::calculateKineticStep - 0n - cyc = "
+      std::clog << "      StandardKineticModel::calculateKineticStep - 0n - cyc
+    = "
            << cyc << "   DCId_ = " << DCId_ << "   keepDCLowerLimit = "
            << chemSys_->getKeepDCLowerLimit(DCId_)
            << "   massDissolved/scaledMass_ : "
@@ -242,7 +246,8 @@ void StandardKineticModel::calculateKineticStep(const double timestep,
 
     if (chemSys_->getKeepDCLowerLimit(DCId_) > 0) {
       if (massDissolved < 0) {
-        // cout << "      StandardKineticModel::calculateKineticStep - 1 - cyc = "
+        // std::clog << "      StandardKineticModel::calculateKineticStep - 1 -
+        // cyc = "
         //      << cyc << "   DCId_ = " << DCId_ << "   keepDCLowerLimit = "
         //      << chemSys_->getKeepDCLowerLimit(DCId_)
         //      << "   massDissolved(negative)/scaledMass_ : "
@@ -251,7 +256,8 @@ void StandardKineticModel::calculateKineticStep(const double timestep,
         //      << endl;
         chemSys_->setKeepDCLowerLimitZero(DCId_);
       } else {
-        // cout << "      StandardKineticModel::calculateKineticStep - 2 - cyc = "
+        // std::clog << "      StandardKineticModel::calculateKineticStep - 2 -
+        // cyc = "
         //      << cyc << "   DCId_ = " << DCId_ << "   keepDCLowerLimit = "
         //      << chemSys_->getKeepDCLowerLimit(DCId_)
         //      << "   massDissolved(positive)/scaledMass_ : "
@@ -261,23 +267,25 @@ void StandardKineticModel::calculateKineticStep(const double timestep,
         doNotModif = true;
         return;
       }
-    // } else {
-    //   cout << "      StandardKineticModel::calculateKineticStep - 3 - cyc = "
-    //        << cyc << "   DCId_ = " << DCId_ << "   keepDCLowerLimit = "
-    //        << chemSys_->getKeepDCLowerLimit(DCId_)
-    //        << "   massDissolved(n-p)/scaledMass_ : "
-    //        << massDissolved << " / " << scaledMass_
-    //        << "   doNotModif = " << doNotModif
-    //        << endl;
+      // } else {
+      //   std::clog << "      StandardKineticModel::calculateKineticStep - 3 -
+      //   cyc = "
+      //        << cyc << "   DCId_ = " << DCId_ << "   keepDCLowerLimit = "
+      //        << chemSys_->getKeepDCLowerLimit(DCId_)
+      //        << "   massDissolved(n-p)/scaledMass_ : "
+      //        << massDissolved << " / " << scaledMass_
+      //        << "   doNotModif = " << doNotModif
+      //        << endl;
     }
 
     scaledMass = scaledMass_ - massDissolved;
 
     if (verbose_) {
-      cout << endl << "    StandardKineticModel::calculateKineticStep "
-              "dissrate/massDissolved/scaledMass_/scaledMass : "
-           << dissrate << " / " << massDissolved << " / " << scaledMass_ << " / "
-           << scaledMass << endl;
+      std::clog << endl
+                << "    StandardKineticModel::calculateKineticStep "
+                   "dissrate/massDissolved/scaledMass_/scaledMass : "
+                << dissrate << " / " << massDissolved << " / " << scaledMass_
+                << " / " << scaledMass << endl;
     }
 
     if (scaledMass < 0.0) {
@@ -287,24 +295,26 @@ void StandardKineticModel::calculateKineticStep(const double timestep,
     scaledMass_ = scaledMass;
 
     if (verbose_) {
-      cout << endl << "  ****************** SKM_hT = " << timestep
-           << "    cyc = " << cyc << "    microPhaseId_ = " << microPhaseId_
-           << "    microPhase = " << name_
-           << "    GEMPhaseIndex = " << GEMPhaseId_ << " ******************"
-           << endl;
-      cout << "   SKM_hT   " << "rhFactor_: " << rhFactor_
-           << "\tarrhenius_: " << arrhenius_
-           << "\tsaturationIndex: " << saturationIndex << "\tarea: " << area
-           << endl;
-      cout << "   SKM_hT   " << "dissrate: " << dissrate << endl;
-      cout << "   SKM_hT   " << "initScaledMass_: " << initScaledMass_
-           << "\tscaledMass_: " << scaledMass_
-           << "\tmassDissolved: " << massDissolved << endl;
-      cout << "   cyc = " << cyc << "    microPhaseId_ = " << microPhaseId_
-           << "    microPhaseName = " << name_
-           << "    saturationIndex = " << saturationIndex
-           << "   Dc_a = " << chemSys_->getNode()->DC_a(DCId_) << endl;
-      cout.flush();
+      std::clog << endl
+                << "  ****************** SKM_hT = " << timestep
+                << "    cyc = " << cyc
+                << "    microPhaseId_ = " << microPhaseId_
+                << "    microPhase = " << name_
+                << "    GEMPhaseIndex = " << GEMPhaseId_
+                << " ******************" << endl;
+      std::clog << "   SKM_hT   " << "rhFactor_: " << rhFactor_
+                << "\tarrhenius_: " << arrhenius_
+                << "\tsaturationIndex: " << saturationIndex
+                << "\tarea: " << area << endl;
+      std::clog << "   SKM_hT   " << "dissrate: " << dissrate << endl;
+      std::clog << "   SKM_hT   " << "initScaledMass_: " << initScaledMass_
+                << "\tscaledMass_: " << scaledMass_
+                << "\tmassDissolved: " << massDissolved << endl;
+      std::clog << "   cyc = " << cyc << "    microPhaseId_ = " << microPhaseId_
+                << "    microPhaseName = " << name_
+                << "    saturationIndex = " << saturationIndex
+                << "   Dc_a = " << chemSys_->getNode()->DC_a(DCId_) << endl;
+      std::clog.flush();
     }
 
   } catch (EOBException eex) {

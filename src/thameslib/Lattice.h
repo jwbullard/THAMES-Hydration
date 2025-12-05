@@ -11,14 +11,14 @@ exists, hydrates, and possibly deteriorates.
 #ifndef SRC_THAMESLIB_LATTICE_H_
 #define SRC_THAMESLIB_LATTICE_H_
 
-#include "global.h"
-#include "Exceptions.h"
 #include "AppliedStrain.h"
 #include "ChemicalSystem.h"
+#include "Exceptions.h"
 #include "Interface.h"
 #include "Isite.h"
 #include "RanGen.h"
 #include "Site.h"
+#include "global.h"
 #include "utils.h"
 // #include "../version.h"
 
@@ -65,7 +65,7 @@ private:
   std::string jobRoot_; /**< The root name for output files */
   std::string damageJobRoot_;
 
-  RanGen *rg_; /**< Pointer to random number generator object */
+  RanGen *rg_;                 /**< Pointer to random number generator object */
   int latticeRNGseed_;         /**< the seed of the random number
                                     generator */
   long int numRNGcall_0_;      /**< the first number used to keep
@@ -83,62 +83,65 @@ private:
 
   ChemicalSystem *chemSys_; /**< Pointer to simulation's ChemicalSystem */
   AppliedStrain *FEsolver_; /**< Pointer to simulation's FE elastic solver */
-  std::vector<Interface> interface_; /**< List of the different interface objects
-                                          in the microstructure */
+  std::vector<Interface> interface_; /**< List of the different interface
+                                        objects in the microstructure */
 
-  double areaPerFace_;            /**< Converts a voxel face to m2 units */
-  double volumePerVoxel_;         /**< Converts a voxel to its volume in m3
-                                       units */
-  double wsRatio_;                /**< Water-to-solids mass ratio */
-  std::vector<double> volumeFraction_;      /**< Array of volume fractions of each
-                                                 microstructure phase */
-  std::vector<double> surfaceArea_;         /**< Array of surface areas of each
-                                                 microstructure phase
-                                                 (m2 per 100 g of all solid) */
+  double areaPerFace_;                 /**< Converts a voxel face to m2 units */
+  double volumePerVoxel_;              /**< Converts a voxel to its volume in m3
+                                            units */
+  double wsRatio_;                     /**< Water-to-solids mass ratio */
+  std::vector<double> volumeFraction_; /**< Array of volume fractions of each
+                                            microstructure phase */
+  std::vector<double> surfaceArea_;    /**< Array of surface areas of each
+                                            microstructure phase
+                                            (m2 per 100 g of all solid) */
   std::vector<double> specificSurfaceArea_; /**< Array of specific surface areas
                                                  of each microstructure phase
                                                  (m2 per kg of that phase) */
-  std::vector<int> count_;                  /**< Number of sites of each different
-                                                 type */
+  std::vector<int> count_; /**< Number of sites of each different
+                                type */
 
-  map<int, std::vector<double>> expansion_;      /**< Map of expansion strain of
-                                                      each voxel */
-  map<int, std::vector<int>> expansion_coordin_; /**< Map of coordinates of sites
-                                                      with local expansion strain */
-  double waterChange_;                      /**< How much water must be added or
-                                                 subtracted due to hydration or
-                                                 deterioration */
-  double microstructureVolume_;             /**< Microstructure volume in GEM
-                                                 volume units */
-  double initialMicrostructureVolume_;      /**< Initial microstructure volume in
-                                                 GEM volume units */
-  double voxelPoreVolume_;                  /**< Total volume of voxel pores */
-  double voxelPoreVolumeFraction_;          /**< Total volume fraction of voxel
-                                                 pores */
+  map<int, std::vector<double>> expansion_; /**< Map of expansion strain of
+                                                 each voxel */
+  map<int, std::vector<int>>
+      expansion_coordin_;              /**< Map of coordinates of sites
+                                            with local expansion strain */
+  double waterChange_;                 /**< How much water must be added or
+                                            subtracted due to hydration or
+                                            deterioration */
+  double microstructureVolume_;        /**< Microstructure volume in GEM
+                                            volume units */
+  double initialMicrostructureVolume_; /**< Initial microstructure volume in
+                                            GEM volume units */
+  double voxelPoreVolume_;             /**< Total volume of voxel pores */
+  double voxelPoreVolumeFraction_;     /**< Total volume fraction of voxel
+                                            pores */
   double voxelPoreVolumeFractionSaturated_; /**< Total volume fraction of
                                                  saturated voxel pores on
                                                  microstructure volume basis*/
-  double subvoxelPoreVolume_;               /**< Total volume of subvoxel pores */
-  double nonSolidVolume_;                   /**< Total volume not solid */
-  double solidVolumeWithPores_;             /**< Total solid volume including their
-                                                 internal pore volume */
-  double waterVolume_;                      /**< volume of electrolyte in GEM
-                                                 volume units */
-  double voidVolume_;                       /**< volume of void in GEM volume
-                                                 units */
-  double voxelWaterVolume_;                 /**< Volume of voxel pore water */
-  double voxelVoidVolume_;                  /**< Volume of voxel void space
-                                                 (no water) */
-  double subvoxelWaterVolume_;              /**< Volume of water in subvoxel
-                                                 pores in GEM units */
-  double subvoxelPoreVolumeFraction_;       /**< Total volume fraction of subvoxel
-                                                 pores */
-  double subvoxelPoreVolumeFractionSaturated_; /**< Total volume fraction of
-                                                    saturated subvoxel pores on
-                                                    microstructure volume basis*/
+  double subvoxelPoreVolume_;         /**< Total volume of subvoxel pores */
+  double nonSolidVolume_;             /**< Total volume not solid */
+  double solidVolumeWithPores_;       /**< Total solid volume including their
+                                           internal pore volume */
+  double waterVolume_;                /**< volume of electrolyte in GEM
+                                           volume units */
+  double voidVolume_;                 /**< volume of void in GEM volume
+                                           units */
+  double voxelWaterVolume_;           /**< Volume of voxel pore water */
+  double voxelVoidVolume_;            /**< Volume of voxel void space
+                                           (no water) */
+  double subvoxelWaterVolume_;        /**< Volume of water in subvoxel
+                                           pores in GEM units */
+  double subvoxelPoreVolumeFraction_; /**< Total volume fraction of subvoxel
+                                           pores */
+  double
+      subvoxelPoreVolumeFractionSaturated_; /**< Total volume fraction of
+                                                 saturated subvoxel pores on
+                                                 microstructure volume basis*/
 
-  std::vector<struct PoreSizeData> masterPoreSizeDist_; /**< Pore size distribution
-                                                             and saturation */
+  std::vector<struct PoreSizeData>
+      masterPoreSizeDist_; /**< Pore size distribution
+                                and saturation */
 
   double time_;              /**< The current simulation time [h] */
   double temperature_;       /**< The current simulation temperature [K] */
@@ -154,38 +157,41 @@ private:
   bool verbose_;     /**< Flag to determine verbose output */
   bool warning_;     /**< Flag to determine warning message output */
 
-  std::vector<chemElem> cfgElem_; /**< Holds periodic table information to output
-                                       files in cfg format */
+  std::vector<chemElem> cfgElem_; /**< Holds periodic table information to
+                                     output files in cfg format */
 
-  double initSolidMass_;          /**< the initial solid mass of the system*/
+  double initSolidMass_; /**< the initial solid mass of the system*/
 
-  double wcRatio_;                /**< Water-to-cement mass ratio */
+  double wcRatio_; /**< Water-to-cement mass ratio */
 
-  int numMicroPhases_;            /**< Number of microphases */
+  int numMicroPhases_; /**< Number of microphases */
 
-  double particRadius_;           /**< used for graphical representation */
+  double particRadius_; /**< used for graphical representation */
 
-  std::vector<int> growthInterfaceSize_;      /**< growth interface size of each 
+  std::vector<int> growthInterfaceSize_;      /**< growth interface size of each
                                                    microphase */
-  std::vector<int> dissolutionInterfaceSize_; /**< dissolution interface size of each
-                                                   microphase */
+  std::vector<int> dissolutionInterfaceSize_; /**< dissolution interface size of
+                                                 each microphase */
 
-  std::vector<int> growingVectSA_;        /**< for SULFATE ATTACK: contains all
-                                               microPhaseIds growing due to SA attack */
-  int sizeGrowingVectSA_;                 /**< size of growingVectSA_ vector*/
+  std::vector<int>
+      growingVectSA_;     /**< for SULFATE ATTACK: contains all
+                               microPhaseIds growing due to SA attack */
+  int sizeGrowingVectSA_; /**< size of growingVectSA_ vector*/
 
-  std::vector<std::vector<int>> shrinking_;    /**< for each microPhaseId in growingVectSA_,
-                                                    all the microDhaseIds that can transform
-                                                    into this one*/
-  std::vector<std::vector<double>> volratios_; /**< for each microPhaseId in growingVectSA_
-                                                    and all corresponding microPhaseIds in
-                                                    shrinking_, contains the molar volume
-                                                    ratios of the corresponding 
-                                                    microPhases */
+  std::vector<std::vector<int>>
+      shrinking_; /**< for each microPhaseId in growingVectSA_,
+                       all the microDhaseIds that can transform
+                       into this one*/
+  std::vector<std::vector<double>>
+      volratios_; /**< for each microPhaseId in growingVectSA_
+                       and all corresponding microPhaseIds in
+                       shrinking_, contains the molar volume
+                       ratios of the corresponding
+                       microPhases */
 
-  int waterDCId_;           /**< the DCId coresp to DCName = "H2O@" */
-  double waterMolarMass_;   /**< the water molar mass corresp. to waterDCId_ */
-  double waterMolarVol_;    /**< the water molar volume corresp. to waterDCId_ */
+  int waterDCId_;         /**< the DCId coresp to DCName = "H2O@" */
+  double waterMolarMass_; /**< the water molar mass corresp. to waterDCId_ */
+  double waterMolarVol_;  /**< the water molar volume corresp. to waterDCId_ */
 
   int electrolyteIntPorosity_;
   int voidIntPorosity_;
@@ -195,8 +201,9 @@ private:
   std::vector<std::vector<bool>> growthTemplate_;
   std::vector<int> microPhasePorosityInt_;
 
-  double oneFaceAreaPerHundredGramSolid_; /** surface area of one voxel's face per 100g of
-                                              the initial solid mass of the system*/
+  double oneFaceAreaPerHundredGramSolid_; /** surface area of one voxel's face
+                                             per 100g of the initial solid mass
+                                             of the system*/
 
   // int DAMAGEID_;
 
@@ -230,8 +237,8 @@ public:
   @param verbose is true if extra messages are to be printed
   @param warning is true if warning messages are to be printed
   */
-  Lattice(ChemicalSystem *cs, RanGen *rg, int seedRNG, const std::string &fileName,
-          const bool verbose, const bool warning);
+  Lattice(ChemicalSystem *cs, RanGen *rg, int seedRNG,
+          const std::string &fileName, const bool verbose, const bool warning);
 
   /**
  @brief Destructor.
@@ -613,17 +620,16 @@ public:
 
   /**
   @brief Get the collection of site indices (ids), site phases (phs)
-  neighboring a given site (sitenum). Calculate also the number of neighbor sites 
-  occupied by electrolyte (numW) and the total porosity (totpor). used for
+  neighboring a given site (sitenum). Calculate also the number of neighbor
+  sites occupied by electrolyte (numW) and the total porosity (totpor). used for
   sulfate attack (SA)
 
   */
-  void getNeighborhood(const int sitenum, std::vector<int> & ids,
-                       std::vector<int> & phs, int & numW,
-                       int & totPor);
+  void getNeighborhood(const int sitenum, std::vector<int> &ids,
+                       std::vector<int> &phs, int &numW, int &totPor);
 
   /**
-  @brief Set the collection of site indices neighboring a given site 
+  @brief Set the collection of site indices neighboring a given site
   including the site itself. This ids used for sulfate attack (SA)
 
   */
@@ -723,11 +729,12 @@ public:
                              int &numadded_G, bool &nucOK, int totalTRC);
 
   /**
-  @brief create a new growth interface by nucleation of numToNucleate sites for a
-  given phase (phaseID); this is necessary when the "growth" of all requested
+  @brief create a new growth interface by nucleation of numToNucleate sites for
+  a given phase (phaseID); this is necessary when the "growth" of all requested
   sites for this phase was not possible because the size of the corresponding
-  growth interface was zero. A nucleation site is chosen according to a probability
-  computed taking into account the microPhaseId affinity toward the site surrounding.
+  growth interface was zero. A nucleation site is chosen according to a
+  probability computed taking into account the microPhaseId affinity toward the
+  site surrounding.
 
   @param phaseid is the id of the microstructure phase to nucleate
   @param numToNucleate is the number of sites to nucleate/create for this phase
@@ -736,8 +743,8 @@ public:
   int nucleatePhaseAff(const int phaseID, const int numToNucleate);
 
   /**
-  @brief create a new growth interface by nucleation of numToNucleate sites for a
-  given phase (phaseID); this is necessary when the "growth" of all requested
+  @brief create a new growth interface by nucleation of numToNucleate sites for
+  a given phase (phaseID); this is necessary when the "growth" of all requested
   sites for this phase was not possible because the size of the corresponding
   growth interface was zero. A nucleation site is chosen with equal probability
   among the electrolyte sites.
@@ -1010,7 +1017,8 @@ public:
   void removeGrowthSite_grow(Site *ste0, int pid);
 
   /**
-  @brief Remove a site from the all growth interfaces during a nucleation process.
+  @brief Remove a site from the all growth interfaces during a nucleation
+  process.
 
   @param loc is a pointer to the Site object to remove from the list of
   potential growth sites
@@ -1081,7 +1089,8 @@ public:
   from GEMS (not based on voxels)
   @param volSize is the number of elements in the vol vector
   */
-  void adjustMicrostructureVolumes(std::vector<double> &vol, int volSize, int cyc);
+  void adjustMicrostructureVolumes(std::vector<double> &vol, int volSize,
+                                   int cyc);
 
   /**
   @brief Calculate microstructure volume fractions
@@ -1090,7 +1099,7 @@ public:
   @param vol is a vector of the pre-adjusted microstructure volumes that come
   from GEMS (not based on voxels)
   @param vfrac will hold the microstructure volume fractions
-  @param volSize is the number of elements in the vol vector 
+  @param volSize is the number of elements in the vol vector
   */
   void adjustMicrostructureVolFracs(std::vector<std::string> &names,
                                     const std::vector<double> vol,
@@ -1112,7 +1121,8 @@ public:
 
   @return A 2D vector of doubles
   */
-  std::vector<std::vector<struct PoreSizeData>> getPhasePoreSizeDistributions(void);
+  std::vector<std::vector<struct PoreSizeData>>
+  getPhasePoreSizeDistributions(void);
 
   /**
   @brief Get the maximum phase pore diameter from among all the defined
@@ -1161,8 +1171,7 @@ public:
   @param curtime is the current time in hours
   @param timeString is the current time resolved into y,d,h,m
   */
-  void writePoreSizeDistribution(const double curtime,
-                                 const string timeString);
+  void writePoreSizeDistribution(const double curtime, const string timeString);
 
   /**
   @brief Write the microstructure colors to a file
@@ -1206,9 +1215,11 @@ public:
   void writeLatticeCFG(const std::string timeString);
 
   /**
-  @brief Write to a file of a 3D sub-microStructure of the current microStructure.
+  @brief Write to a file of a 3D sub-microStructure of the current
+  microStructure.
 
-  The sub-microStructure output file will indicate the microPhaseId at each site.
+  The sub-microStructure output file will indicate the microPhaseId at each
+  site.
 
   @param newZdim is the new z dimension (height starting from  z = 0) of
   the sub-microStructure; x and y dimensions don't change.
@@ -1484,7 +1495,8 @@ public:
   @param capillaryPoreVolumeFraction is the capillary pore volume
   fraction (microstructure basis)
   */
-  // void setCapillaryPoreVolumeFraction(const double capillaryPoreVolumeFraction) {
+  // void setCapillaryPoreVolumeFraction(const double
+  // capillaryPoreVolumeFraction) {
   //   capillaryPoreVolumeFraction_ = capillaryPoreVolumeFraction;
   // }
 
@@ -1661,7 +1673,8 @@ public:
   center site
   @return a list of the site indices belonging to the subvolume that was written
   */
-  std::vector<int> writeSubVolume(std::string fileName, Site *centerste, int size);
+  std::vector<int> writeSubVolume(std::string fileName, Site *centerste,
+                                  int size);
 
   /**
   @brief Assign isotropic expansion strain at a set of prescribed sites.
@@ -1678,8 +1691,8 @@ public:
   void applyExpansion(std::vector<int> alnb, double exp);
 
   /**
-  @brief Estimate the surface areas and specific surface area of all solid phases
-  with the aqueous solution, in units of m2 per 100 g of total solids
+  @brief Estimate the surface areas and specific surface area of all solid
+  phases with the aqueous solution, in units of m2 per 100 g of total solids
   */
   void calcSurfaceAreas(void);
 
@@ -1717,8 +1730,8 @@ public:
   @brief Reset the current surface area vector, surfaceArea_, of all the phases
   with the aqueous solution.
 
-  @param vect is the vector containing the surface area of each microPhase in the
-  microStructure
+  @param vect is the vector containing the surface area of each microPhase in
+  the microStructure
   */
   void resetSurfaceArea(std::vector<double> vect) { surfaceArea_ = vect; }
 
@@ -1766,16 +1779,17 @@ public:
     // So ssa/cemmass has units of m2 per g of cement
     // Multiply that by 1000.0 to get units of m2/(kg of cement)
     // if (verbose_) {
-    //    cout << "URANIUM all solid mass = " << allsolidmass << " g / (100 g
-    //    solid)"
+    //    std::clog << "URANIUM all solid mass = " << allsolidmass << " g / (100
+    //    g solid)"
     //          << endl;
-    //    cout << "URANIUM all surface = " << allsurf << " m2 / (100 g solid)"
-    //            << endl;
-    //    cout << "URANIUM cement mass = " << cemmass << " g / (100 g solid)" <<
-    //    endl; cout << "URANIUM cement surface = " << cemsurf << " m2 / (100 g
+    //    std::clog << "URANIUM all surface = " << allsurf << " m2 / (100 g
     //    solid)"
     //            << endl;
-    //    cout.flush();
+    //    std::clog << "URANIUM cement mass = " << cemmass << " g / (100 g
+    //    solid)" << endl; std::clog << "URANIUM cement surface = " << cemsurf
+    //    << " m2 / (100 g solid)"
+    //            << endl;
+    //    std::clog.flush();
     // }
     if (cemmass > 0.0) {
       cemsurf *= (1000.0 / cemmass);
@@ -1884,7 +1898,8 @@ public:
   Interface getInterface(int phId) { return interface_[phId]; }
 
   /**
-  @brief Set the growth interface of the microPhase having the microPhaseId = phId
+  @brief Set the growth interface of the microPhase having the microPhaseId =
+  phId
 
   @param phId is the microPhaseId
   @param vect is a vector containing all Isite objects belonging to the growth
@@ -1895,11 +1910,12 @@ public:
   }
 
   /**
-  @brief Set the dissolution interface of the microPhase having the microPhaseId = phId
+  @brief Set the dissolution interface of the microPhase having the microPhaseId
+  = phId
 
   @param phId is the microPhaseId
-  @param vect is a vector containing all Isite objects belonging to the dissolution
-  interface oh the microPhase with microPhaseId = phId
+  @param vect is a vector containing all Isite objects belonging to the
+  dissolution interface oh the microPhase with microPhaseId = phId
   */
   void setDissolutionSites(int phId, std::vector<Isite> vect) {
     interface_[phId].setDissolutionSites(vect);
@@ -1933,16 +1949,17 @@ public:
   /**
   @brief Get the chemical symbol of a database element.
 
-  @param ind is the index of an chemical element in the chemical element database
+  @param ind is the index of an chemical element in the chemical element
+  database
   @return the chemical symbol of the chemical element database having
   the index = ind
   */
   std::string getElemSymb(int ind) { return cfgElem_[ind].symb; }
 
   /**
-  @brief call the random number generator; count the number of calls in such a way
-  to be able to restore a given state of the random number generator, and update
-  the value of lastRNG_.
+  @brief call the random number generator; count the number of calls in such a
+  way to be able to restore a given state of the random number generator, and
+  update the value of lastRNG_.
 
   @return the generated random number corresponding to this call.
   */
@@ -2010,17 +2027,16 @@ public:
     }
     lastRNG_ = lastRNGreset;
 
-    // cout << endl
+    // std::clog << endl
     //      << "  Lattice::resetRNG cyc/whileCount/latticeRNGseed_: " << cyc
     //      << " / " << whileCount << " / " << latticeRNGseed_ << endl;
-    // cout << "  Lattice::resetRNG "
+    // std::clog << "  Lattice::resetRNG "
     //         "numRNGcall_0_/numRNGcallLONGMAX_/lastRNGreset/valRNG: "
     //      << numRNGcall_0_ << " / " << numRNGcallLONGMAX_ << " / "
     //      << lastRNGreset << " / " << valRNG << endl;
 
     if (abs(lastRNGreset - valRNG) > 1.e-16) {
-      std::cout << std::endl
-                << "Lattice::resetRNG FAILED => exit" << std::endl;
+      std::clog << std::endl << "Lattice::resetRNG FAILED => exit" << std::endl;
       exit(0);
     }
   }
@@ -2030,10 +2046,12 @@ public:
   void checkSite(int stId);
 
   /**
-  @brief Get the growth interface dimensions of all microPhases in the microStructure
+  @brief Get the growth interface dimensions of all microPhases in the
+  microStructure
 
   @return vector containing the dimensions of all the growth interfaces for all
-  microPhases in the microStructure (each interface corresponding to a given microPhase)
+  microPhases in the microStructure (each interface corresponding to a given
+  microPhase)
   */
   std::vector<int> getGrowthInterfaceSize(void) { return growthInterfaceSize_; }
 
@@ -2042,25 +2060,32 @@ public:
   // }
 
   /**
-  @brief Set the growth interface dimension of each microPhase in the microStructure
+  @brief Set the growth interface dimension of each microPhase in the
+  microStructure
 
-  @param vect is a vector containing the dimensions of all the growth interfaces,
-  each interface corresponding to a given microPhase in the microStructure
+  @param vect is a vector containing the dimensions of all the growth
+  interfaces, each interface corresponding to a given microPhase in the
+  microStructure
   */
-  void setGrowthInterfaceSize(std::vector<int> vect) { growthInterfaceSize_ = vect; }
+  void setGrowthInterfaceSize(std::vector<int> vect) {
+    growthInterfaceSize_ = vect;
+  }
 
   /**
-  @brief Get the dissolution interface dimensions of all microPhases in the microStructure
+  @brief Get the dissolution interface dimensions of all microPhases in the
+  microStructure
 
-  @return vector containing the dimensions of all the dissolution interfaces for all
-  microPhases in the microStructure (each interface corresponding to a given microPhase)
+  @return vector containing the dimensions of all the dissolution interfaces for
+  all microPhases in the microStructure (each interface corresponding to a given
+  microPhase)
   */
   std::vector<int> getDissolutionInterfaceSize(void) {
     return dissolutionInterfaceSize_;
   }
 
   /**
-  @brief Get the dissolution interface dimension of a given microPhase in the microStructure
+  @brief Get the dissolution interface dimension of a given microPhase in the
+  microStructure
 
   @param phId is the microPhaseId
   @return the dimension of the dissolution interface for a microPhase having
@@ -2071,10 +2096,12 @@ public:
   }
 
   /**
-  @brief Set the dissolution interface dimension of each microPhase in the microStructure
+  @brief Set the dissolution interface dimension of each microPhase in the
+  microStructure
 
-  @param vect is a vector containing the dimensions of all the dissolution interfaces,
-  each interface corresponding to a given microPhase in the microStructure
+  @param vect is a vector containing the dimensions of all the dissolution
+  interfaces, each interface corresponding to a given microPhase in the
+  microStructure
   */
   void setDissolutionInterfaceSize(std::vector<int> vect) {
     dissolutionInterfaceSize_ = vect;
@@ -2110,55 +2137,56 @@ public:
   to ettringite (first step of the model!)
   @param totalTRC is the total call number of the changeMicrostructure method
   @return a vector having a dimension N equal to the number of phases that can
-  transform into ettringite + 1: first N-1 positions contain the number of voxels
-  of each phase that must be dissolved further by the "normal" dissolution (using
-  dissolvePhase method), while the last position contains the number of ettringite
-  voxels added by the current method. If the the number of  added ettringite voxels
-  is smaller than netsitesEttrid, this difference will be added calling the
-  growPhase method ("normal" growth).
+  transform into ettringite + 1: first N-1 positions contain the number of
+  voxels of each phase that must be dissolved further by the "normal"
+  dissolution (using dissolvePhase method), while the last position contains the
+  number of ettringite voxels added by the current method. If the the number of
+  added ettringite voxels is smaller than netsitesEttrid, this difference will
+  be added calling the growPhase method ("normal" growth).
   */
-  std::vector<int>
-       transformPhase(int ettrid, int netsitesEttrid,
-                      std::vector<int> dissPhaseIDVect,
-                      std::vector<int> numSiteDissVect,
-                      std::vector<std::string> dissPhNameVect,
-                      std::vector<double> volumeRatio,
-                      int &numadded_D, int totalTRC);
+  std::vector<int> transformPhase(int ettrid, int netsitesEttrid,
+                                  std::vector<int> dissPhaseIDVect,
+                                  std::vector<int> numSiteDissVect,
+                                  std::vector<std::string> dissPhNameVect,
+                                  std::vector<double> volumeRatio,
+                                  int &numadded_D, int totalTRC);
 
   /**
   @brief implements the first step of the model describing the ettringite growth
-  under sulfate attack conditions (see transformPhase method). It converts a solid
-  microphase occupying a voxel to another solid microphase.
+  under sulfate attack conditions (see transformPhase method). It converts a
+  solid microphase occupying a voxel to another solid microphase.
 
   @param ste is apointer to the Site object being occupied by a solid microphase
   @param oldPhId is the solid microphase Id occupying the site ste
   @param newPhId is the new solid microphase Id that must occupy the site ste
   @param totalTRC is the total call number of the changeMicrostructure method
   */
-  void transformSolSol(Site *ste, int oldPhId, int newPhId, int totalTRC); // sol to sol
+  void transformSolSol(Site *ste, int oldPhId, int newPhId,
+                       int totalTRC); // sol to sol
 
   /**
-  @brief implements the second step of the model describing the ettringite growth
-  under sulfate attack conditions (see transformPhase method). It converts the
-  electrolyte Id occupying a voxel to a solid microphase Id.
+  @brief implements the second step of the model describing the ettringite
+  growth under sulfate attack conditions (see transformPhase method). It
+  converts the electrolyte Id occupying a voxel to a solid microphase Id.
   @param ste is apointer to the Site object being occupied by electrolyte
   @param growPhID is the new solid microphase Id that must occupy the site ste
   @param totalTRC is the total call number of the changeMicrostructure method
-  @return a vector containing the microPhaseIds of the sites that, modifying the ste site
-  occupancy, cannot belong to the dissolution interfaces of the microPhases
-  occupying these sites
+  @return a vector containing the microPhaseIds of the sites that, modifying the
+  ste site occupancy, cannot belong to the dissolution interfaces of the
+  microPhases occupying these sites
   */
-  std::vector<int> transformLiqSol(Site *ste, int growPhID, int totalTRC);  // liq to sol
+  std::vector<int> transformLiqSol(Site *ste, int growPhID,
+                                   int totalTRC); // liq to sol
 
   /**
   @brief creates the vectors growingVectSA_, shrinking_ and volratios_ vectors:
   growingVectSA_ - contains all microPhaseIds growing due to SA attack (AFt)
-  shrinking_     - contains for each microPhaseId in growingVectSA_, all the microDhaseIds
-                   that can transform into this one (Monosulfate)
-  volratios_     - for each microPhaseId in growingVectSA_ and all corresponding
-                   microPhaseIds in shrinking_, contains the molar volume ratios
-                   of the corresponding microPhases:
-        volratios_[i, j] = molarVolume(growingVectSA_[i])/molarVolume(shrinking_[i, j])
+  shrinking_     - contains for each microPhaseId in growingVectSA_, all the
+  microDhaseIds that can transform into this one (Monosulfate) volratios_     -
+  for each microPhaseId in growingVectSA_ and all corresponding microPhaseIds in
+  shrinking_, contains the molar volume ratios of the corresponding microPhases:
+        volratios_[i, j] =
+  molarVolume(growingVectSA_[i])/molarVolume(shrinking_[i, j])
 
   @todo For the moment the model describes only monosulfate to ettringite
   conversion - generalize this for any phase transformation.
@@ -2173,12 +2201,12 @@ public:
     return allPhId;
   }
 
-  void addSeedCSHQ(bool seedMassCEM, bool seedMassC3S,
-                   bool seedMassC2S, double massFraction);
+  void addSeedCSHQ(bool seedMassCEM, bool seedMassC3S, bool seedMassC2S,
+                   double massFraction);
 
   /**
   @brief Calculate the surface area of one voxel's face per 100g of
-  the initial solid mass of the system (in units of m2 per 100 g of 
+  the initial solid mass of the system (in units of m2 per 100 g of
   total solids)
   */
   void calcOneFaceAreaPerHundredGramSolid(void);

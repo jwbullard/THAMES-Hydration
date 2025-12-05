@@ -31,8 +31,8 @@ Interface::Interface(const bool verbose) {
 #endif
 }
 
-Interface::Interface(ChemicalSystem *csys, vector<Site *> gv,
-                     vector<Site *> dv, unsigned int pid, const bool verbose) {
+Interface::Interface(ChemicalSystem *csys, vector<Site *> gv, vector<Site *> dv,
+                     unsigned int pid, const bool verbose) {
   int j;
   int i;
   int aftyInt;
@@ -49,12 +49,12 @@ Interface::Interface(ChemicalSystem *csys, vector<Site *> gv,
   affinityInt_.clear();
   affinityInt_ = chemSys_->getAffinityInt(microPhaseId_);
   // int affSize = affinityInt_.size();
-  // cout << endl
+  // std::clog << endl
   //      << "Interface::Interface - affinity for microPhaseId_ = "
   //      << microPhaseId_ << "   affinityInt_.size() = " << affSize
   //      << " : " << endl;
   // for (int i = 0; i < affSize; i++) {
-  //   cout << "   i = " << i << "    affinityInt_[" << i << "] = "
+  //   std::clog << "   i = " << i << "    affinityInt_[" << i << "] = "
   //        << affinityInt_[i] << endl;
   // }
 
@@ -133,7 +133,7 @@ void Interface::removeDissolutionSite(int pos0, int pos1) {
   dissolutionSites_[pos0] = dissolutionSites_[pos1];
   dissolutionSites_.pop_back();
   //} catch (out_of_range &oor) {
-  //  cout << endl << "EOB Interface::removeDissolutionSite pos0/pos1 = " << pos0 <<" / " << pos1 << " => exit" << endl;
-  //  exit(1);
+  //  std::cerr << endl << "EOB Interface::removeDissolutionSite pos0/pos1 = "
+  //  << pos0 <<" / " << pos1 << " => exit" << endl; exit(1);
   //}
 }

@@ -17,13 +17,13 @@ National Academy of Sciences USA, 105 (2008) 9903–9908.
 #ifndef SRC_THAMESLIB_POZZOLANICMODEL_H_
 #define SRC_THAMESLIB_POZZOLANICMODEL_H_
 
-#include "global.h"
-#include "Exceptions.h"
 #include "ChemicalSystem.h"
+#include "Exceptions.h"
 #include "KineticController.h"
 #include "KineticData.h"
 #include "KineticModel.h"
 #include "Lattice.h"
+#include "global.h"
 
 /**
 @class PozzolanicModel
@@ -48,13 +48,13 @@ protected:
   @brief Number of dissolved DC units per unit dissolution reaction
   */
   double dissolvedUnits_;
-  double siexp_;     /**< Exponent on saturation index (unitless) */
-  double dfexp_;     /**< Exponent on driving force (unitless) */
-  double dorexp_;    /**< Exponent on degree of reaction (unitless) */
-  double ohexp_;     /**< Exponent on OH ion activity (unitless) */
-  double sio2_;      /**< Mass fraction of SiO2 (unitless) */
-  double al2o3_;     /**< Mass fraction of Al2O3 (unitless) */
-  double cao_;       /**< Mass fraction of CaO (unitless) */
+  double siexp_;  /**< Exponent on saturation index (unitless) */
+  double dfexp_;  /**< Exponent on driving force (unitless) */
+  double dorexp_; /**< Exponent on degree of reaction (unitless) */
+  double ohexp_;  /**< Exponent on OH ion activity (unitless) */
+  double sio2_;   /**< Mass fraction of SiO2 (unitless) */
+  double al2o3_;  /**< Mass fraction of Al2O3 (unitless) */
+  double cao_;    /**< Mass fraction of CaO (unitless) */
 
   double rh_;        /**< relative humidity */
   double rhFactor_;  /**< relative humidity factor, i.e. the correction of

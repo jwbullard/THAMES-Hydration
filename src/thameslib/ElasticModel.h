@@ -61,9 +61,9 @@ http://ciks.cbt.nist.gov/~garbocz/manual/man.html
 #ifndef SRC_THAMESLIB_ELASTICMODEL_H_
 #define SRC_THAMESLIB_ELASTICMODEL_H_
 
-#include "global.h"
-#include "StrainEnergy.h"
 #include "ChemicalSystem.h"
+#include "StrainEnergy.h"
+#include "global.h"
 
 /**
 @class Declare the ElasticModel base class for finite element calculations
@@ -72,15 +72,15 @@ class ElasticModel {
 
 protected:
   ChemicalSystem *chemSys_;
-  int nx_;                    /**< Number of voxels in x dimension */
-  int ny_;                    /**< Number of voxels in y dimension */
-  int nz_;                    /**< Number of voxels in z dimension */
-  int nxy_;                   /**< nxy_ = nx_ * ny_ */
-  int ns_;                    /**< Number of total voxels */
-  int nphase_;                /**< Maximimum allowed number of phases */
-  int npoints_;               /**< Number of microstructures to process */
-  std::string phasemod_fileName_;  /**< File name saving the phase elastic
-                                        moduli */
+  int nx_;                        /**< Number of voxels in x dimension */
+  int ny_;                        /**< Number of voxels in y dimension */
+  int nz_;                        /**< Number of voxels in z dimension */
+  int nxy_;                       /**< nxy_ = nx_ * ny_ */
+  int ns_;                        /**< Number of total voxels */
+  int nphase_;                    /**< Maximimum allowed number of phases */
+  int npoints_;                   /**< Number of microstructures to process */
+  std::string phasemod_fileName_; /**< File name saving the phase elastic
+                                       moduli */
   std::vector<std::vector<double>> u_;  /**< 2D displacement field */
   std::vector<std::vector<double>> gb_; /**< Energy gradient */
   std::vector<std::vector<double>> b_;  /**< Coefficient of linear
@@ -258,7 +258,9 @@ public:
   modulus)
   @param val is the value to set for the component [GPa or dimensionless]
   */
-  void setPhasemod(int phaseid, int i, double val) { phasemod_[phaseid][i] = val; }
+  void setPhasemod(int phaseid, int i, double val) {
+    phasemod_[phaseid][i] = val;
+  }
 
   /**
   @brief Get one of the elastic moduli components of a phase.
@@ -350,7 +352,7 @@ public:
       val = strxy_;
       break;
     default:
-      std::cout << "i (" << i << ") is not a recognized stress component"
+      std::clog << "i (" << i << ") is not a recognized stress component"
                 << std::endl;
       std::cerr << "i (" << i << ") is not a recognized stress component"
                 << std::endl;
@@ -391,7 +393,7 @@ public:
       val = sxy_;
       break;
     default:
-      std::cout << "i (" << i << ") is not a recognized strain component"
+      std::clog << "i (" << i << ") is not a recognized strain component"
                 << std::endl;
       std::cerr << "i (" << i << ") is not a recognized strain component"
                 << std::endl;
@@ -427,7 +429,7 @@ public:
   */
   // virtual void femat(int nx, int ny, int nz, int ns, int nphase) {
   //   if (verbose_)
-  //     std::cout << "virtual function 'femat' in base class." << std::endl;
+  //     std::clog << "virtual function 'femat' in base class." << std::endl;
   //   return;
   // }
 
@@ -445,7 +447,7 @@ public:
   */
   // virtual int dembx(int ns, double gg, int ldemb, int kkk) {
   //   if (verbose_)
-  //     std::cout << "virtual function 'dembx' in base class." << std::endl;
+  //     std::clog << "virtual function 'dembx' in base class." << std::endl;
   //   return 0;
   // }
 
@@ -465,7 +467,7 @@ public:
   */
   // virtual double energy(int nx, int ny, int nz, int ns) {
   //   if (verbose_)
-  //     std::cout << "virtual function 'energy' in base class." << std::endl;
+  //     std::clog << "virtual function 'energy' in base class." << std::endl;
   //   return 0.0;
   // }
 
@@ -482,7 +484,7 @@ public:
   */
   // virtual void stress(int nx, int ny, int nz, int ns) {
   //   if (verbose_)
-  //     std::cout << "virtual function 'stress' in base class." << std::endl;
+  //     std::clog << "virtual function 'stress' in base class." << std::endl;
   //   return;
   // }
 
@@ -498,7 +500,7 @@ public:
   */
   // virtual void relax(double time, int kmax) {
   //  if (verbose_)
-  //     std::cout << "virtual function 'relax' in base class." << std::endl;
+  //     std::clog << "virtual function 'relax' in base class." << std::endl;
   //   return;
   // }
 
@@ -520,7 +522,7 @@ public:
   // virtual void Calc(double time, string fileName, double exx, double eyy,
   //                   double ezz, double exz, double eyz, double exy) {
   //   if (verbose_)
-  //     std::cout << "virtual function 'thrMic' in base class." << std::endl;
+  //     std::clog << "virtual function 'thrMic' in base class." << std::endl;
   //   return;
   // }
 
@@ -588,7 +590,9 @@ public:
 
   @param fileName is the file name to set
   */
-  void setPhasemodfileName(std::string fileName) {phasemod_fileName_ = fileName; }
+  void setPhasemodfileName(std::string fileName) {
+    phasemod_fileName_ = fileName;
+  }
 
   /**
   @brief Get the name of the file containing the phase elastic moduli

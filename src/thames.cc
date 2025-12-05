@@ -5,7 +5,9 @@
 
 #include "thames.h"
 
-using std::cout; using std::cin; using std::endl;
+using std::cin;
+using std::cout;
+using std::endl;
 using std::string;
 
 /**
@@ -15,11 +17,18 @@ using std::string;
 */
 int main(int argc, char **argv) {
 
+  // Set up logfile name
+  const char logFileName[] = "thames.log";
+
+  // Instantiate the object that manages the redirection of std::clog output to
+  // file
+
+  lgf::init_helper log_to_file(logFileName);
+
   // Check command line arguments
 
-  string outputFolder;
-  cout << scientific << setprecision(15);
-  if (checkArgs(argc, argv, outputFolder)) {
+  string OutputFolder;
+  if (checkArgs(argc, argv, OutputFolder)) {
     exit(0);
   }
 
@@ -51,51 +60,55 @@ int main(int argc, char **argv) {
   // Main menu where user decides what kind of simulation this will be.
   //
 
-  cout << endl << "Enter simulation type: " << endl;
-  cout << "  " << QUIT_PROGRAM << ") Exit program " << endl;
-  cout << "  " << HYDRATION << ") Hydration " << endl;
-  cout << "  " << LEACHING << ") Leaching " << endl;
-  cout << "  " << SULFATE_ATTACK << ") Sulfate attack " << endl;
+  std::clog << endl << "Enter simulation type: " << endl;
+  std::clog << "  " << QUIT_PROGRAM << ") Exit program " << endl;
+  std::clog << "  " << HYDRATION << ") Hydration " << endl;
+  std::clog << "  " << LEACHING << ") Leaching " << endl;
+  std::clog << "  " << SULFATE_ATTACK << ") Sulfate attack " << endl;
   cin >> simtype;
 
   if (simtype > SULFATE_ATTACK) {
-    cout << endl << "simtype = " << simtype << " (Sulfate attack / SA)" << endl;
+    std::clog << endl
+              << "simtype = " << simtype << " (Sulfate attack / SA)" << endl;
   } else {
-    cout << endl << "simtype = " << simtype << endl;
+    std::clog << endl << "simtype = " << simtype << endl;
   }
 
-  // cout << "epsilon for double : \t" << numeric_limits<double>::epsilon() <<
-  // endl; cout << "epsilon for int : \t" << numeric_limits<int>::epsilon() <<
-  // endl; cout << "epsilon for float : \t" << numeric_limits<float>::epsilon()
+  // std::clog << "epsilon for double : \t" << numeric_limits<double>::epsilon()
+  // << endl; std::clog << "epsilon for int : \t" <<
+  // numeric_limits<int>::epsilon() << endl; std::clog << "epsilon for float :
+  // \t" << numeric_limits<float>::epsilon()
   // << endl;
 
   if (simtype <= QUIT_PROGRAM || simtype > SULFATE_ATTACK) {
 
-    cout << "Exiting program now." << endl << endl;
+    std::clog << "Exiting program now." << endl << endl;
     exit(1);
   }
 
   int seedRNG = -25943; // -142234;
   // cin >> seedRNG;
-  cout << endl
-       << "The RNG seed is                 : seedRNG = " << seedRNG << endl;
+  std::clog << endl
+            << "The RNG seed is                 : seedRNG = " << seedRNG
+            << endl;
 
   double elemTimeInterval = (24.0 * 1.e-5); // 24 factor to convert from days to
                                             // hours
   // cin >> elemTimeInterval;
-  cout << "The elementary time interval is : elemTimeInterval = "
-       << setprecision(3) << elemTimeInterval
-       << " hours (used in Parrot-Killoh model)" << endl;
+  std::clog << "The elementary time interval is : elemTimeInterval = "
+            << setprecision(3) << elemTimeInterval
+            << " hours (used in Parrot-Killoh model)" << endl;
 
   double corPorCSHQ = 1.0;
-  cout << "correction CSHQ porrosity : corPorCSHQ = " << corPorCSHQ << endl;
+  std::clog << "correction CSHQ porrosity : corPorCSHQ = " << corPorCSHQ
+            << endl;
 
-  cout << scientific << setprecision(15) << endl;
+  std::clog << scientific << setprecision(15) << endl;
 
   time_t lt = time(NULL);
   struct tm *inittime;
   inittime = localtime(&lt);
-  cout << asctime(inittime);
+  std::clog << asctime(inittime);
   clock_t starttime = clock();
 
   //
@@ -110,28 +123,28 @@ int main(int argc, char **argv) {
   // User must provide the name of the GEM CSD for the whole system
   //
 
-  cout << endl << "What is the name of the GEM input file? " << endl;
+  std::clog << endl << "What is the name of the GEM input file? " << endl;
   getline(cin, buff);
   const string gemInputName(buff);
-  cout << "   - gemInputName      :  " << gemInputName << endl;
-  cout.flush();
+  std::clog << "   - gemInputName      :  " << gemInputName << endl;
+  std::clog.flush();
 
   // Set up the strainenergy vector dimension according to
   //  GEMS input files (...-dch.dat) - strainenergy is used in THAMES
   //  only for SA but GEMS has to know about it in any case (any simtype)
   string dchName(buff);
   int pos = dchName.find("-dat.lst");
-  // cout << endl << "pos = " << pos << endl;
+  // std::clog << endl << "pos = " << pos << endl;
   dchName.replace(pos, pos + 7, "-dch.dat");
-  cout << endl << "     - dchName = " << dchName << endl;
+  std::clog << endl << "     - dchName = " << dchName << endl;
   ifstream f(dchName.c_str());
   int nDC = -1;
   if (!f.is_open()) {
-    cout << "     - file " << dchName << " not found!" << endl;
-    cout << "exit" << endl;
+    std::clog << "     - file " << dchName << " not found!" << endl;
+    std::clog << "exit" << endl;
     exit(0);
   } else {
-    cout << "     - file " << dchName << " found => " << endl;
+    std::clog << "     - file " << dchName << " found => " << endl;
     string ch;
     while (nDC == -1) {
       f >> ch;
@@ -139,7 +152,8 @@ int main(int argc, char **argv) {
         f >> nDC;
     }
   }
-  cout << "            number of dependent components: nDC = " << nDC << endl;
+  std::clog << "            number of dependent components: nDC = " << nDC
+            << endl;
 
   strainenergy.clear();
   strainenergy.resize(nDC, 0.0);
@@ -149,10 +163,11 @@ int main(int argc, char **argv) {
   // phase data
   //
 
-  cout << endl << "What is the name of the simulation parameter file? " << endl;
+  std::clog << endl
+            << "What is the name of the simulation parameter file? " << endl;
   getline(cin, buff);
   const string simParamName(buff);
-  cout << "   - simParamName        :  " << simParamName << endl;
+  std::clog << "   - simParamName        :  " << simParamName << endl;
 
   //
   // Create the ChemicalSystem object
@@ -162,8 +177,8 @@ int main(int argc, char **argv) {
     ChemSys = new ChemicalSystem(gemInputName, simParamName, VERBOSE, WARNING,
                                  testSimparamsFile);
   } catch (bad_alloc &ba) {
-    cout << "Bad memory allocation in ChemicalSystem constructor: " << ba.what()
-         << endl;
+    std::clog << "Bad memory allocation in ChemicalSystem constructor: "
+              << ba.what() << endl;
     errorProgram = true;
   } catch (FileException fex) {
     fex.printException();
@@ -178,7 +193,7 @@ int main(int argc, char **argv) {
   if (errorProgram) {
     deleteDynAllocMem(ChemSys, Mic, RNG, ThermalStrainSolver,
                       AppliedStrainSolver, KController, Ctrl, starttime, lt,
-                      errorProgram, outputFolder);
+                      errorProgram, OutputFolder);
   }
 
   ChemSys->setCorPorCSHQ(corPorCSHQ);
@@ -193,10 +208,10 @@ int main(int argc, char **argv) {
   // User must specifiy the file containing the 3D microstructure itself
   //
 
-  cout << endl << "What is the name of the MICROSTRUCTURE file? " << endl;
+  std::clog << endl << "What is the name of the MICROSTRUCTURE file? " << endl;
   getline(cin, buff);
   const string initMicName(buff);
-  cout << "   - initMicName       :  " << initMicName << endl;
+  std::clog << "   - initMicName       :  " << initMicName << endl;
 
   //
   // Create the Lattice object to hold the microstructure
@@ -204,15 +219,17 @@ int main(int argc, char **argv) {
 
   try {
     Mic = new Lattice(ChemSys, RNG, seedRNG, initMicName, VERBOSE, WARNING);
-    cout << endl << "Lattice creation done... " << endl;
-    cout << "X size of lattice is " << Mic->getXDim() << endl;
-    cout << "Y size of lattice is " << Mic->getYDim() << endl;
-    cout << "Z size of lattice is " << Mic->getZDim() << endl;
-    cout << "Total number of sites is " << Mic->getNumSites() << endl;
+    std::clog << endl << "Lattice creation done... " << endl;
+    std::clog << "X size of lattice is " << Mic->getXDim() << endl;
+    std::clog << "Y size of lattice is " << Mic->getYDim() << endl;
+    std::clog << "Z size of lattice is " << Mic->getZDim() << endl;
+    std::clog << "Total number of sites is " << Mic->getNumSites() << endl;
 
   } catch (bad_alloc &ba) {
-    cout << "Bad memory allocation in Lattice constructor: " << ba.what()
-         << endl;
+    std::clog << "Bad memory allocation in Lattice constructor: " << ba.what()
+              << endl;
+    std::cerr << "Bad memory allocation in Lattice constructor: " << ba.what()
+              << endl;
     errorProgram = true;
   } catch (FileException fex) {
     fex.printException();
@@ -234,7 +251,7 @@ int main(int argc, char **argv) {
   if (errorProgram) {
     deleteDynAllocMem(ChemSys, Mic, RNG, ThermalStrainSolver,
                       AppliedStrainSolver, KController, Ctrl, starttime, lt,
-                      errorProgram, outputFolder);
+                      errorProgram, OutputFolder);
   }
 
   if (simtype == SULFATE_ATTACK) {
@@ -245,15 +262,15 @@ int main(int argc, char **argv) {
     // constituent phases, and will need to include a finite element solver
     //
 
-    // cout << endl << "What is the name of the elastic modulus file?" << endl;
-    // buff = "";
+    // std::clog << endl << "What is the name of the elastic modulus file?" <<
+    // endl; buff = "";
     // // cin >> buff;  // C++ >> operator does not allow spaces
     // getline(cin, buff);
     // const string phasemod_fileName(buff);
 
-    // cout << endl << "The name of the elastic modulus file is : " << endl;
-    // const string phasemod_fileName = "phasemod.txt";
-    // cout << "   - phasemod_fileName :  " << phasemod_fileName << endl;
+    // std::clog << endl << "The name of the elastic modulus file is : " <<
+    // endl; const string phasemod_fileName = "phasemod.txt"; std::clog << "   -
+    // phasemod_fileName :  " << phasemod_fileName << endl;
 
     //
     // Create the ThermalStrain FE solver, which handles phase transformation
@@ -264,11 +281,13 @@ int main(int argc, char **argv) {
       ThermalStrainSolver = new ThermalStrain(
           Mic->getXDim(), Mic->getYDim(), Mic->getZDim(),
           (Mic->getNumSites() + 2), ChemSys, 1, VERBOSE, WARNING);
-      cout << "ThermalStrain object creation done... " << endl;
+      std::clog << "ThermalStrain object creation done... " << endl;
       // ThermalStrainSolver->setPhasemodfileName(phasemod_fileName);
     } catch (bad_alloc &ba) {
-      cout << "Bad memory allocation in ThermalStrain constructor: "
-           << ba.what() << endl;
+      std::clog << "Bad memory allocation in ThermalStrain constructor: "
+                << ba.what() << endl;
+      std::cerr << "Bad memory allocation in ThermalStrain constructor: "
+                << ba.what() << endl;
       errorProgram = true;
     } catch (FileException fex) {
       fex.printException();
@@ -280,7 +299,7 @@ int main(int argc, char **argv) {
     if (errorProgram) {
       deleteDynAllocMem(ChemSys, Mic, RNG, ThermalStrainSolver,
                         AppliedStrainSolver, KController, Ctrl, starttime, lt,
-                        errorProgram, outputFolder);
+                        errorProgram, OutputFolder);
     }
 
     int nx, ny, nz;
@@ -295,11 +314,11 @@ int main(int argc, char **argv) {
     try {
       AppliedStrainSolver =
           new AppliedStrain(nx, ny, nz, ns, ChemSys, 1, VERBOSE, WARNING);
-      cout << "AppliedStrain object creation done... " << endl;
+      std::clog << "AppliedStrain object creation done... " << endl;
       // AppliedStrainSolver->setPhasemodfileName(phasemod_fileName);
     } catch (bad_alloc &ba) {
-      cout << "Bad memory allocation in AppliedStrain constructor: "
-           << ba.what() << endl;
+      std::clog << "Bad memory allocation in AppliedStrain constructor: "
+                << ba.what() << endl;
       errorProgram = true;
     } catch (FileException fex) {
       fex.printException();
@@ -311,7 +330,7 @@ int main(int argc, char **argv) {
     if (errorProgram) {
       deleteDynAllocMem(ChemSys, Mic, RNG, ThermalStrainSolver,
                         AppliedStrainSolver, KController, Ctrl, starttime, lt,
-                        errorProgram, outputFolder);
+                        errorProgram, OutputFolder);
     }
 
     Mic->setFEsolver(AppliedStrainSolver);
@@ -319,10 +338,10 @@ int main(int argc, char **argv) {
 
   string jobRoot, statFileName;
   if (VERBOSE) {
-    cout << endl << "About to enter KineticController constructor" << endl;
-    cout << "exit" << endl;
+    std::clog << endl << "About to enter KineticController constructor" << endl;
+    std::clog << "exit" << endl;
     exit(0);
-    cout.flush();
+    std::clog.flush();
   }
 
   //
@@ -333,8 +352,8 @@ int main(int argc, char **argv) {
     KController =
         new KineticController(ChemSys, Mic, simParamName, VERBOSE, WARNING);
   } catch (bad_alloc &ba) {
-    cout << "Bad memory allocation in KineticController constructor: "
-         << ba.what() << endl;
+    std::cerr << "Bad memory allocation in KineticController constructor: "
+              << ba.what() << endl;
     errorProgram = true;
   } catch (FileException fex) {
     fex.printException();
@@ -352,20 +371,21 @@ int main(int argc, char **argv) {
   if (errorProgram) {
     deleteDynAllocMem(ChemSys, Mic, RNG, ThermalStrainSolver,
                       AppliedStrainSolver, KController, Ctrl, starttime, lt,
-                      errorProgram, outputFolder);
+                      errorProgram, OutputFolder);
   }
 
   if (VERBOSE) {
-    cout << "Finished constructing KineticController KController" << endl;
-    cout.flush();
+    std::clog << "Finished constructing KineticController KController" << endl;
+    std::clog.flush();
   }
 
-  cout << endl << "What shall be the root name of all output files?" << endl;
+  std::clog << endl
+            << "What shall be the root name of all output files?" << endl;
   getline(cin, buff);
   jobRoot.assign(buff);
-  cout << "   - files root name   :  " << jobRoot << endl;
+  std::clog << "   - files root name   :  " << jobRoot << endl;
 
-  prepOutputFolder(outputFolder, jobRoot, gemInputName, statFileName,
+  prepOutputFolder(OutputFolder, jobRoot, gemInputName, statFileName,
                    initMicName, simParamName);
 
   //
@@ -377,8 +397,8 @@ int main(int argc, char **argv) {
         new Controller(Mic, KController, ChemSys, ThermalStrainSolver, simtype,
                        simParamName, jobRoot, VERBOSE, WARNING, XYZ);
   } catch (bad_alloc &ba) {
-    cout << "Bad memory allocation in Controller constructor: " << ba.what()
-         << endl;
+    std::cerr << "Bad memory allocation in Controller constructor: "
+              << ba.what() << endl;
     errorProgram = true;
   } catch (FileException fex) {
     fex.printException();
@@ -393,7 +413,7 @@ int main(int argc, char **argv) {
   if (errorProgram) {
     deleteDynAllocMem(ChemSys, Mic, RNG, ThermalStrainSolver,
                       AppliedStrainSolver, KController, Ctrl, starttime, lt,
-                      errorProgram, outputFolder);
+                      errorProgram, OutputFolder);
   }
 
   //
@@ -408,8 +428,8 @@ int main(int argc, char **argv) {
   //
 
   if (VERBOSE) {
-    cout << endl << "Going into Controller::doCycle" << endl;
-    cout.flush();
+    std::clog << endl << "Going into Controller::doCycle" << endl;
+    std::clog.flush();
   }
 
   try {
@@ -432,7 +452,7 @@ int main(int argc, char **argv) {
   if (errorProgram) {
     deleteDynAllocMem(ChemSys, Mic, RNG, ThermalStrainSolver,
                       AppliedStrainSolver, KController, Ctrl, starttime, lt,
-                      errorProgram, outputFolder);
+                      errorProgram, OutputFolder);
   }
 
   //
@@ -441,7 +461,7 @@ int main(int argc, char **argv) {
 
   deleteDynAllocMem(ChemSys, Mic, RNG, ThermalStrainSolver, AppliedStrainSolver,
                     KController, Ctrl, starttime, lt, errorProgram,
-                    outputFolder);
+                    OutputFolder);
 
   return 0;
 }
@@ -451,7 +471,7 @@ void deleteDynAllocMem(ChemicalSystem *ChemSys, Lattice *Mic, RanGen *RNG,
                        AppliedStrain *AppliedStrainSolver,
                        KineticController *KController, Controller *Ctrl,
                        clock_t st_time, time_t lt, bool errorProgram,
-                       const string &outputFolder) {
+                       const string &OutputFolder) {
 
   string buff = "";
   int resCallSystem;
@@ -486,32 +506,32 @@ void deleteDynAllocMem(ChemicalSystem *ChemSys, Lattice *Mic, RanGen *RNG,
   string name = "ipmlog.txt";
   ifstream f(name.c_str());
   if (f.good()) {
-    buff = "mv -f ipmlog.txt " + outputFolder + "/.";
+    buff = "mv -f ipmlog.txt " + OutputFolder + "/.";
     resCallSystem = system(buff.c_str());
     if (resCallSystem == -1) {
       throw FileException("thames", "deleteDynAllocMem", buff, "FAILED");
     }
-    // cout << buff << endl;
+    // std::clog << buff << endl;
     f.close();
   }
 
   name = "IPM_dump.txt";
   f.open(name.c_str());
   if (f.good()) {
-    buff = "mv -f IPM_dump.txt " + outputFolder + "/.";
+    buff = "mv -f IPM_dump.txt " + OutputFolder + "/.";
     resCallSystem = system(buff.c_str());
     if (resCallSystem == -1) {
       throw FileException("thames", "deleteDynAllocMem", buff, "FAILED");
     }
-    // cout << buff << endl;
+    // std::clog << buff << endl;
     f.close();
   }
 
-  cout << endl
-       << "=> IPM_dump.txt & ipmlog.txt are into " << outputFolder << " folder"
-       << endl;
+  std::clog << endl
+            << "=> IPM_dump.txt & ipmlog.txt are into " << OutputFolder
+            << " folder" << endl;
 
-  cout << endl << "STOP Program" << endl;
+  std::clog << endl << "STOP Program" << endl;
   timeCount(st_time, lt);
 
   if (errorProgram) {
@@ -526,34 +546,36 @@ void timeCount(clock_t time_, time_t lt_) {
   time_t lt1 = time(NULL);
   struct tm *inittime1;
   inittime1 = localtime(&lt1);
-  cout << endl << asctime(inittime1);
+  std::clog << endl << asctime(inittime1);
   clock_t endtime = clock();
 
   double elapsedtime = static_cast<double>(endtime - time_) / CLOCKS_PER_SEC;
   double ltD = difftime(lt1, lt_);
-  cout << endl << "Total time = " << ltD << " seconds" << endl;
-  cout << endl
-       << "Total time with clock = " << elapsedtime << " seconds" << endl;
+  std::clog << endl << "Total time = " << ltD << " seconds" << endl;
+  std::clog << endl
+            << "Total time with clock = " << elapsedtime << " seconds" << endl;
 }
 
 void printHelp(void) {
-  cout << endl;
-  cout << "Usage: \"thames [--verbose|-v] [--suppress|-s] [--xyz|-x] "
-          "[--outfolder|-o] folder [--help|-h]\""
-       << endl;
-  cout << "        --verbose [-v]      Produce verbose output" << endl;
-  cout << "        --suppress [-s]     Suppress warning messages" << endl;
-  cout << "        --xyz [-x]          Create 3D visualization movie" << endl;
-  cout << "        --outfolder [-o]    Name of folder for output data (default "
-          "is Result)"
-       << endl;
-  cout << endl;
-  cout << "Note: thames --help [-h] will print this help message" << endl;
+  std::clog << endl;
+  std::clog << "Usage: \"thames [--verbose|-v] [--suppress|-s] [--xyz|-x] "
+               "[--outfolder|-o] folder [--help|-h]\""
+            << endl;
+  std::clog << "        --verbose [-v]      Produce verbose output" << endl;
+  std::clog << "        --suppress [-s]     Suppress warning messages" << endl;
+  std::clog << "        --xyz [-x]          Create 3D visualization movie"
+            << endl;
+  std::clog
+      << "        --outfolder [-o]    Name of folder for output data (default "
+         "is Result)"
+      << endl;
+  std::clog << endl;
+  std::clog << "Note: thames --help [-h] will print this help message" << endl;
 
   return;
 }
 
-int checkArgs(int argc, char **argv, string &outputFolder) {
+int checkArgs(int argc, char **argv, string &OutputFolder) {
 
   // Many of the variables here are defined in the getopts.h system header file
   // Can define more options here if we want
@@ -571,7 +593,7 @@ int checkArgs(int argc, char **argv, string &outputFolder) {
   XYZ = false;
 
   // Default value of output folder unless user overrides it
-  outputFolder = "Result";
+  OutputFolder = "Result";
 
   while (true) {
 
@@ -583,24 +605,24 @@ int checkArgs(int argc, char **argv, string &outputFolder) {
     switch (opt) {
     case 'v':
       VERBOSE = true; // Verbose defined in thameslib global.h
-      cout << "**Will produce verbose output**" << endl;
+      std::clog << "**Will produce verbose output**" << endl;
       break;
     case 's':
       WARNING = false; // Verbose defined in thameslib global.h
-      cout << "**Will suppress warning messages**" << endl;
+      std::clog << "**Will suppress warning messages**" << endl;
       break;
     case 'x':
       XYZ = true; // Verbose defined in thameslib global.h
-      cout << "**Will create 3D visualization file **" << endl;
+      std::clog << "**Will create 3D visualization file **" << endl;
       break;
     case 'o':
-      outputFolder = optarg; // Verbose defined in thameslib global.h
-      if ((outputFolder[0] == ' ') || (outputFolder[0] == '-') ||
-          (outputFolder[0] == '\\')) {
+      OutputFolder = optarg; // Verbose defined in thameslib global.h
+      if ((OutputFolder[0] == ' ') || (OutputFolder[0] == '-') ||
+          (OutputFolder[0] == '\\')) {
         printHelp();
         return (1);
       }
-      cout << "Output folder: " << outputFolder << endl;
+      std::clog << "Output folder: " << OutputFolder << endl;
       break;
     case 'h': // -h or --help
     case '?': // Unrecognized option
@@ -613,20 +635,20 @@ int checkArgs(int argc, char **argv, string &outputFolder) {
   return (0);
 }
 
-void prepOutputFolder(const string &outputFolder, string &jobRoot,
+void prepOutputFolder(const string &OutputFolder, string &jobRoot,
                       const string &gemInputName, string &statFileName,
                       const string &initMicName, const string &simParamName) {
 
   int resCallSystem;
 
-  string buff = "mkdir -p " + outputFolder;
+  string buff = "mkdir -p " + OutputFolder;
   resCallSystem = system(buff.c_str());
   if (resCallSystem == -1) {
     throw FileException("thames", "prepOutputFolder", buff, "FAILED");
   }
-  jobRoot = outputFolder + "/" + jobRoot;
-  cout << "   - jobRoot           :  " << jobRoot << endl;
-  cout.flush();
+  jobRoot = OutputFolder + "/" + jobRoot;
+  std::clog << "   - jobRoot           :  " << jobRoot << endl;
+  std::clog.flush();
 
   statFileName = jobRoot + ".stats";
 
@@ -643,7 +665,7 @@ void prepOutputFolder(const string &outputFolder, string &jobRoot,
   if (buff1[0] == '"' || buff1[0] == '\'') {
     buff1 = buff1.substr(1, buff1.size() - 2);
   }
-  buff = "cp -f " + buff1 + " " + outputFolder + "/.";
+  buff = "cp -f " + buff1 + " " + OutputFolder + "/.";
   resCallSystem = system(buff.c_str());
   if (resCallSystem == -1) {
     throw FileException("thames", "prepOutputFolder", buff, "FAILED");
@@ -655,7 +677,7 @@ void prepOutputFolder(const string &outputFolder, string &jobRoot,
   if (buff1[0] == '"' || buff1[0] == '\'') {
     buff1 = buff1.substr(1, buff1.size() - 2);
   }
-  buff = "cp -f " + buff1 + " " + outputFolder + "/.";
+  buff = "cp -f " + buff1 + " " + OutputFolder + "/.";
   resCallSystem = system(buff.c_str());
   if (resCallSystem == -1) {
     throw FileException("thames", "prepOutputFolder", buff, "FAILED");
@@ -669,32 +691,32 @@ void prepOutputFolder(const string &outputFolder, string &jobRoot,
   if (buff1[0] == '"' || buff1[0] == '\'') {
     buff1 = buff1.substr(1, buff1.size() - 2);
   }
-  buff = "cp -f " + buff1 + " " + outputFolder + "/.";
+  buff = "cp -f " + buff1 + " " + OutputFolder + "/.";
   resCallSystem = system(buff.c_str());
   if (resCallSystem == -1) {
     throw FileException("thames", "prepOutputFolder", buff, "FAILED");
   }
 
-  buff = "cp -f " + gemInputName + " " + outputFolder + "/.";
+  buff = "cp -f " + gemInputName + " " + OutputFolder + "/.";
   resCallSystem = system(buff.c_str());
   if (resCallSystem == -1) {
     throw FileException("thames", "prepOutputFolder", buff, "FAILED");
   }
 
-  buff = "cp -f " + initMicName + " " + outputFolder + "/.";
+  buff = "cp -f " + initMicName + " " + OutputFolder + "/.";
   resCallSystem = system(buff.c_str());
   if (resCallSystem == -1) {
     throw FileException("thames", "prepOutputFolder", buff, "FAILED");
   }
 
-  buff = "cp -f " + simParamName + " " + outputFolder + "/.";
+  buff = "cp -f " + simParamName + " " + OutputFolder + "/.";
   resCallSystem = system(buff.c_str());
   if (resCallSystem == -1) {
     throw FileException("thames", "prepOutputFolder", buff, "FAILED");
   }
 
-  cout << "     => All input files have been copied into " << outputFolder
-       << " folder" << endl;
+  std::clog << "     => All input files have been copied into " << OutputFolder
+            << " folder" << endl;
 
   return;
 }
@@ -708,7 +730,8 @@ void writeReport(const string &jobRoot, struct tm *itime,
   ofstream out(jFileName.c_str());
   if (!out.is_open()) {
     if (WARNING)
-      cout << "WARNING:  Could not open report file" << endl;
+      std::clog << "WARNING:  Could not open report file" << endl;
+    std::cerr << "WARNING:  Could not open report file" << endl;
     return;
   }
 
@@ -734,6 +757,7 @@ void writeReport(const string &jobRoot, struct tm *itime,
   out << endl;
 
   out.close();
+
   return;
 }
 
@@ -749,18 +773,17 @@ void writeLastCount(ChemicalSystem *chemsys, Lattice *mic) {
     count.resize(numPhases, 0);
     dim = numPhases;
   }
-  cout << endl << "   Last number of voxels for each microPhase <-> nVmPh(i) :"
-       << endl;
+  std::clog << endl
+            << "   Last number of voxels for each microPhase <-> nVmPh(i) :"
+            << endl;
   for (int i = 0; i < dim; i++) {
     sumCount += count[i];
-    cout << "    " << setw(3) << right << i
-         << " - " << setw(18) << left << phaseName[i]
-         << " : " << setw(10) << right << count[i]
-         << endl;
+    std::clog << "    " << std::setw(3) << std::right << i << " - "
+              << std::setw(18) << std::left << phaseName[i] << " : "
+              << std::setw(10) << std::right << count[i] << endl;
   }
-  cout << endl << "   nVmPh_total = " << sumCount << endl;
-  cout << "   system dimension is : dimX*dimY*dimZ = "
-       << mic->getXDim() << " * " << mic->getYDim() << " * " << mic->getZDim()
-       << " = " << mic->getXDim() * mic->getYDim() * mic->getZDim()
-       << endl;
+  std::clog << endl << "   nVmPh_total = " << sumCount << endl;
+  std::clog << "   system dimension is : dimX*dimY*dimZ = " << mic->getXDim()
+            << " * " << mic->getYDim() << " * " << mic->getZDim() << " = "
+            << mic->getXDim() * mic->getYDim() * mic->getZDim() << endl;
 }
