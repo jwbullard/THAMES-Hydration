@@ -122,6 +122,10 @@ struct PhaseData {
   int growingSA;
   std::vector<int> shrinkingSA;
   std::vector<double> volRatiosSA;
+  // Elastic moduli from simparams.json (optional, -1.0 means use defaults)
+  double elastic_K;  // Bulk modulus (GPa)
+  double elastic_G;  // Shear modulus (GPa)
+  bool hasElasticData;
 };
 #endif
 
@@ -607,6 +611,7 @@ class ChemicalSystem {
   double waterMolarVol_;  /**< the water molar volume corresp. to waterDCId_ */
   double beginAttackTime_;
   std::map<std::string, elMod> elasticModuli_;
+  std::map<std::string, elMod> elasticModuliFromJSON_; /**< Elastic moduli read from simparams.json */
   int aliteDCId_;     /**< the DCId coresp to microPhaseName = "Alite" */
   int beliteDCId_;    /**< the DCId coresp to microPhaseName = "Belite" */
   int aluminateDCId_; /**< the DCId coresp to microPhaseName = "Aluminate" */

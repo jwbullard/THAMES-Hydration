@@ -1529,7 +1529,7 @@ void Controller::doCycle(double elemTimeInterval) {
         vector<int> sitePhIdVect = lattice_->getAllSitesPhId();
         vector<int> *p_sitePhIdVect = &sitePhIdVect;
 
-        thermalstr_->Calc(cyc, currTime, p_sitePhIdVect, 0.0, 0.0, 0.0, 0.0,
+        thermalstr_->calc(cyc, currTime, p_sitePhIdVect, 0.0, 0.0, 0.0, 0.0,
                           0.0, 0.0);
 
         // thermalstr_ -> writeStress(jobRoot_,time_[i],0); //write strxx

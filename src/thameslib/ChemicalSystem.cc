@@ -4,6 +4,7 @@
 */
 
 #include "ChemicalSystem.h"
+#include "global.h"
 
 using std::cerr;
 using std::endl;
@@ -852,8 +853,21 @@ void ChemicalSystem::parseDoc(const string &docName) {
 
   // Get an iterator to the root node of the JSON file
   json::iterator it = data.find("microstructure");
-  json::iterator cdi = it.value().find("numentries");
-  cdi = it.value().find("phases");
+
+  // Determine whether there is an aggregate phase defined (special case)
+  json::iterator aggit = it.value().find("aggregate_phase_id");
+  AggregateId = -1;
+  if (aggit != it.value().end()) {
+    AggregateId = aggit.value();
+    std::clog << "BINGO! Found aggregate id = " << AggregateId << endl;
+  } else {
+    std::clog << "AWW! No aggregate id found (value is " << AggregateId << ")"
+              << endl;
+  }
+  std::clog.flush();
+  // Done determining whether there is an aggregate phase defined
+
+  json::iterator cdi = it.value().find("phases");
 
   map<string, int> phaseids;
   phaseids.clear();
@@ -1170,6 +1184,11 @@ void ChemicalSystem::parseMicroPhases(const json::iterator cdi, int numEntries,
     phaseData.stressCalc = 0;
     phaseData.weak = 0;
 
+    // Initialize elastic moduli (will be loaded from JSON if available)
+    phaseData.hasElasticData = false;
+    phaseData.elastic_K = -1.0;
+    phaseData.elastic_G = -1.0;
+
     /// @note This parsing ignores the kinetic data portion for each
     /// phase.  The kinetic data parsing is handled by the KineticModel class
 
@@ -1269,6 +1288,45 @@ void ChemicalSystem::parseMicroPhases(const json::iterator cdi, int numEntries,
         throw dex;
       }
     }
+
+    // Parse elastic moduli from simparams.json (optional)
+    p = cdi.value()[i].find("elastic_data");
+    if (p != cdi.value()[i].end()) {
+      json::iterator pp = p.value().find("bulk_modulus_GPa");
+      if (pp != p.value().end()) {
+        phaseData.elastic_K = pp.value();
+      }
+      pp = p.value().find("shear_modulus_GPa");
+      if (pp != p.value().end()) {
+        phaseData.elastic_G = pp.value();
+      }
+      if (phaseData.elastic_K >= 0.0 && phaseData.elastic_G >= 0.0) {
+        phaseData.hasElasticData = true;
+        // Store in the JSON elastic moduli map
+        elMod moduli;
+        moduli.K = phaseData.elastic_K;
+        moduli.G = phaseData.elastic_G;
+        // Calculate E and nu from K and G
+        // E = 9KG / (3K + G)
+        // nu = (3K - 2G) / (2(3K + G))
+        double denom = 3.0 * moduli.K + moduli.G;
+        if (denom > 0.0) {
+          moduli.E = 9.0 * moduli.K * moduli.G / denom;
+          moduli.n = (3.0 * moduli.K - 2.0 * moduli.G) / (2.0 * denom);
+        } else {
+          moduli.E = 0.0;
+          moduli.n = 0.0;
+        }
+        moduli.altName = phaseData.thamesName;
+        elasticModuliFromJSON_[phaseData.thamesName] = moduli;
+        if (verbose_) {
+          std::clog << "  Loaded elastic moduli for " << phaseData.thamesName
+                    << ": K=" << moduli.K << " GPa, G=" << moduli.G << " GPa"
+                    << endl;
+        }
+      }
+    }
+
     //    // Impurity partitioning data
     //    p = cdi.value()[pnum].find("Rd");
     //    if (p != cdi.value().end()) {
@@ -3510,6 +3568,18 @@ void ChemicalSystem::initElasticModuliMap(void) {
   elasticModuli_["Dolomite"].n = ;
   elasticModuli_["Dolomite"].altName = "Dolomite";
   */
+
+  // Override with values from simparams.json if available
+  // This allows users to provide custom elastic moduli via the JSON input file
+  if (!elasticModuliFromJSON_.empty()) {
+    std::clog << "Overriding elastic moduli with values from simparams.json:"
+              << endl;
+    for (auto &entry : elasticModuliFromJSON_) {
+      elasticModuli_[entry.first] = entry.second;
+      std::clog << "  " << entry.first << ": K=" << entry.second.K
+                << " GPa, G=" << entry.second.G << " GPa" << endl;
+    }
+  }
 }
 
 void ChemicalSystem::initColorMap(void) {

@@ -12,9 +12,9 @@ using std::string;
 using std::vector;
 
 ThermalStrain::ThermalStrain(int nx, int ny, int nz, int dim,
-                             ChemicalSystem *cs, int npoints,
+                             ChemicalSystem *cs, const bool hasAggregateSlab,
                              const bool verbose, const bool warning)
-    : ElasticModel(nx, ny, nz, dim, cs, npoints, verbose, warning) {
+    : ElasticModel(nx, ny, nz, dim, cs, hasAggregateSlab, verbose, warning) {
 
 #ifdef DEBUG
   verbose_ = true;
@@ -29,7 +29,7 @@ ThermalStrain::ThermalStrain(int nx, int ny, int nz, int dim,
     std::clog.flush();
   }
 
-  kmax_ = 60; // 3;
+  kmax_ = 80; // 3;
   std::clog
       << endl
       << "ThermalStrain::ThermalStrain - "
@@ -2074,10 +2074,7 @@ int ThermalStrain::dembx(int ldemb, int kkk) {
   ///
   /// Initialize the conjugate direction vector on first call to dembx only.
   /// For calls to dembx after the first, we want to continue using the value
-  /// of h_ determined in the previous call. Of course, if npoints is greater
-  /// than 0, then this initialization step will be run each time a new
-  /// microstructure is used, as kkk will be reset to 0 every time the counter
-  /// micro is increased.
+  /// of h_ determined in the previous call.
   ///
 
   if (kkk == 0) {
@@ -2722,13 +2719,6 @@ void ThermalStrain::stress() {
         }
 
         ///
-        /// Calculate the strain energy for each GEM dependent component,
-        /// which will be called in GEMS.
-        ///
-
-        getAvgStrainengy();
-
-        ///
         /// Sum local stresses and strains into global stresses and strains.
         ///
 
@@ -2767,10 +2757,16 @@ void ThermalStrain::stress() {
   syz_ = syz_ / ns_dbl;
   sxy_ = sxy_ / ns_dbl;
 
+  ///
+  /// Calculate the volume-averaged strain energy for each phase/DC
+  /// (called ONCE after all element strain energies are computed)
+  ///
+  getAvgStrainengy();
+
   return;
 }
 
-void ThermalStrain::Calc(int cyc, double time, vector<int> *p_vectPhId,
+void ThermalStrain::calc(int cyc, double time, std::vector<int> *p_vectPhId,
                          double exx, double eyy, double ezz, double exz,
                          double eyz, double exy) {
   int kmax = kmax_; // 60;
@@ -2779,16 +2775,16 @@ void ThermalStrain::Calc(int cyc, double time, vector<int> *p_vectPhId,
   int m;
 
   ///
-  /// Read in a microstructure in subroutine ppixel, and set up pix_[m] with
-  /// the appropriate phase assignments.
+  /// Read in a microstructure in function setMicrostructure, and set up pix_[m]
+  /// with the appropriate phase assignments.
   ///
 
   std::clog << endl
             << "  ThermalStrain::Calc - ini - cyc = " << cyc
             << "   time = " << time << endl;
 
-  // ppixel(fileName);
-  ppixel(p_vectPhId);
+  // setMicrostructure(fileName);
+  setMicrostructure(p_vectPhId);
 
   ///
   /// Count and output the volume fractions of the different phases.

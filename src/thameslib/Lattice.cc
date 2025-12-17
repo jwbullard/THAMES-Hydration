@@ -23,6 +23,7 @@ Lattice::Lattice(ChemicalSystem *cs) : chemSys_(cs) {
   site_.clear();
   depthEffect_ = false;
   masterPoreSizeDist_.clear();
+  hasAggregateSlab_ = false;
 #ifdef DEBUG
   verbose_ = true;
 #else
@@ -752,6 +753,13 @@ Lattice::Lattice(ChemicalSystem *cs, RanGen *rg, int seedRNG,
       wmcLocInt += site_[nbIdLoc].getWmc0();
     }
     site_[i].setWmc(wmcLocInt);
+  }
+
+  // Determine if microstructure has an aggregate slab
+  hasAggregateSlab_ = false;
+  if (getVolumeFraction(AggregateId) > 0.0) {
+    hasAggregateSlab_ = true;
+    findAggregateSurfacePosition();
   }
 
   // voxels without contact with electrolyte i.e. voxels having low probability
@@ -5360,7 +5368,7 @@ void Lattice::writeLattice(const string timeString) {
   out << XSIZESTRING << " " << xdim_ << endl;
   out << YSIZESTRING << " " << ydim_ << endl;
   out << ZSIZESTRING << " " << zdim_ << endl;
-  out << IMGRESSTRING << " " << resolution_ << endl;
+  out << IMGRESSTRING << " " << (1.0e6 * resolution_) << endl; // um units
 
   // int index;
   // for (int k = 0; k < zdim_; k++) {

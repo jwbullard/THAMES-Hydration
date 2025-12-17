@@ -11,8 +11,8 @@ implemented in the AppliedStrain class.
 #ifndef SRC_THAMESLIB_THERMALSTRAIN_H_
 #define SRC_THAMESLIB_THERMALSTRAIN_H_
 
-#include "global.h"
 #include "ElasticModel.h"
+#include "global.h"
 
 /**
 @class ThermalStrain
@@ -135,10 +135,10 @@ protected:
   @f$\sqrt{abc}@f$.
   */
   double localgtest_;
-  double localgg_;               /**< The square of the gradient
-                                     `gb_`<sup>2</sup> */
-  std::vector<double> tstrength_;     /**< Assumed tensile strength of
-                                   various phases [MPa] */
+  double localgg_;                         /**< The square of the gradient
+                                               `gb_`<sup>2</sup> */
+  std::vector<double> tstrength_;          /**< Assumed tensile strength of
+                                        various phases [MPa] */
   std::vector<std::vector<double>> b0_;    /**< xx component of linear b vector
                                      three terms for each phase, so
                                      b0_[nphase][3] */
@@ -161,22 +161,22 @@ protected:
                                       list of sites ids and their
                                      coordinates where local expansion
                                      occurs */
-  std::vector<std::vector<double>> eigen_; /**< Six components of the eigenstrain
-                                   tensor for each mesh element, so
+  std::vector<std::vector<double>> eigen_; /**< Six components of the
+                                   eigenstrain tensor for each mesh element, so
                                    eigen_[ns][6] */
   std::vector<std::vector<double>> T_;     /**< Linear (in displacement) thermal
                                  energy term, one for each phase,
                                  so T_[nphase][3] */
   std::vector<std::vector<std::vector<std::vector<double>>>>
-      zcon_;                          /**< Stores thermal energy associated
-                                         with macrostrains */
+      zcon_; /**< Stores thermal energy associated
+                with macrostrains */
   std::vector<std::vector<std::vector<double>>> ss_; /**< Shear stress tensor
-                                         components, one at every element, so the
-                                         dimensions are ss_[ns][3][3] */
-  int kmax_; /**< the number of relaxation steps for a given elastic computation */
+                                         components, one at every element, so
+                                         the dimensions are ss_[ns][3][3] */
+  int kmax_; /**< the number of relaxation steps for a given elastic computation
+              */
 
 public:
-
   /**
   @brief Constructor.
 
@@ -187,15 +187,14 @@ public:
   @param ny is the number of elements along the y dimension
   @param nz is the number of elements along the z dimension
   @param dim is the total number of mesh elements
-  @param nphase is the maximum number of phases in the system
-  @param npoints is the number of microstructures to process
+  @param cs is a pointer to the governing ChemicalSystem object
+  @param hasAggregateSlabe is true if the microstructure has an aggregate slab
   @param verbose is true if verbose output should be produced
   @param warning is false if warning messages should be suppressed
   */
-  // ThermalStrain(int nx, int ny, int nz, int dim, int nphase, int npoints,
-  //               const bool verbose, const bool warning);
-  ThermalStrain(int nx, int ny, int nz, int dim, ChemicalSystem *cs, int npoints,
-                const bool verbose, const bool warning);
+  ThermalStrain(int nx, int ny, int nz, int dim, ChemicalSystem *cs,
+                const bool hasAggregateSlab, const bool verbose,
+                const bool warning);
 
   /**
   @brief Destructor.
@@ -387,11 +386,11 @@ public:
   @param eyz is the yz component of the macrostrain
   @param exy is the xy component of the macrostrain
   */
-  // void Calc(double time, std::string fileName, double exx, double eyy, double ezz,
+  // void Calc(double time, std::string fileName, double exx, double eyy, double
+  // ezz,
   //           double exz, double eyz, double exy);
-  void Calc(int cyc, double time, std::vector<int> *p_vectPhId,
-            double exx, double eyy, double ezz,
-            double exz, double eyz, double exy);
+  void calc(int cyc, double time, std::vector<int> *p_vectPhId, double exx,
+            double eyy, double ezz, double exz, double eyz, double exy);
 
   /**
   @brief Set the six eigenstrain components of a phase.

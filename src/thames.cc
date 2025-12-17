@@ -65,11 +65,15 @@ int main(int argc, char **argv) {
   std::clog << "  " << HYDRATION << ") Hydration " << endl;
   std::clog << "  " << LEACHING << ") Leaching " << endl;
   std::clog << "  " << SULFATE_ATTACK << ") Sulfate attack " << endl;
+  std::clog << "  " << ELASTIC_CALC << ") Elastic calculation " << endl;
   cin >> simtype;
 
-  if (simtype > SULFATE_ATTACK) {
+  if (simtype == SULFATE_ATTACK) {
     std::clog << endl
               << "simtype = " << simtype << " (Sulfate attack / SA)" << endl;
+  } else if (simtype == ELASTIC_CALC) {
+    std::clog << endl
+              << "simtype = " << simtype << " (Elastic calculation)" << endl;
   } else {
     std::clog << endl << "simtype = " << simtype << endl;
   }
@@ -80,7 +84,7 @@ int main(int argc, char **argv) {
   // \t" << numeric_limits<float>::epsilon()
   // << endl;
 
-  if (simtype <= QUIT_PROGRAM || simtype > SULFATE_ATTACK) {
+  if (simtype <= QUIT_PROGRAM || simtype > ELASTIC_CALC) {
 
     std::clog << "Exiting program now." << endl << endl;
     exit(1);
@@ -312,8 +316,9 @@ int main(int argc, char **argv) {
     //
 
     try {
-      AppliedStrainSolver =
-          new AppliedStrain(nx, ny, nz, ns, ChemSys, 1, VERBOSE, WARNING);
+      bool hasAggregateSlab = Mic->getHasAggregateSlab();
+      AppliedStrainSolver = new AppliedStrain(
+          nx, ny, nz, ns, ChemSys, hasAggregateSlab, VERBOSE, WARNING);
       std::clog << "AppliedStrain object creation done... " << endl;
       // AppliedStrainSolver->setPhasemodfileName(phasemod_fileName);
     } catch (bad_alloc &ba) {
@@ -334,6 +339,206 @@ int main(int argc, char **argv) {
     }
 
     Mic->setFEsolver(AppliedStrainSolver);
+  }
+
+  //
+  // Handle standalone elastic calculation mode
+  //
+  if (simtype == ELASTIC_CALC) {
+    std::clog << endl << "=== ELASTIC CALCULATION MODE ===" << endl;
+    std::clog << "Microstructure dimensions: " << Mic->getXDim() << " x "
+              << Mic->getYDim() << " x " << Mic->getZDim() << endl;
+
+    // Create the AppliedStrain FE solver with actual microstructure dimensions
+    int nx = Mic->getXDim();
+    int ny = Mic->getYDim();
+    int nz = Mic->getZDim();
+    int ns = nx * ny * nz;
+
+    try {
+      AppliedStrainSolver =
+          new AppliedStrain(nx, ny, nz, ns, ChemSys, 1, VERBOSE, WARNING);
+      std::clog << "AppliedStrain object created for elastic calculation"
+                << endl;
+    } catch (bad_alloc &ba) {
+      std::clog << "Bad memory allocation in AppliedStrain constructor: "
+                << ba.what() << endl;
+      errorProgram = true;
+    } catch (FileException fex) {
+      fex.printException();
+      errorProgram = true;
+    } catch (GEMException gex) {
+      gex.printException();
+      errorProgram = true;
+    }
+
+    if (errorProgram) {
+      deleteDynAllocMem(ChemSys, Mic, RNG, ThermalStrainSolver,
+                        AppliedStrainSolver, KController, Ctrl, starttime, lt,
+                        errorProgram, OutputFolder);
+    }
+
+    // Get the phase vector from the microstructure
+    std::vector<int> phaseIds = Mic->getAllSitesPhId();
+
+    // Calculate effective bulk modulus using combined loading
+    // getBulkModulus applies strains (0.1, 0.1, 0.1, 0.05, 0.05, 0.05)
+    // which allows extraction of both bulk AND shear moduli from single solve
+    std::clog << endl << "Calculating effective elastic moduli..." << endl;
+    std::clog
+        << "Applying combined strain state for bulk and shear calculation..."
+        << endl;
+    double bulkModulus = AppliedStrainSolver->getBulkModulus(&phaseIds);
+    std::clog << "Effective bulk modulus: " << bulkModulus << " GPa" << endl;
+
+    // Extract shear modulus from the SAME solution (no second solve needed!)
+    // The combined loading includes shear strains (exz=eyz=exy=0.05)
+    // Average the three shear components as VCCTL does:
+    // shear = (strxy/sxy + strxz/sxz + stryz/syz) / 3
+    double strxy = AppliedStrainSolver->getStress(5); // xy stress
+    double strxz = AppliedStrainSolver->getStress(3); // xz stress
+    double stryz = AppliedStrainSolver->getStress(4); // yz stress
+    double sxy = AppliedStrainSolver->getStrain(5);   // xy strain
+    double sxz = AppliedStrainSolver->getStrain(3);   // xz strain
+    double syz = AppliedStrainSolver->getStrain(4);   // yz strain
+    double shearModulus = (strxy / sxy + strxz / sxz + stryz / syz) / 3.0;
+    std::clog << "Effective shear modulus: " << shearModulus << " GPa" << endl;
+
+    // Calculate derived quantities
+    double youngsModulus = 0.0;
+    double poissonsRatio = 0.0;
+    if (bulkModulus > 0 || shearModulus > 0) {
+      double denom = 3.0 * bulkModulus + shearModulus;
+      if (denom > 0) {
+        youngsModulus = 9.0 * bulkModulus * shearModulus / denom;
+        poissonsRatio =
+            (3.0 * bulkModulus - 2.0 * shearModulus) / (2.0 * denom);
+      }
+    }
+
+    std::clog << endl << "=== ELASTIC CALCULATION RESULTS ===" << endl;
+    std::clog << "Effective bulk modulus K:    " << bulkModulus << " GPa"
+              << endl;
+    std::clog << "Effective shear modulus G:   " << shearModulus << " GPa"
+              << endl;
+    std::clog << "Effective Young's modulus E: " << youngsModulus << " GPa"
+              << endl;
+    std::clog << "Effective Poisson's ratio:   " << poissonsRatio << endl;
+    std::clog << "===================================" << endl;
+
+    // Write results to output file
+    string elasticResultsFile = OutputFolder + "/EffectiveModuli.csv";
+    std::clog << endl
+              << "Attempting to write results to: " << elasticResultsFile
+              << endl;
+    std::ofstream elasticOut(elasticResultsFile);
+    if (elasticOut.is_open()) {
+      elasticOut << "Microstructure," << initMicName << endl;
+      elasticOut << "X_Dimension_voxels," << nx << endl;
+      elasticOut << "Y_Dimension_voxels," << ny << endl;
+      elasticOut << "Z_Dimension_voxels," << nz << endl;
+      elasticOut << "Resolution_micrometers_per_voxel, " << Mic->getResolution()
+                 << endl;
+      elasticOut << "," << endl;
+      elasticOut << "Bulk_modulus_GPa: " << bulkModulus << endl;
+      elasticOut << "Shear_modulus_GPa: " << shearModulus << endl;
+      elasticOut << "Youngs_modulus_GPa: " << youngsModulus << endl;
+      elasticOut << "Poissons_ratio: " << poissonsRatio << endl;
+      elasticOut.close();
+      std::clog << "Results successfully written to: " << elasticResultsFile
+                << endl;
+    } else {
+      std::clog << "ERROR: Could not open file for writing: "
+                << elasticResultsFile << endl;
+      std::clog << "Check that the directory '" << OutputFolder << "' exists."
+                << endl;
+    }
+
+    // Write ITZ results to output file if they are available
+    if (AppliedStrainSolver->getHasAggregateSlab()) {
+
+      string elasticITZFile = OutputFolder + "/ITZModuli.csv";
+      std::clog << endl
+                << "Attempting to write results to: " << elasticITZFile << endl;
+      elasticOut.open(elasticITZFile);
+      if (!elasticOut.is_open()) {
+        std::clog << "ERROR: Could not open file for writing: "
+                  << elasticITZFile << endl;
+        std::clog << "Check that the directory '" << OutputFolder << "' exists."
+                  << endl;
+      } else {
+        elasticOut << "Microstructure," << initMicName << endl;
+        elasticOut << "X_Dimension_voxels," << nx << endl;
+        elasticOut << "Y_Dimension_voxels," << ny << endl;
+        elasticOut << "Z_Dimension_voxels," << nz << endl;
+        elasticOut << "Resolution_micrometers_per_voxel, "
+                   << Mic->getResolution() << endl;
+        elasticOut << "," << endl;
+
+        ///
+        /// Must know the surface position of the aggregate slab first
+        ///
+
+        int aggX = Mic->getAggregateSurfacePosition();
+        double xj = -0.5;
+        double bulkmod_i, bulkmod_ni, shearmod_i, shearmod_ni;
+        double bulkModulus_at_x, shearModulus_at_x, youngsModulus_at_x,
+            poissonsRatio_at_x;
+        for (int i = aggX - 1; i > 0; i--) {
+          xj += 1.0;
+          try {
+            bulkmod_i = AppliedStrainSolver->getLayerBulkModulus(i);
+            bulkmod_ni = AppliedStrainSolver->getLayerBulkModulus(nx - i - 1);
+            shearmod_i = AppliedStrainSolver->getLayerShearModulus(i);
+            shearmod_ni = AppliedStrainSolver->getLayerShearModulus(nx - i - 1);
+            std::clog << "K[" << i << "] = " << bulkmod_i << endl;
+            std::clog.flush();
+            std::clog << "K[" << nx - i - 1 << "] = " << bulkmod_ni << endl;
+            std::clog.flush();
+            std::clog << "G[" << i << "] = " << shearmod_i << endl;
+            std::clog.flush();
+            std::clog << "G[" << nx - i - 1 << "] = " << shearmod_ni << endl;
+            std::clog.flush();
+            bulkModulus_at_x = 0.50 * (bulkmod_i + bulkmod_ni);
+            shearModulus_at_x = 0.50 * (shearmod_i + shearmod_ni);
+            youngsModulus_at_x = 9.0 * bulkModulus_at_x * shearModulus_at_x /
+                                 (3.0 * bulkModulus_at_x + shearModulus_at_x);
+            poissonsRatio_at_x =
+                (3.0 * bulkModulus_at_x - 2.0 * shearModulus_at_x) /
+                (2.0 * (3.0 * bulkModulus_at_x + shearModulus_at_x));
+            std::clog << xj << " " << bulkModulus_at_x << " "
+                      << shearModulus_at_x << endl;
+            std::clog.flush();
+
+            if (i == (aggX - 1)) {
+              elasticOut << "Distance (um),Bulk Modulus (GPa),Shear Modulus "
+                            "(GPa),Youngs Modulus (GPa),Poissons Ratio"
+                         << endl;
+            }
+            elasticOut << xj << "," << bulkModulus_at_x << ","
+                       << shearModulus_at_x << "," << youngsModulus_at_x << ","
+                       << poissonsRatio_at_x;
+            if (i > 1) {
+              elasticOut << endl;
+            }
+          } catch (const std::out_of_range &e) {
+            std::cerr << "ERROR: Out of bounds exception in layered moduli:"
+                      << endl;
+            std::cerr << "       " << e.what() << endl;
+          }
+        }
+        elasticOut.close();
+        std::clog << "Results successfully written to: " << elasticITZFile
+                  << endl;
+      }
+    }
+
+    // Clean up and exit
+    std::clog << endl << "Elastic calculation complete." << endl;
+    deleteDynAllocMem(ChemSys, Mic, RNG, ThermalStrainSolver,
+                      AppliedStrainSolver, KController, Ctrl, starttime, lt,
+                      errorProgram, OutputFolder);
+    return 0; // Exit here for elastic-only mode
   }
 
   string jobRoot, statFileName;

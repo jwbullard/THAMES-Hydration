@@ -12,7 +12,8 @@ using std::string;
 using std::vector;
 
 ElasticModel::ElasticModel(int nx, int ny, int nz, int dim, ChemicalSystem *cs,
-                           int npoints, const bool verbose, const bool warning)
+                           const bool hasAggregateSlab, const bool verbose,
+                           const bool warning)
     : chemSys_(cs) {
   ///
   /// Assign the dimensions of the finite element (FE) mesh
@@ -31,6 +32,8 @@ ElasticModel::ElasticModel(int nx, int ny, int nz, int dim, ChemicalSystem *cs,
   nz_ = nz;
   nxy_ = nx_ * ny_;
   ns_ = nx_ * ny_ * nz_;
+
+  hasAggregateSlab_ = hasAggregateSlab;
 
   if (verbose_) {
     std::clog << "ElasticModel::ElasticModel Constructor nx_ = " << nx_
@@ -69,6 +72,31 @@ ElasticModel::ElasticModel(int nx, int ny, int nz, int dim, ChemicalSystem *cs,
   strainengy_.clear();
   strainengy_.resize(ns_, 0.0);
 
+  K_.clear();
+  G_.clear();
+  Vv_.clear();
+  Cc_.clear();
+  Aa_.clear();
+  A_.clear();
+  A1_.clear();
+
+  /// Initialize vectors for ITZ properties if aggregate slab is present
+  if (hasAggregateSlab_) {
+    vector<double> dum1;
+    dum1.resize(36, 0.0);
+    Vv_.resize(nx_, dum1);
+    vector<vector<double>> dum2;
+    dum2.resize(36, dum1);
+    Aa_.resize(nx_, dum2);
+    A1_.resize(nx_, dum2);
+    K_.resize(nx_, 0.0);
+    G_.resize(nx_, 0.0);
+    dum1.resize(37, 0.0);
+    A_.resize(36, dum1);
+    dum1.resize(6, 0.0);
+    Cc_.resize(6, dum1);
+  }
+
   ///
   /// `nphase_` is the number of phases being considered in the problem.
   /// The values of `pix(m)` will run from 1 to `nphase_`.
@@ -97,10 +125,12 @@ ElasticModel::ElasticModel(int nx, int ny, int nz, int dim, ChemicalSystem *cs,
 
   ///
   /// Establish the stopping criterion for convergence (proportional to
-  /// the number of elements, `ns_`
+  /// the number of elements, `ns_`). Using 1e-7 to match VCCTL's elastic.c
+  /// for equivalent performance. The RMS gradient per element will be
+  /// less than sqrt(1e-7) = 0.000316 when converged.
   ///
 
-  gtest_ = (1.0e-8) * ns_;
+  gtest_ = (1.0e-7) * ns_;
   gg_ = 0.0;
 
   ///
@@ -146,12 +176,6 @@ ElasticModel::ElasticModel(int nx, int ny, int nz, int dim, ChemicalSystem *cs,
   }
 
   BuildNeighbor();
-
-  ///
-  /// `npoints_` is the number of microstructres to use.
-  ///
-
-  npoints_ = npoints;
 
   ///
   /// Initialize `pix_[m]` and volume fraction of each phase `prob_[]`.
@@ -610,8 +634,9 @@ void ElasticModel::initStiffness(void) {
   }
 }
 
-// void ElasticModel::ppixel(string fileName, int nphase) {
-void ElasticModel::ppixel(string fileName) {
+// void ElasticModel::setMicrostructure(string fileName, int nphase) {
+void ElasticModel::setMicrostructure(std::string fileName, int &doITZ,
+                                     int &nagg1) {
   ///
   /// If you want to set up a test image inside the program, instead of
   /// reading it in from a file, this should be done inside this method
@@ -693,37 +718,13 @@ void ElasticModel::ppixel(string fileName) {
     }
 
     in.close();
-
-    // cout << endl << "ini ppixel vector (6):" << endl;
-    // for (int i = 0; i < ns_; i++) {
-    //   cout << pix_[i] << endl;
-    // }
-    // cout << "end ppixel vector (6):" << endl;
-    // exit(0);
-
-    ///
-    /// Check for wrong phase labels--less than 1 or greater than nphase_.
-    /// Note that nothing is done about the error; it is just reported
-    /// to standard out.
-    ///
-    /// @todo See if it makes sense to do value checking as exception handling
-    ///
-
-    // for (int m = 0; m < ns_; m++) {
-    //   if (pix_[m] < 0) {
-    //     std::clog << "Phase label in pix < 0 --- error at " << m << endl;
-    //   } else if (pix_[m] >= nphase_) {
-    //     std::clog << "Phase label in pix >= nphase_ --- error at " << m <<
-    //     endl;
-    //   }
-    // }
   }
 
   return;
 }
 
-// void ElasticModel::ppixel(string fileName, int nphase) {
-void ElasticModel::ppixel(vector<int> vectPhId) {
+// void ElasticModel::setMicrostructure(std::string fileName, int nphase) {
+void ElasticModel::setMicrostructure(std::vector<int> vectPhId) {
 
   ///
   /// Each line of the microstructure file contains the phase id
@@ -748,7 +749,7 @@ void ElasticModel::ppixel(vector<int> vectPhId) {
   return;
 }
 
-void ElasticModel::ppixel(vector<int> *p_vectPhId) {
+void ElasticModel::setMicrostructure(std::vector<int> *p_vectPhId) {
 
   ///
   /// Each line of the microstructure file contains the phase id

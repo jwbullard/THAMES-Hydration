@@ -21,6 +21,18 @@
 #include <string>
 #include <vector>
 
+#define VOID 0
+#define ELECTROLYTE 1
+#define ALITE 2
+#define BELITE 3
+#define ALUMINATE 4
+#define FERRITE 5
+#define ARCANITE 6
+#define THENARDITE 7
+
+#define FIRSTCLINKER 2
+#define LASTCLINKER 7
+
 #include "../GEMS3K-standalone/GEMS3K/node.h"
 #include "../Resources/include/nlohmann/json.hpp"
 
@@ -159,6 +171,9 @@ inline const int LEACHING = 3;
 // Flag to indicate simulation of external sulfate only
 inline const int SULFATE_ATTACK = 4;
 
+// Flag to indicate standalone elastic calculation on a microstructure
+inline const int ELASTIC_CALC = 5;
+
 // Flag to indicate kinetic equations handled within code (NOT USED)
 inline const int INTERNAL_KINETICS = 0;
 
@@ -251,5 +266,7 @@ inline const double S_PER_DAY = 86400.0;
 inline const double S_PER_YEAR = 3.15360000e7;
 inline const double H_PER_DAY = 24.0;
 inline const double DAY_PER_YEAR = 365.0;
+
+inline int AggregateId;
 
 #endif // SRC_THAMESLIB_GLOBAL_H_

@@ -8,14 +8,10 @@ using std::cout;
 using std::endl;
 using std::string;
 
-// AppliedStrain::AppliedStrain(int nx, int ny, int nz, int dim, int nphase,
-//                              int npoints, const bool verbose,
-//                              const bool warning)
-//     : ElasticModel(nx, ny, nz, dim, nphase, npoints, verbose, warning) {
 AppliedStrain::AppliedStrain(int nx, int ny, int nz, int dim,
-                             ChemicalSystem *cs, int npoints,
+                             ChemicalSystem *cs, const bool hasAggregateSlab,
                              const bool verbose, const bool warning)
-    : ElasticModel(nx, ny, nz, dim, cs, npoints, verbose, warning) {
+    : ElasticModel(nx, ny, nz, dim, cs, hasAggregateSlab, verbose, warning) {
 #ifdef DEBUG
   verbose_ = true;
   warning_ = true;
@@ -32,7 +28,7 @@ AppliedStrain::AppliedStrain(int nx, int ny, int nz, int dim,
   exx_ = eyy_ = ezz_ = 0.0;
   exz_ = eyz_ = exy_ = 0.0;
 
-  kmax_ = 40; // 3;
+  kmax_ = 80; // 3;
   std::clog
       << endl
       << "AppliedStrain::AppliedStrain - "
@@ -49,7 +45,6 @@ AppliedStrain::AppliedStrain(int nx, int ny, int nz, int dim,
   is_[7] = 16;
 }
 
-// void AppliedStrain::femat(int nx, int ny, int nz, int ns, int nphase) {
 void AppliedStrain::femat() {
   // double dndx[8], dndy[8], dndz[8];
   // double g[3][3][3];
@@ -672,6 +667,13 @@ int AppliedStrain::dembx(int ldemb, int kkk) {
   for (int ijk = 0; ijk < ldemb; ijk++) {
     Lstep += 1;
 
+    // Show CG iteration progress every 10 iterations
+    if (Lstep % 10 == 0 || Lstep == 1) {
+      std::clog << "    CG iteration " << Lstep << "/" << ldemb
+                << " (gg=" << std::scientific << gg_ << ")" << endl;
+      std::clog.flush();
+    }
+
     for (int m3 = 0; m3 < 3; m3++) {
       for (int m = 0; m < ns_; m++) {
         Ah_[m][m3] = 0.0;
@@ -880,11 +882,16 @@ void AppliedStrain::stress() {
   double ezz_nz_dbl = ezz_ * nz_dbl;
 
   int i, j, k, nxy_k, nx_j;
-  for (k = 0; k < nz_; k++) {
-    nxy_k = nxy_ * k;
-    for (j = 0; j < ny_; j++) {
-      nx_j = nxy_k + nx_ * j;
-      for (i = 0; i < nx_; i++) {
+
+  double strxx, stryy, strzz, strxz, stryz, strxy;
+  double sxx, syy, szz, sxz, syz, sxy;
+  for (i = 0; i < nx_; i++) {
+    strxx = stryy = strzz = strxz = stryz = strxy = 0.0;
+    sxx = syy = szz = sxz = syz = sxy = 0.0;
+    for (k = 0; k < nz_; k++) {
+      for (j = 0; j < ny_; j++) {
+        nxy_k = nxy_ * k;
+        nx_j = nxy_k + nx_ * j;
         m = nx_j + i;
 
         ///
@@ -979,6 +986,20 @@ void AppliedStrain::stress() {
             }
           }
         }
+
+        strxx += str11;
+        stryy += str22;
+        strzz += str33;
+        strxy += str12;
+        strxz += str13;
+        stryz += str23;
+        sxx += s11;
+        syy += s22;
+        szz += s33;
+        sxy += s12;
+        sxz += s13;
+        syz += s23;
+
         elestress_[m][0] = str11;
         elestress_[m][1] = str22;
         elestress_[m][2] = str33;
@@ -1004,13 +1025,6 @@ void AppliedStrain::stress() {
         }
 
         ///
-        /// Calculate the strain energy for each DC, which would be called in
-        /// GEMS
-        ///
-
-        getAvgStrainengy();
-
-        ///
         /// Sum local strains and stresses into global values
         ///
 
@@ -1027,6 +1041,33 @@ void AppliedStrain::stress() {
         syz_ += s23;
         sxy_ += s12;
       }
+    }
+
+    /* Averaging depends on whether layer averaging is being done (for ITZ) */
+    if (hasAggregateSlab_) {
+      /* Layer average of stresses and strains in each layer perpendicular to
+       * aggregate slab */
+
+      double nyzd = static_cast<double>(ny_ * nz_);
+      strxx /= (nyzd);
+      stryy /= (nyzd);
+      strzz /= (nyzd);
+      strxy /= (nyzd);
+      strxz /= (nyzd);
+      stryz /= (nyzd);
+      sxx /= (nyzd);
+      syy /= (nyzd);
+      szz /= (nyzd);
+      sxy /= (nyzd);
+      sxz /= (nyzd);
+      syz /= (nyzd);
+
+      K_[i] = (1.0 / 3.0) * (strxx + stryy + strzz) / (sxx + syy + szz);
+      G_[i] = (1.0 / 3.0) * ((strxz / sxz) + (stryz / syz) + (strxy / sxy));
+      /* GODZILLA */
+      /* Ended here and have not provided a way to output this layer-by-layer
+       * information */
+      /* GODZILLA */
     }
   }
 
@@ -1048,6 +1089,12 @@ void AppliedStrain::stress() {
   syz_ = syz_ / ns_dbl;
   sxy_ = sxy_ / ns_dbl;
 
+  ///
+  /// Calculate the volume-averaged strain energy for each phase/DC
+  /// (called ONCE after all element strain energies are computed)
+  ///
+  getAvgStrainengy();
+
   return;
 }
 
@@ -1066,9 +1113,14 @@ void AppliedStrain::relax(int kmax) {
   std::clog.flush();
 #endif
 
-  int ldemb = 50, ltot = 0;
+  // Using ldemb=100 to match VCCTL's elastic.c for equivalent performance
+  int ldemb = 100, ltot = 0;
   double utot;
   int Lstep;
+
+  std::clog << "AppliedStrain::relax Starting relaxation (kmax=" << kmax
+            << ", ldemb=" << ldemb << ", gtest=" << gtest_ << ")" << endl;
+  std::clog.flush();
 
   ///
   /// Call energy to get initial energy and initial gradient.
@@ -1087,6 +1139,10 @@ void AppliedStrain::relax(int kmax) {
       gg_ += (gb_[m][m3] * gb_[m][m3]);
     }
   }
+
+  double gginit = gg_; // Save initial gradient for progress tracking
+  std::clog << "  Initial gg = " << gg_ << ", gtest = " << gtest_ << endl;
+  std::clog.flush();
 
   for (int kkk = 0; kkk < kmax; kkk++) {
 
@@ -1108,9 +1164,15 @@ void AppliedStrain::relax(int kmax) {
     // utot = energy(nx_, ny_, nz_, ns_);
     utot = energy();
 
+    // Always show progress output (not just in verbose mode)
+    double percent = 100.0 * ((double)(kkk + 1) / (double)(kmax));
+    std::clog << "  Relaxation step " << (kkk + 1) << "/" << kmax << " ("
+              << std::fixed << std::setprecision(1) << percent << "%)"
+              << " Energy=" << std::scientific << std::setprecision(4) << utot
+              << " gg=" << gg_ << endl;
+    std::clog.flush();
+
     if (verbose_) {
-      std::clog << "AppliedStrain::relax Energy = " << utot << ", gg_ = " << gg_
-                << endl;
       std::clog << "AppliedStrain::relax Number of conjugate steps = " << ltot
                 << endl;
       std::clog.flush();
@@ -1149,7 +1211,11 @@ void AppliedStrain::relax(int kmax) {
 #endif
 
     } else {
-
+      // Converged - show success message
+      std::clog << "  CONVERGED at step " << (kkk + 1) << "/" << kmax
+                << " (gg=" << std::scientific << gg_ << " < gtest=" << gtest_
+                << ")" << endl;
+      std::clog.flush();
       break;
     }
   }
@@ -1176,21 +1242,17 @@ void AppliedStrain::relax(int kmax) {
   return;
 }
 
-// void AppliedStrain::calc(string fileName, double exx, double eyy, double ezz,
-//                          double exz, double eyz, double exy) { //check!
-void AppliedStrain::calc(vector<int> *p_vectPhId, double exx, double eyy,
+void AppliedStrain::calc(std::vector<int> *p_vectPhId, double exx, double eyy,
                          double ezz, double exz, double eyz, double exy) {
-  int kmax = kmax_; // 40;
+  int kmax = kmax_; // 80;
   int m;
 
   ///
-  /// Read in a microstructure in subroutine ppixel, and set up pix_[m] with
-  /// the appropriate phase assignments.
+  /// Read in a microstructure in subroutine setMicrostructure, and set up
+  /// pix_[m] with the appropriate phase assignments.
   ///
 
-  // ppixel(fileName, nphase_); //check!
-  // ppixel(fileName);
-  ppixel(p_vectPhId);
+  setMicrostructure(p_vectPhId);
 
   ///
   /// Count and output the volume fractions of the different phases.
@@ -1244,7 +1306,6 @@ void AppliedStrain::calc(vector<int> *p_vectPhId, double exx, double eyy,
   /// input in subroutine femat.
   ///
 
-  // femat(nx_, ny_, nz_, ns_, nphase_);
   femat();
 
   ///
@@ -1286,7 +1347,6 @@ void AppliedStrain::calc(vector<int> *p_vectPhId, double exx, double eyy,
   return;
 }
 
-// double AppliedStrain::getBulkModulus(string fileName) {
 double AppliedStrain::getBulkModulus(vector<int> *p_vectPhId) {
   double bulk;
   double Stress, Strain;
@@ -1294,7 +1354,6 @@ double AppliedStrain::getBulkModulus(vector<int> *p_vectPhId) {
 
   // std::clog << "AppliedStrain::getBulkModulus - bf-calc" << endl;
 
-  // calc(fileName, 0.1, 0.1, 0.1, 0.05, 0.05, 0.05);
   calc(p_vectPhId, 0.1, 0.1, 0.1, 0.05, 0.05, 0.05);
 
   // std::clog << "AppliedStrain::getBulkModulus - af-calc" << endl;

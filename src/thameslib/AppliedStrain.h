@@ -94,15 +94,14 @@ public:
   @param ny is the y dimension of the mesh
   @param nz is the z dimension of the mesh
   @param dim is the total number of elements
-  @param nphase is the number of phases
-  @param npoints is the number of microstructures (usually 1)
+  @param cs is a pointer to the governing ChemicalSystem object
+  @param hasAggregateSlab is true if the microstructure has an aggregate slab
   @param verbose is true if we want verbose output
   @param warning is false if we want to suppress warning output
   */
-  // AppliedStrain(int nx, int ny, int nz, int dim, int nphase, int npoints,
-  //               const bool verbose, const bool warning);
   AppliedStrain(int nx, int ny, int nz, int dim, ChemicalSystem *cs,
-                int npoints, const bool verbose, const bool warning);
+                const bool hasAggregateSlab, const bool verbose,
+                const bool warning);
 
   /**
   @brief Destructor.
@@ -192,6 +191,36 @@ public:
   */
   // double getBulkModulus(std::string fileName); //check!
   double getBulkModulus(std::vector<int> *p_vectPhId);
+
+  /**
+  @brief Returns the average value of the bulk modulus on the i-th yz plane
+
+  @param i is the index of the yz plane in question
+  @return the bulk modulus (GPa)
+  */
+  double getLayerBulkModulus(const int i) {
+    try {
+      double ki = K_.at(i);
+      return (ki);
+    } catch (const std::out_of_range &e) {
+      throw e;
+    }
+  }
+
+  /**
+  @brief Returns the average value of the shear modulus on the i-th yz plane
+
+  @param i is the index of the yz plane in question
+  @return the shear modulus (GPa)
+  */
+  double getLayerShearModulus(const int i) {
+    try {
+      double gi = G_.at(i);
+      return (gi);
+    } catch (const std::out_of_range &e) {
+      throw e;
+    }
+  }
 
 }; // End of AppliedStrain class
 

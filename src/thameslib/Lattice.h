@@ -205,6 +205,9 @@ private:
                                              per 100g of the initial solid mass
                                              of the system*/
 
+  bool hasAggregateSlab_;
+  int aggregateSurfacePosition_;
+
   // int DAMAGEID_;
 
 public:
@@ -372,6 +375,42 @@ public:
   @return the water-cement mass ratio
   */
   double getWcRatio(void) const { return wcRatio_; }
+
+  /**
+  @brief Get the truth value of whether the lattice has an aggregate slab
+
+  @return the truth value
+  */
+  bool getHasAggregateSlab(void) const { return hasAggregateSlab_; }
+
+  /**
+  @brief Get the X position of the aggregate surface in voxel units
+
+  @return the aggregate surface position in voxel units
+  */
+  int getAggregateSurfacePosition(void) const {
+    return aggregateSurfacePosition_;
+  }
+
+  /**
+  @brief Find the X position of the aggregate surface in voxel units
+
+  @return the x position of the aggregate surface in voxel units
+  */
+  void findAggregateSurfacePosition(void) {
+    int aggpos = -50; // Red flag, means no aggregate found
+    int y = ydim_ / 2;
+    int z = zdim_ / 2;
+
+    int x = 0;
+    while ((x < xdim_) && (aggpos < 0)) {
+      if (site_[getIndex(x, y, z)].getMicroPhaseId() == AggregateId) {
+        aggpos = x;
+      }
+      x++;
+    }
+    aggregateSurfacePosition_ = aggpos;
+  }
 
   /**
   @brief Get the volume fraction of a given microstructure phase.

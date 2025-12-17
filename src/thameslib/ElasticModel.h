@@ -78,7 +78,6 @@ protected:
   int nxy_;                       /**< nxy_ = nx_ * ny_ */
   int ns_;                        /**< Number of total voxels */
   int nphase_;                    /**< Maximimum allowed number of phases */
-  int npoints_;                   /**< Number of microstructures to process */
   std::string phasemod_fileName_; /**< File name saving the phase elastic
                                        moduli */
   std::vector<std::vector<double>> u_;  /**< 2D displacement field */
@@ -168,6 +167,15 @@ protected:
   std::vector<double> avgStrainengy_;          /**< Average strain energy of
                                                     each phase */
 
+  // Vectors for storing ITZ-related properties if an aggregate slab is present
+  std::vector<std::vector<std::vector<double>>> Aa_;
+  std::vector<std::vector<double>> A_;
+  std::vector<std::vector<std::vector<double>>> A1_;
+  std::vector<std::vector<double>> Vv_;
+  std::vector<std::vector<double>> Cc_;
+  std::vector<double> K_;
+  std::vector<double> G_;
+
   double strxx_; /**< Prescribed stress xx component */
   double stryy_; /**< Prescribed stress yy component */
   double strzz_; /**< Prescribed stress zz component */
@@ -202,6 +210,8 @@ protected:
   int waterDCId_;
   std::vector<std::vector<int>> mPhDCcomp_;
 
+  bool hasAggregateSlab_;
+
 public:
   /**
   @brief The only constructor provided with the base class.
@@ -210,14 +220,14 @@ public:
   @param ny is the number of elements in the y direction
   @param nz is the number of elements in the z direction
   @param dim is the total number of elements in the system (plus two?)
-  @param npoints is the number of microstructures to process
+  @param cs is a pointer to the governing ChemicalSystem object
+  @param hasAggregateSlab is true if the microstructure has an aggregate slab
   @param verbose is true if one wants verbose output
   @param warning is false if suppressing warning messages
   */
-  // ElasticModel(int nx, int ny, int nz, int dim, int nphase, int npoints,
-  //              const bool verbose, const bool warning);
-  ElasticModel(int nx, int ny, int nz, int dim, ChemicalSystem *cs, int npoints,
-               const bool verbose, const bool warning);
+  ElasticModel(int nx, int ny, int nz, int dim, ChemicalSystem *cs,
+               const bool hasAggregateSlab, const bool verbose,
+               const bool warning);
 
   virtual ~ElasticModel() {}
 
@@ -263,6 +273,13 @@ public:
   }
 
   /**
+  @brief Get truth value of the maesh having and aggregate slab
+
+  @return truth value of whether mesh has an aggregate slab
+  */
+  const bool getHasAggregateSlab(void) { return (hasAggregateSlab_); }
+
+  /**
   @brief Get one of the elastic moduli components of a phase.
 
   It is up to the user to know whether the components should be the
@@ -277,7 +294,7 @@ public:
   modulus)
   @return the value of the modulus sought [GPa or dimensionless]
   */
-  double getPhasemod(int phaseid, int i) { return phasemod_[phaseid][i]; }
+  double getPhaseModuli(int phaseid, int i) { return phasemod_[phaseid][i]; }
 
   /**
   @brief Read a microstructure and set up the phase assignments for each
@@ -290,12 +307,12 @@ public:
   @param fileName is the input file containing the microstructure data
   @param nphase is the maximum allowed number of phases in the microstructure
   */
-  // void ppixel(std::string fileName, int nphase);
-  void ppixel(std::string fileName);
+  // void setMicrostructure(std::string fileName, int nphase);
+  void setMicrostructure(std::string fileName, int &doITZ, int &nagg1);
 
-  void ppixel(std::vector<int> vectPhId);
+  void setMicrostructure(std::vector<int> vectPhId);
 
-  void ppixel(std::vector<int> *p_vectPhId);
+  void setMicrostructure(std::vector<int> *p_vectPhId);
 
   /**
   @brief Determine the volume fractions of the different phases.
@@ -309,8 +326,8 @@ public:
   void assig(void);
 
   /**
-  @brief Determine average strain energy stored by each GEM dependent component
-  (DC).
+  @brief Determine average strain energy stored by each GEM dependent
+  component (DC).
 
   @todo Change the name of this method to getAverageStrainEnergy.
 
@@ -324,8 +341,8 @@ public:
   /**
   @brief Get a component of the prescribed stress tensor.
 
-  @todo Put in bounds checking by exception handling.  Will there be performance
-  degradation by doing this?
+  @todo Put in bounds checking by exception handling.  Will there be
+  performance degradation by doing this?
 
   @param i is the component index
   @return the value of the i-th component of the prescribed stress tensor
@@ -365,8 +382,8 @@ public:
   /**
   @brief Get a component of the prescribed strain tensor.
 
-  @todo Put in bounds checking by exception handling.  Will there be performance
-  degradation by doing this?
+  @todo Put in bounds checking by exception handling.  Will there be
+  performance degradation by doing this?
 
   @param i is the component index
   @return the value of the i-th component of the prescribed strain tensor
@@ -406,8 +423,8 @@ public:
   /**
   @brief Get the stress component at a particular finite element.
 
-  @todo Put in bounds checking by exception handling.  Will there be performance
-  degradation by doing this?
+  @todo Put in bounds checking by exception handling.  Will there be
+  performance degradation by doing this?
 
   @param m is the element index
   @param index is the stres component to retrieve
@@ -527,7 +544,8 @@ public:
   // }
 
   /**
-  @brief Create visualization of the stress field in a 2D microstructure slice.
+  @brief Create visualization of the stress field in a 2D microstructure
+  slice.
 
   The method can output full color image, but currently just uses different
   intensities of cyan (green + blue channels equal, red zero).
@@ -546,7 +564,8 @@ public:
   void writeStress(std::string &root, double time, int index);
 
   /**
-  @brief Create visualization of the strain field in a 2D microstructure slice.
+  @brief Create visualization of the strain field in a 2D microstructure
+  slice.
 
   The file is created as a portable pixel map (PPM) file and then manually
   converted to a PNG file using ImageMagick's convert command
@@ -572,7 +591,8 @@ public:
   void writeDisp(std::string &root, std::string timeString);
 
   /**
-  @brief Create visualization of the strain energy in a 2D microstructure slice.
+  @brief Create visualization of the strain energy in a 2D microstructure
+  slice.
 
   The file is created as a portable pixel map (PPM) file and then manually
   converted to a PNG file using ImageMagick's convert command
@@ -599,7 +619,7 @@ public:
 
   @return the phase modulus input file name
   */
-  std::string getPhasemodfileName(void) { return phasemod_fileName_; }
+  std::string getPhaseModuliFileName(void) { return phasemod_fileName_; }
 
   /**
   @brief Set the verbose flag
