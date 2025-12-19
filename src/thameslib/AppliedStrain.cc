@@ -885,6 +885,7 @@ void AppliedStrain::stress() {
 
   double strxx, stryy, strzz, strxz, stryz, strxy;
   double sxx, syy, szz, sxz, syz, sxy;
+
   for (i = 0; i < nx_; i++) {
     strxx = stryy = strzz = strxz = stryz = strxy = 0.0;
     sxx = syy = szz = sxz = syz = sxy = 0.0;

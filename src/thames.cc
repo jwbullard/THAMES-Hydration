@@ -437,8 +437,8 @@ int main(int argc, char **argv) {
       elasticOut << "X_Dimension_voxels," << nx << endl;
       elasticOut << "Y_Dimension_voxels," << ny << endl;
       elasticOut << "Z_Dimension_voxels," << nz << endl;
-      elasticOut << "Resolution_micrometers_per_voxel, " << Mic->getResolution()
-                 << endl;
+      elasticOut << "Resolution_micrometers_per_voxel, "
+                 << (1.0e6 * Mic->getResolution()) << endl;
       elasticOut << "," << endl;
       elasticOut << "Bulk_modulus_GPa: " << bulkModulus << endl;
       elasticOut << "Shear_modulus_GPa: " << shearModulus << endl;
@@ -472,7 +472,7 @@ int main(int argc, char **argv) {
         elasticOut << "Y_Dimension_voxels," << ny << endl;
         elasticOut << "Z_Dimension_voxels," << nz << endl;
         elasticOut << "Resolution_micrometers_per_voxel, "
-                   << Mic->getResolution() << endl;
+                   << (1.0e6 * Mic->getResolution()) << endl;
         elasticOut << "," << endl;
 
         ///
@@ -480,6 +480,9 @@ int main(int argc, char **argv) {
         ///
 
         int aggX = Mic->getAggregateSurfacePosition();
+        std::clog << "Aggregate surface position = " << aggX << " voxels"
+                  << endl;
+        std::clog.flush();
         double xj = -0.5;
         double bulkmod_i, bulkmod_ni, shearmod_i, shearmod_ni;
         double bulkModulus_at_x, shearModulus_at_x, youngsModulus_at_x,

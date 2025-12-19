@@ -403,13 +403,26 @@ public:
     int z = zdim_ / 2;
 
     int x = 0;
+    int phaseid = 0;
+    int siteindex = 0;
+    std::clog << "GODZILLA rastering over x direction:" << std::endl;
     while ((x < xdim_) && (aggpos < 0)) {
+      siteindex = getIndex(x, y, z);
+      phaseid = site_[siteindex].getMicroPhaseId();
+      std::clog << "  " << x << "," << y << "," << z
+                << " (index = " << siteindex << "), phase = " << phaseid << "("
+                << chemSys_->getMicroPhaseName(phaseid) << ")" << std::endl;
+      std::clog.flush();
       if (site_[getIndex(x, y, z)].getMicroPhaseId() == AggregateId) {
         aggpos = x;
       }
       x++;
     }
     aggregateSurfacePosition_ = aggpos;
+    std::clog << "GODZILLA aggregateSurfacePosition = "
+              << aggregateSurfacePosition_ << std::endl;
+    std::clog.flush();
+    return;
   }
 
   /**

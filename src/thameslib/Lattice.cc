@@ -757,6 +757,9 @@ Lattice::Lattice(ChemicalSystem *cs, RanGen *rg, int seedRNG,
 
   // Determine if microstructure has an aggregate slab
   hasAggregateSlab_ = false;
+  std::clog << "Aggregate volume fraction = " << getVolumeFraction(AggregateId)
+            << endl;
+  std::clog.flush();
   if (getVolumeFraction(AggregateId) > 0.0) {
     hasAggregateSlab_ = true;
     findAggregateSurfacePosition();

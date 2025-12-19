@@ -592,6 +592,11 @@ ChemicalSystem::ChemicalSystem(const string &GEMfilename,
   try {
     if (foundjson != string::npos) {
       parseDoc(jsonFileName);
+
+      // Apply elastic moduli overrides from simparams.json
+      // This MUST be called after parseDoc() has populated elasticModuliFromJSON_
+      applyElasticModuliFromJSON();
+
       microPhaseVolume_.resize(numMicroPhases_, 0.0);
       microPhaseMass_.resize(numMicroPhases_, 0.0);
       microPhasePorosity_.resize(numMicroPhases_, 0.0);
@@ -3569,6 +3574,11 @@ void ChemicalSystem::initElasticModuliMap(void) {
   elasticModuli_["Dolomite"].altName = "Dolomite";
   */
 
+  // NOTE: The override logic has been moved to applyElasticModuliFromJSON()
+  // which must be called AFTER parseDoc() has populated elasticModuliFromJSON_
+}
+
+void ChemicalSystem::applyElasticModuliFromJSON(void) {
   // Override with values from simparams.json if available
   // This allows users to provide custom elastic moduli via the JSON input file
   if (!elasticModuliFromJSON_.empty()) {
@@ -3579,6 +3589,8 @@ void ChemicalSystem::initElasticModuliMap(void) {
       std::clog << "  " << entry.first << ": K=" << entry.second.K
                 << " GPa, G=" << entry.second.G << " GPa" << endl;
     }
+  } else {
+    std::clog << "No elastic moduli overrides found in simparams.json, using defaults" << endl;
   }
 }
 

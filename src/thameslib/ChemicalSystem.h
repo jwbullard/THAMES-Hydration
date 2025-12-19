@@ -6490,6 +6490,16 @@ public:
   void initElasticModuliMap(void);
 
   /**
+  @brief Apply elastic moduli overrides from simparams.json
+
+  This method must be called AFTER parseDoc() has populated
+  elasticModuliFromJSON_ from the simparams.json file. It applies
+  the user-specified elastic moduli values from the JSON to override
+  the hardcoded defaults in elasticModuli_.
+  */
+  void applyElasticModuliFromJSON(void);
+
+  /**
   @brief Get the elastic moduli database component corresponding to a given
   by name microPhase
 
