@@ -46,13 +46,6 @@ AppliedStrain::AppliedStrain(int nx, int ny, int nz, int dim,
 }
 
 void AppliedStrain::femat() {
-  // double dndx[8], dndy[8], dndz[8];
-  // double g[3][3][3];
-  // double es[6][8][3];
-  // double delta[8][3];
-  // double x, y, z;
-  // int nxy = nx * ny;
-  // int is[8]; moved in constructor as is_[8]
   double delta[8][3];
   int nx1 = nx_ - 1;
   int ny1 = ny_ - 1;
@@ -63,7 +56,6 @@ void AppliedStrain::femat() {
   int m;
   double sum = 0;
 
-  /*
   ///
   /// (User) NOTE: complete elastic modulus matrix is used, so an anisotropic
   /// matrix could be directly input at any point, since program is written to
@@ -72,143 +64,13 @@ void AppliedStrain::femat() {
   ///
 
   ///
-  /// Initialize stiffness matrices
-  ///
-
-  for (int m = 0; m < nphase_; m++) {
-    for (int l = 0; l < 3; l++) {
-      for (int k = 0; k < 3; k++) {
-        for (int j = 0; j < 8; j++) {
-          for (int i = 0; i < 8; i++) {
-            dk_[m][i][k][j][l] = 0.0;
-          }
-        }
-      }
-    }
-  }
-
-  ///
   /// Set up elastic moduli matrices for each kind of element
   ///
 
   // ElasModul(phasemod_fileName_, nphase_);
-  ElasModul();
+  // ElasModul();
 
-  ///
-  /// Set up Simpson's integration rule weight vector
-  ///
-
-  for (int k = 0; k < 3; k++) {
-    for (int j = 0; j < 3; j++) {
-      for (int i = 0; i < 3; i++) {
-        int nm = 0;
-        if (i == 1)
-          nm += 1;
-        if (j == 1)
-          nm += 1;
-        if (k == 1)
-          nm += 1;
-        g[i][j][k] = pow(4.0, static_cast<double>(nm));
-      }
-    }
-  }
-
-  ///
-  /// Loop over the nphase kinds of pixels and Simpson's rule quadrature points
-  /// in order to compute the stiffness matrices. Stiffness matrices of
-  /// trilinear finite elements are quadratic in x, y, and z, so that Simpson's
-  /// rule quadrature gives exact results.
-  ///
-
-  for (int ijk = 0; ijk < nphase_; ijk++) {
-    for (int k = 0; k < 3; k++) {
-      for (int j = 0; j < 3; j++) {
-        for (int i = 0; i < 3; i++) {
-          x = i / 2.0;
-          y = j / 2.0;
-          z = k / 2.0;
-
-          ///
-          /// dndx means the negative derivative, with respect to x,
-          /// of the shape matrix
-          /// N (see Manual, Sec. 2.2), dndy, and dndz are similar.
-          ///
-
-          dndx[0] = (-(1.0 - y)) * (1.0 - z);
-          dndx[1] = (1.0 - y) * (1.0 - z);
-          dndx[2] = y * (1.0 - z);
-          dndx[3] = (-y) * (1.0 - z);
-          dndx[4] = (-(1.0 - y)) * z;
-          dndx[5] = (1.0 - y) * z;
-          dndx[6] = y * z;
-          dndx[7] = (-y) * z;
-          dndy[0] = (-(1.0 - x)) * (1.0 - z);
-          dndy[1] = (-x) * (1.0 - z);
-          dndy[2] = x * (1.0 - z);
-          dndy[3] = (1.0 - x) * (1.0 - z);
-          dndy[4] = (-(1.0 - x)) * z;
-          dndy[5] = (-x) * z;
-          dndy[6] = x * z;
-          dndy[7] = (1.0 - x) * z;
-          dndz[0] = (-(1.0 - x)) * (1.0 - y);
-          dndz[1] = (-x) * (1.0 - y);
-          dndz[2] = (-x) * y;
-          dndz[3] = (-(1.0 - x)) * y;
-          dndz[4] = (1.0 - x) * (1.0 - y);
-          dndz[5] = x * (1.0 - y);
-          dndz[6] = x * y;
-          dndz[7] = (1.0 - x) * y;
-
-          ///
-          /// Now build strain matrix
-          ///
-
-          for (int n1 = 0; n1 < 6; n1++) {
-            for (int n2 = 0; n2 < 8; n2++) {
-              for (int n3 = 0; n3 < 3; n3++) {
-                es[n1][n2][n3] = 0.0;
-              }
-            }
-          }
-
-          for (int n = 0; n < 8; n++) {
-            es[0][n][0] = dndx[n];
-            es[1][n][1] = dndy[n];
-            es[2][n][2] = dndz[n];
-            es[3][n][0] = dndz[n];
-            es[3][n][2] = dndx[n];
-            es[4][n][1] = dndz[n];
-            es[4][n][2] = dndy[n];
-            es[5][n][0] = dndy[n];
-            es[5][n][1] = dndx[n];
-          }
-
-          ///
-          /// Matrix multiply to determine value at (x,y,z), multiply by proper
-          /// weight, and sum into dk, the stiffness matrix.
-          ///
-
-          for (int mm = 0; mm < 3; mm++) {
-            for (int nn = 0; nn < 3; nn++) {
-              for (int ii = 0; ii < 8; ii++) {
-                for (int jj = 0; jj < 8; jj++) {
-                  sum = 0.0;
-                  for (int kk = 0; kk < 6; kk++) {
-                    for (int ll = 0; ll < 6; ll++) {
-                      sum +=
-                          es[kk][ii][mm] * cmod_[ijk][kk][ll] * es[ll][jj][nn];
-                    }
-                  }
-                  dk_[ijk][ii][mm][jj][nn] += g[i][j][k] * sum / 216.0;
-                }
-              }
-            }
-          }
-        }
-      }
-    }
-  }
-  */
+  // initStiffness();  // Defined in ElasticModel.cc
 
   ///
   /// Set up vector for linear term, b, and constant term, C, in the elastic
@@ -1145,7 +1007,26 @@ void AppliedStrain::relax(int kmax) {
   std::clog << "  Initial gg = " << gg_ << ", gtest = " << gtest_ << endl;
   std::clog.flush();
 
+  std::ofstream progressFile;
+  double percent_complete = 0.0;
   for (int kkk = 0; kkk < kmax; kkk++) {
+
+    /// Update progress file
+
+    progressFile.open("elastic_progress.json", std::ios::out);
+    if (!progressFile) {
+      throw FileException("AppliedStrain", "relax", "elastic_progress.json",
+                          "Could not write");
+    }
+
+    progressFile << "{";
+    progressFile << "\"cycle\": " << kkk << ", ";
+    progressFile << "\"maxcycle\": " << kmax << ", ";
+    percent_complete = 100.0 * ((float)(kkk) / (float)(kmax));
+    progressFile << "\"percent_complete\": " << percent_complete << ", ";
+    progressFile << "\"timestamp\": \"" << lgf::time_stamp() << "\"";
+    progressFile << "}";
+    progressFile.close();
 
     ///
     /// Call dembx to go into the conjugate gradient solver

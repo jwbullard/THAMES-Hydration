@@ -788,7 +788,7 @@ int checkArgs(int argc, char **argv, string &OutputFolder) {
   // Many of the variables here are defined in the getopts.h system header file
   // Can define more options here if we want
 
-  const char *const short_opts = "vsxo:h";
+  const char *const short_opts = "vsxj:o:h";
   const option long_opts[] = {{"verbose", no_argument, nullptr, 'v'},
                               {"suppress", no_argument, nullptr, 's'},
                               {"xyz", no_argument, nullptr, 'x'},
