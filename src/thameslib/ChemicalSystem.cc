@@ -594,7 +594,8 @@ ChemicalSystem::ChemicalSystem(const string &GEMfilename,
       parseDoc(jsonFileName);
 
       // Apply elastic moduli overrides from simparams.json
-      // This MUST be called after parseDoc() has populated elasticModuliFromJSON_
+      // This MUST be called after parseDoc() has populated
+      // elasticModuliFromJSON_
       applyElasticModuliFromJSON();
 
       microPhaseVolume_.resize(numMicroPhases_, 0.0);
@@ -959,8 +960,6 @@ void ChemicalSystem::parseSolutionComp(const json::iterator cdi) {
   int testDCId;
 
   json::iterator p = cdi.value()[0].find("DCName");
-  // std::clog << "JSON iterator okay so far" << endl;
-  // std::clog.flush();
   for (int i = 0; i < static_cast<int>(cdi.value().size()); ++i) {
     p = cdi.value()[i].find("DCname");
     // testName = p.value();
@@ -985,32 +984,29 @@ void ChemicalSystem::parseSolutionComp(const json::iterator cdi) {
 
   // At this point all the composition constraints have been read
   // Make sure they have charge balance
+  // Initial composositions apply only to time = 0, but fixed compositions
+  // apply to time = 0 and all subsequent times.
 
-  double totcharge = 0.0;
+  double totcharge, ioncharge, speciescharge;
+  totcharge = 0.0;
   map<int, double>::iterator it = initialSolutionComposition_.begin();
   while (it != initialSolutionComposition_.end()) {
-    totcharge += ((it->second) * (DCCharge_[it->first]));
-    // std::clog << DCName_[it->first]
-    //      << ": Total initial charge so far = " << totcharge << endl;
+    ioncharge = (DCCharge_[it->first]);
+    speciescharge = (it->second) * ioncharge;
+    totcharge += speciescharge;
     it++;
-  }
-  if (abs(totcharge) > 1.0e-9) {
-    throw DataException("ChemicalSystem", "parseSolutionComp",
-                        "Initial electrolyte charge imbalance");
   }
 
-  totcharge = 0.0;
   it = fixedSolutionComposition_.begin();
   while (it != fixedSolutionComposition_.end()) {
-    totcharge += ((it->second) * (DCCharge_[it->first]));
-    // std::clog << DCName_[it->first] << ": Total fixed charge so far = " <<
-    // totcharge
-    //      << endl;
+    ioncharge = (DCCharge_[it->first]);
+    speciescharge = (it->second) * ioncharge;
+    totcharge += speciescharge;
     it++;
   }
   if (abs(totcharge) > 1.0e-9) {
     throw DataException("ChemicalSystem", "parseSolutionComp",
-                        "Fixed electrolyte charge imbalance");
+                        "Electrolyte charge imbalance");
   }
 
   totcharge = 0.0;
@@ -3590,7 +3586,9 @@ void ChemicalSystem::applyElasticModuliFromJSON(void) {
                 << " GPa, G=" << entry.second.G << " GPa" << endl;
     }
   } else {
-    std::clog << "No elastic moduli overrides found in simparams.json, using defaults" << endl;
+    std::clog
+        << "No elastic moduli overrides found in simparams.json, using defaults"
+        << endl;
   }
 }
 
@@ -4245,7 +4243,24 @@ void ChemicalSystem::writeSatElectrolyteGasConditions(void) {
       }
       it++;
     }
+
+    // JWB: 2025 December 22
+    // Any dissolved species can be initial or fixed, but not both. So any
+    // species designated as fixed is automatically included in initial
+    it = fixedSolutionComposition_.begin();
+    while (it != fixedSolutionComposition_.end()) {
+      DCId = it->first;
+      if (DCId != waterDCId_) {
+        DCconc = it->second;
+        std::clog << "        DCId = " << std::setw(3) << std::right << DCId
+                  << "   DCName = " << std::setw(15) << std::left
+                  << DCName_[DCId] << "   DCconc = " << DCconc << " mol/kgw"
+                  << endl;
+      }
+      it++;
+    }
   }
+
   if (fixed) {
     std::clog
         << "   - during hydration the electrolyte has a fixed composition :"

@@ -433,17 +433,17 @@ int main(int argc, char **argv) {
               << endl;
     std::ofstream elasticOut(elasticResultsFile);
     if (elasticOut.is_open()) {
-      elasticOut << "Microstructure," << initMicName << endl;
-      elasticOut << "X_Dimension_voxels," << nx << endl;
-      elasticOut << "Y_Dimension_voxels," << ny << endl;
-      elasticOut << "Z_Dimension_voxels," << nz << endl;
-      elasticOut << "Resolution_micrometers_per_voxel, "
-                 << (1.0e6 * Mic->getResolution()) << endl;
-      elasticOut << "," << endl;
-      elasticOut << "Bulk_modulus_GPa: " << bulkModulus << endl;
-      elasticOut << "Shear_modulus_GPa: " << shearModulus << endl;
-      elasticOut << "Youngs_modulus_GPa: " << youngsModulus << endl;
-      elasticOut << "Poissons_ratio: " << poissonsRatio << endl;
+      elasticOut << "Property,Value,Units" << endl;
+      elasticOut << "Microstructure," << initMicName << "," << endl;
+      elasticOut << "X_Dimension," << nx << ",voxels" << endl;
+      elasticOut << "Y_Dimension," << ny << ",voxels" << endl;
+      elasticOut << "Z_Dimension," << nz << ",voxels" << endl;
+      elasticOut << "Resolution, " << (1.0e6 * Mic->getResolution())
+                 << ",um/voxel" << endl;
+      elasticOut << "Bulk_modulus," << bulkModulus << ",GPa" << endl;
+      elasticOut << "Shear_modulus," << shearModulus << ",GPa" << endl;
+      elasticOut << "Youngs_modulus," << youngsModulus << ",GPa" << endl;
+      elasticOut << "Poissons_ratio," << poissonsRatio << "," << endl;
       elasticOut.close();
       std::clog << "Results successfully written to: " << elasticResultsFile
                 << endl;
@@ -467,13 +467,13 @@ int main(int argc, char **argv) {
         std::clog << "Check that the directory '" << OutputFolder << "' exists."
                   << endl;
       } else {
-        elasticOut << "Microstructure," << initMicName << endl;
-        elasticOut << "X_Dimension_voxels," << nx << endl;
-        elasticOut << "Y_Dimension_voxels," << ny << endl;
-        elasticOut << "Z_Dimension_voxels," << nz << endl;
-        elasticOut << "Resolution_micrometers_per_voxel, "
-                   << (1.0e6 * Mic->getResolution()) << endl;
-        elasticOut << "," << endl;
+        double resInMicrometers = (1.0e6 * Mic->getResolution());
+        elasticOut << "Property,Value,Units" << endl;
+        elasticOut << "Microstructure," << initMicName << "," << endl;
+        elasticOut << "X_Dimension," << nx << ",voxels" << endl;
+        elasticOut << "Y_Dimension," << ny << ",voxels" << endl;
+        elasticOut << "Z_Dimension," << nz << ",voxels" << endl;
+        elasticOut << "Resolution," << resInMicrometers << ",um/voxel" << endl;
 
         ///
         /// Must know the surface position of the aggregate slab first
@@ -483,12 +483,14 @@ int main(int argc, char **argv) {
         std::clog << "Aggregate surface position = " << aggX << " voxels"
                   << endl;
         std::clog.flush();
-        double xj = -0.5;
+        double distance = (-0.5) * resInMicrometers;
         double bulkmod_i, bulkmod_ni, shearmod_i, shearmod_ni;
         double bulkModulus_at_x, shearModulus_at_x, youngsModulus_at_x,
             poissonsRatio_at_x;
+        int i_inverse;
         for (int i = aggX - 1; i > 0; i--) {
-          xj += 1.0;
+          i_inverse = i - aggX + 2;
+          distance += resInMicrometers;
           try {
             bulkmod_i = AppliedStrainSolver->getLayerBulkModulus(i);
             bulkmod_ni = AppliedStrainSolver->getLayerBulkModulus(nx - i - 1);
@@ -509,18 +511,20 @@ int main(int argc, char **argv) {
             poissonsRatio_at_x =
                 (3.0 * bulkModulus_at_x - 2.0 * shearModulus_at_x) /
                 (2.0 * (3.0 * bulkModulus_at_x + shearModulus_at_x));
-            std::clog << xj << " " << bulkModulus_at_x << " "
+            std::clog << distance << " " << bulkModulus_at_x << " "
                       << shearModulus_at_x << endl;
             std::clog.flush();
 
-            if (i == (aggX - 1)) {
-              elasticOut << "Distance (um),Bulk Modulus (GPa),Shear Modulus "
-                            "(GPa),Youngs Modulus (GPa),Poissons Ratio"
-                         << endl;
-            }
-            elasticOut << xj << "," << bulkModulus_at_x << ","
-                       << shearModulus_at_x << "," << youngsModulus_at_x << ","
-                       << poissonsRatio_at_x;
+            elasticOut << "Layer_" << i_inverse << "_distance," << distance
+                       << ",um" << endl;
+            elasticOut << "Layer_" << i_inverse << "_Bulk_modulus,"
+                       << bulkModulus_at_x << ",GPa" << endl;
+            elasticOut << "Layer_" << i_inverse << "_Shear_modulus,"
+                       << shearModulus_at_x << ",GPa" << endl;
+            elasticOut << "Layer_" << i_inverse << "_Youngs_modulus,"
+                       << youngsModulus_at_x << ",GPa" << endl;
+            elasticOut << "Layer_" << i_inverse << "_Poissons_ratio,"
+                       << poissonsRatio_at_x << ",";
             if (i > 1) {
               elasticOut << endl;
             }
