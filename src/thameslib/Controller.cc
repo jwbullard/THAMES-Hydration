@@ -2456,7 +2456,14 @@ void Controller::parseDoc(const string &docName) {
     testTime = 0.0;
     // time_.push_back(testTime);
     while (testTime <= finalTime) {
-      testTime += (0.1 * (testTime + 0.024));
+      // GODZILLA
+      // GODZILLA We need better adaptive time stepping based on kinetic models
+      // GODZILLA and rate constants
+      // GODZILLA Next line is exponential
+      // testTime += (0.05 * (testTime + 0.0024));
+      // GODZILLA Next line is linear for a VERY fast rate
+      testTime += 0.0006;
+      // testTime += 0.0024;
       if (testTime >= finalTime) {
         time_.push_back(finalTime);
         break;

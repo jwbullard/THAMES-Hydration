@@ -187,10 +187,12 @@ public:
   @brief Calculates the effective bulk modulus of the relaxed mesh.
 
   @param p_vectPhId is the vector (pointer) of the microstructure image
+  @param resolution is the edge length of one voxel in meter units
+  @param outputFolder is the name of the folder to place result files (optional)
   @return the bulk modulus (GPa)
   */
-  // double getBulkModulus(std::string fileName); //check!
-  double getBulkModulus(std::vector<int> *p_vectPhId);
+  double getBulkModulus(std::vector<int> *p_vectPhId, const double resolution,
+                        std::string outputFolder = "");
 
   /**
   @brief Returns the average value of the bulk modulus on the i-th yz plane
