@@ -4,6 +4,7 @@
 
 */
 #include "ElasticModel.h"
+#include "PngWriter.h"
 
 using std::cerr;
 using std::cout;
@@ -956,23 +957,14 @@ void ElasticModel::writeStress(string &root, double time, int index) {
     out.close();
 
     ///
-    /// PPM file is finished.  Now convert to PNG using ImageMagick convert
-    /// command via a system call (not recommended).
+    /// Convert PPM to PNG using native libpng (no ImageMagick dependency)
     ///
 
-    // string buff = "convert " + ofileName + " " + ofpngname;
-    string buff = ConvertCommand + " " + ofileName + " " + ofpngname;
-    int resCallSystem = system(buff.c_str());
-    if (resCallSystem == -1) {
-      // handle the error;
-      std::clog
-          << endl
-          << endl
-          << "    ElasticModel.cc - error in writeStress() : resCallSystem = -1"
-          << endl;
+    if (!PngWriter::convertPpmToPng(ofileName, ofpngname, true)) {
+      std::clog << endl << endl
+                << "    ElasticModel.cc - error in writeStress(): PNG conversion failed"
+                << endl;
       std::clog << endl << "    STOP program" << endl;
-      // throw HandleException ("writeStress", "ElasticModel.cc",
-      //                "system(buff.c_str())", "resCallSystem = -1");
       exit(1);
     }
 
@@ -1067,23 +1059,14 @@ void ElasticModel::writeStrain(string &root, double time, int index) {
     out.close();
 
     ///
-    /// PPM file is finished.  Now convert to PNG using ImageMagick convert
-    /// command via a system call (not recommended).
+    /// Convert PPM to PNG using native libpng (no ImageMagick dependency)
     ///
 
-    // string buff = "convert " + ofileName + " " + ofpngname;
-    string buff = ConvertCommand + " " + ofileName + " " + ofpngname;
-    int resCallSystem = system(buff.c_str());
-    if (resCallSystem == -1) {
-      // handle the error;
-      std::clog
-          << endl
-          << endl
-          << "    ElasticModel.cc - error in writeStrain() : resCallSystem = -1"
-          << endl;
+    if (!PngWriter::convertPpmToPng(ofileName, ofpngname, true)) {
+      std::clog << endl << endl
+                << "    ElasticModel.cc - error in writeStrain(): PNG conversion failed"
+                << endl;
       std::clog << endl << "    STOP program" << endl;
-      // throw HandleException ("writeStrain", "ElasticModel.cc",
-      //                "system(buff.c_str())", "resCallSystem = -1");
       exit(1);
     }
     return;
@@ -1205,24 +1188,14 @@ void ElasticModel::writeStrainEngy(string &root, double time) {
   out.close();
 
   ///
-  /// PPM file is finished.  Now convert to PNG using ImageMagick convert
-  /// command via a system call (not recommended).
+  /// Convert PPM to PNG using native libpng (no ImageMagick dependency)
   ///
 
-  // string buff = "convert " + ofileName + " " + ofpngname;
-  string buff = ConvertCommand + " " + ofileName + " " + ofpngname;
-  int resCallSystem = system(buff.c_str());
-  if (resCallSystem == -1) {
-    // handle the error;
-    std::clog
-        << endl
-        << endl
-        << "    ElasticModel.cc - error in writeStrainEngy() : resCallSystem = "
-           "-1"
-        << endl;
+  if (!PngWriter::convertPpmToPng(ofileName, ofpngname, true)) {
+    std::clog << endl << endl
+              << "    ElasticModel.cc - error in writeStrainEngy(): PNG conversion failed"
+              << endl;
     std::clog << endl << "    STOP program" << endl;
-    // throw HandleException ("writeStrainEngy", "ElasticModel.cc",
-    //                "system(buff.c_str())", "resCallSystem = -1");
     exit(1);
   }
   return;

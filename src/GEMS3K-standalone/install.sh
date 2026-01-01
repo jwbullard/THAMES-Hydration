@@ -15,9 +15,13 @@ mkdir -p $InstallPrefix
 mkdir -p build
 cd build
 
-#For Mac OS using the GNU compiler set installed via Homebrew, comment the line below and uncomment the next one
-cmake .. -DCMAKE_CXX_FLAGS=-fPIC -DCMAKE_BUILD_TYPE=$BuildType -DCMAKE_INSTALL_PREFIX=$InstallPrefix
+# For Windows using MinGW use this line
+cmake -G "MinGW Makefiles" .. -DCMAKE_CXX_FLAGS=-fPIC -DCMAKE_BUILD_TYPE=$BuildType -DCMAKE_INSTALL_PREFIX=$InstallPrefix
 
+# For Mac OS using the clang set use this line
+#cmake .. -DCMAKE_CXX_FLAGS=-fPIC -DCMAKE_BUILD_TYPE=$BuildType -DCMAKE_INSTALL_PREFIX=$InstallPrefix
+
+# For Mac OS using the GNU compiler set installed via Homebrew, use the next line
 #cmake .. -DCMAKE_C_COMPILER=/opt/homebrew/bin/gcc -DCMAKE_CXX_COMPILER=/opt/homebrew/bin/g++ -DCMAKE_CXX_FLAGS=-fPIC -DCMAKE_BUILD_TYPE=$BuildType -DCMAKE_OSX_SYSROOT=/Library/Developer/CommandLineTools/SDKs/MacOSX14.5.sdk -DCMAKE_INSTALL_PREFIX=$InstallPrefix 
 make -j $threads 
 make install

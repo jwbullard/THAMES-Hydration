@@ -18,6 +18,8 @@ Site::Site() {
   stressFreeVolume_ = trueVolume_ = 0.0;
   damage_ = false;
   expstrain_ = 0.0;
+  wmc_ = 0;
+  wmc0_ = 0;
 }
 
 Site::Site(int xp, int yp, int zp, int xs, int ys, int zs, int neigh,
@@ -32,6 +34,8 @@ Site::Site(int xp, int yp, int zp, int xs, int ys, int zs, int neigh,
   y_ = yp;
   z_ = zp;
   visit_ = 0;
+  wmc_ = 0;
+  wmc0_ = 0;
 
 #ifdef DEBUG
   verbose_ = true;

@@ -28,6 +28,7 @@
 #include <fstream>
 #include <vector>
 #include <memory>
+#include <cstdint>
 #include "verror.h"
 
 namespace  io_formats {

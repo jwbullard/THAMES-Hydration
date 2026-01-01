@@ -1,4 +1,4 @@
-cmake_minimum_required(VERSION 3.30)
+cmake_minimum_required(VERSION 3.26)
 
 project (THAMES_HYDRATION)
 
@@ -54,6 +54,13 @@ if (PDFLATEX)
   message("pdflatex found... yes")
 else()
   message("pdflatex found... no")
+endif()
+
+# Find PNG library for native PNG writing (removes ImageMagick dependency)
+find_package(PNG REQUIRED)
+if(PNG_FOUND)
+    message("Found PNG: ${PNG_LIBRARIES}")
+    include_directories(${PNG_INCLUDE_DIRS})
 endif()
 
 find_library (
@@ -115,7 +122,7 @@ file (GLOB SOURCES "${CMAKE_SOURCE_DIR}/src/*.cc")
 
 add_executable (thames ${SOURCES})
 
-target_link_libraries (thames thameslib ${EXTRA_LIBS})
+target_link_libraries (thames thameslib ${EXTRA_LIBS} PNG::PNG)
 
 install (TARGETS thames DESTINATION ${CMAKE_SOURCE_DIR}/bin)
 if (EXISTS ${CMAKE_SOURCE_DIR}/build/html)

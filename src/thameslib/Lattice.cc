@@ -4,6 +4,7 @@
 
 */
 #include "Lattice.h"
+#include "PngWriter.h"
 
 using std::cout;
 using std::endl;
@@ -1241,7 +1242,7 @@ vector<int> Lattice::growPhase(vector<int> growPhaseIDVect,
 
   int posProbVect = 0;
   int aftyInt = 0;
-  long int affSumInt = 0;
+  long long int affSumInt = 0;
   for (i = 0; i < growPhaseIDVectSize; i++) {
     phaseID = growPhaseIDVect[i];
     isite = interface_[phaseID].getGrowthSites();
@@ -2193,7 +2194,7 @@ int Lattice::nucleatePhaseAff(const int phaseID, const int numToNucleate) {
   localStruct un;
   vector<localStruct> waterNucSites, voidNucSites;
   int affInt;
-  long int wAffSumInt, vAffSumInt;
+  long long int wAffSumInt, vAffSumInt;
   vector<Site *> localNb;
   int sizeWS = 0;
   int sizeVS = 0;
@@ -2601,7 +2602,8 @@ vector<int> Lattice::dissolvePhase(vector<int> dissPhaseIDVect,
 
   int i, ii, jj;
 
-  Site *ste, *stenb;
+  Site *ste = nullptr;
+  Site *stenb = nullptr;
   int pid = 0;
   int isitePos, phaseID;
   int stId, nbid, nbpid;
@@ -2637,7 +2639,7 @@ vector<int> Lattice::dissolvePhase(vector<int> dissPhaseIDVect,
   vector<structDissVect> dissolutionVector;
   structDissVect dissStruct;
   int posProbVect = 0;
-  long int sumWmcInt = 0;
+  long long int sumWmcInt = 0;
   for (i = 0; i < dissPhaseIDVectSize; i++) {
     phaseID = dissPhaseIDVect[i];
     isite = interface_[phaseID].getDissolutionSites();
@@ -5749,24 +5751,14 @@ void Lattice::writeLatticePNG(const string timeString) {
   out.close();
 
   ///
-  /// Execute system call to convert PPM to PNG.
-  ///
-  /// @warning This relies on installation of ImageMagick
+  /// Convert PPM to PNG using native libpng (no ImageMagick dependency)
   ///
 
-  string buff;
-  buff = ConvertCommand + " " + oppmName + " " + opngName;
-  resCallSystem = system(buff.c_str());
-  if (resCallSystem == -1) {
-    // handle the error;
-    std::clog
-        << endl
-        << endl
-        << "    Lattice.cc - error in writeLatticePNG() : resCallSystem = -1"
-        << endl;
+  if (!PngWriter::convertPpmToPng(oppmName, opngName, true)) {
+    std::clog << endl << endl
+              << "    Lattice.cc - error in writeLatticePNG(): PNG conversion failed"
+              << endl;
     std::clog << endl << "    STOP program" << endl;
-    // throw HandleException ("writeLatticePNG", "Lattice.cc",
-    //                 "system(buff.c_str())", "err : resCallSystem = -1");
     exit(1);
   }
   return;
@@ -5867,24 +5859,14 @@ void Lattice::writeDamageLatticePNG(const string timeString) {
   out.close();
 
   ///
-  /// Execute system call to convert PPM to PNG.
-  ///
-  /// @warning This relies on installation of ImageMagick
+  /// Convert PPM to PNG using native libpng (no ImageMagick dependency)
   ///
 
-  buff = ConvertCommand + " " + oppmName + " " + opngName;
-  resCallSystem = system(buff.c_str());
-  if (resCallSystem == -1) {
-    // handle the error;
-    std::clog
-        << endl
-        << endl
-        << "    Lattice.cc - error in writeDamageLatticePNG() : resCallSystem "
-           "= -1"
-        << endl;
+  if (!PngWriter::convertPpmToPng(oppmName, opngName, true)) {
+    std::clog << endl << endl
+              << "    Lattice.cc - error in writeDamageLatticePNG(): PNG conversion failed"
+              << endl;
     std::clog << endl << "    STOP program" << endl;
-    // throw HandleException ("writeDamageLatticePNG", "Lattice.cc",
-    //                 "system(buff.c_str())", "err : resCallSystem = -1");
     exit(1);
   }
   return;
@@ -5994,47 +5976,26 @@ void Lattice::makeMovie() {
     out.close();
 
     ///
-    /// Execute system call to convert PPM to GIF.
-    ///
-    /// @warning This relies on installation of ImageMagick
+    /// Convert PPM to PNG using native libpng (no ImageMagick dependency)
+    /// Note: Animation (GIF movie) creation now requires post-processing
     ///
 
-    buff = ConvertCommand + " " + ofileName + " " + ofgifileName;
-    resCallSystem = system(buff.c_str());
-    if (resCallSystem == -1) {
-      // handle the error;
-      std::clog
-          << endl
-          << endl
-          << "    Lattice.cc - error(1) in makeMovie() : resCallSystem = -1"
-          << endl;
-      std::clog << endl << "    STOP program" << endl;
-      // throw HandleException ("makeMovie", "Lattice.cc",
-      //                 "system(buff.c_str())", " err_1 : resCallSystem = -1");
-      exit(1);
+    // Convert to PNG instead of GIF
+    string opngName = ofbasename + ".movie." + kstr + ".png";
+    if (!PngWriter::convertPpmToPng(ofileName, opngName, true)) {
+      std::clog << endl << endl
+                << "    Lattice.cc - error in makeMovie(): PNG conversion failed"
+                << endl;
+      // Don't exit - just warn and continue with other frames
     }
   }
 
   ///
-  /// Execute system call to convert GIF frames to animated GIF.
+  /// Note: Animated GIF creation previously required gifsicle.
+  /// Individual PNG frames are now saved and can be combined using
+  /// external tools or Python post-processing if animation is needed.
   ///
-  /// @warning This relies on installation of gifsicle
-  ///
-
-  buff = "gifsicle --delay=10 " + ofgifbasename + "*.gif > " + ofgifbasename +
-         ".movie.gif";
-  resCallSystem = system(buff.c_str());
-  if (resCallSystem == -1) {
-    // handle the error;
-    std::clog << endl
-              << endl
-              << "    Lattice.cc - error(2) in makeMovie() : resCallSystem = -1"
-              << endl;
-    std::clog << endl << "    STOP program" << endl;
-    // throw HandleException ("makeMovie", "Lattice.cc",
-    //                 "system(buff.c_str())", "err_2 : resCallSystem = -1");
-    exit(1);
-  }
+  std::clog << "    Movie frames saved as PNG files. Use external tools to create animation." << endl;
 }
 
 double Lattice::fillAllPorosity(const int cyc) {
@@ -6161,8 +6122,8 @@ vector<int> Lattice::transformPhase(int growPhId, int netsites_growPhId,
 
   int i, jj;
 
-  Site *ste;
-  int pid;
+  Site *ste = nullptr;
+  int pid = 0;
   int isitePos, phaseID;
   int stId;
   int posVect;
@@ -6204,7 +6165,7 @@ vector<int> Lattice::transformPhase(int growPhId, int netsites_growPhId,
   structDissVect dissStruct;
   int posProbVect = 0;
   // double sumWmc = 0; // numLeftTot
-  long int sumWmcInt = 0;
+  long long int sumWmcInt = 0;
   for (i = 0; i < dissPhaseIDVectSize; i++) {
     phaseID = dissPhaseIDVect[i];
     isite = interface_[phaseID].getDissolutionSites();
@@ -6333,7 +6294,7 @@ vector<int> Lattice::transformPhase(int growPhId, int netsites_growPhId,
         std::clog << endl << "    exit" << endl;
         exit(1);
       } else {
-        long int sumWmcT = 0;
+        long long int sumWmcT = 0;
         for (int i = 0; i < dissolutionVectorSize; i++) {
           sumWmcT += dissolutionVector[isitePos].wmcInt;
         }
