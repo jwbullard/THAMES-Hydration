@@ -6418,7 +6418,7 @@ vector<int> Lattice::transformPhase(int growPhId, int netsites_growPhId,
         // double subbulk = FEsolver_->getBulkModulus(alnbPhId);
 
         vector<int> *p_alnbPhId = &alnbPhId;
-        double subbulk = FEsolver_->getBulkModulus(p_alnbPhId);
+        double subbulk = FEsolver_->getBulkModulus(p_alnbPhId, resolution_);
 
         subbulk = subbulk * 1.0e3; // convert GPa to MPa
 

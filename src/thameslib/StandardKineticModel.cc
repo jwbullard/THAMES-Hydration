@@ -176,6 +176,8 @@ void StandardKineticModel::calculateKineticStep(const double timestep,
     // g of intial total solid
 
     double area = lattice_->getSurfaceArea(microPhaseId_);
+    if (area <= 1.0e-9)
+      area = 1.0;
 
     // surfaceAreaMultiplier_ is a way to account for the influence
     // of subvoxel porosity that increases the total surface area in a voxel.
@@ -195,28 +197,6 @@ void StandardKineticModel::calculateKineticStep(const double timestep,
                 << std::setw(3) << std::right << microPhaseId_ << " / "
                 << std::setw(15) << std::left << name_ << " / "
                 << chemSys_->getMicroPhaseSI(microPhaseId_) << endl;
-
-    /*
-    if (!doTweak) {
-      std::clog << "      StandardKineticModel::calculateKineticStep - 0y - cyc
-    = "
-           << cyc << "   DCId_ = " << DCId_ << "   keepDCLowerLimit = "
-           << chemSys_->getKeepDCLowerLimit(DCId_)
-           << "   massDissolved/scaledMass_ : "
-           << massDissolved << " / " << scaledMass_
-           << "   doNotModif = " << doNotModif
-           << endl;
-    } else {
-      std::clog << "      StandardKineticModel::calculateKineticStep - 0n - cyc
-    = "
-           << cyc << "   DCId_ = " << DCId_ << "   keepDCLowerLimit = "
-           << chemSys_->getKeepDCLowerLimit(DCId_)
-           << "   massDissolved/scaledMass_ : "
-           << massDissolved << " / " << scaledMass_
-           << "   doNotModif = " << doNotModif
-           << endl;
-    }
-    */
 
     // dissolutionRateConst_ has units of mol/m2/h
     // area has units of m2 of phase per 100 g of total solid

@@ -1229,10 +1229,11 @@ void AppliedStrain::calc(std::vector<int> *p_vectPhId, double exx, double eyy,
   return;
 }
 
-double AppliedStrain::getBulkModulus(vector<int> *p_vectPhId) {
+double AppliedStrain::getBulkModulus(vector<int> *p_vectPhId,
+                                     const double resolution,
+                                     string outputFolder) {
   double bulk;
   double Stress, Strain;
-  // Stress = Strain = 0.0;
 
   // std::clog << "AppliedStrain::getBulkModulus - bf-calc" << endl;
 
@@ -1240,13 +1241,41 @@ double AppliedStrain::getBulkModulus(vector<int> *p_vectPhId) {
 
   // std::clog << "AppliedStrain::getBulkModulus - af-calc" << endl;
 
-  // for (int i = 0; i < 3; i++) {
-  //   Stress += getStress(i);
-  //   Strain += getStrain(i);
-  // }
   Stress = getStress(0) + getStress(1) + getStress(2);
   Strain = getStrain(0) + getStrain(1) + getStrain(2);
   bulk = Stress / 3.0 / Strain;
 
+  std::ostringstream energyName;
+  energyName << outputFolder << "/energy.img";
+  std::ofstream energyFile(energyName.str());
+  if (!energyFile) {
+    throw FileException("AppliedStrain", "relax", "energy.img",
+                        "Could not write");
+  }
+  std::clog << "Printing strain energy field" << endl;
+  std::ostringstream ostrMAJ, ostrMIN;
+  ostrMAJ << VERSION_MAJOR;
+  ostrMIN << VERSION_MINOR;
+  string majVers(ostrMAJ.str());
+  string minVers(ostrMIN.str());
+  string thamesVersion = majVers + "." + minVers + "." + VERSIONBUGFIX;
+  energyFile << VERSIONSTRING << " " << thamesVersion << endl;
+  energyFile << XSIZESTRING << " " << nx_ << endl;
+  energyFile << YSIZESTRING << " " << ny_ << endl;
+  energyFile << ZSIZESTRING << " " << nz_ << endl;
+  energyFile << IMGRESSTRING << " " << (1.0e6 * resolution) << endl; // um units
+  int m;
+  int nxy = nx_ * ny_;
+  for (int i = 0; i < nx_; i++) {
+    for (int j = 0; j < ny_; j++) {
+      for (int k = 0; k < nz_; k++) {
+        m = (nxy * k) + (nx_ * j) + i;
+        energyFile << strainengy_[m];
+        if (m < (nx_ * ny_ * nz_) - 1)
+          energyFile << endl;
+      }
+    }
+  }
+  energyFile.close();
   return bulk;
 }

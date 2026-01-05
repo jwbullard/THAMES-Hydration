@@ -388,7 +388,8 @@ int main(int argc, char **argv) {
     std::clog
         << "Applying combined strain state for bulk and shear calculation..."
         << endl;
-    double bulkModulus = AppliedStrainSolver->getBulkModulus(&phaseIds);
+    double bulkModulus = AppliedStrainSolver->getBulkModulus(
+        &phaseIds, Mic->getResolution(), OutputFolder);
     std::clog << "Effective bulk modulus: " << bulkModulus << " GPa" << endl;
 
     // Extract shear modulus from the SAME solution (no second solve needed!)
