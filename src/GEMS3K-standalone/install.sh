@@ -15,15 +15,27 @@ mkdir -p $InstallPrefix
 mkdir -p build
 cd build
 
-# For Windows using MinGW use this line
-cmake -G "MinGW Makefiles" .. -DCMAKE_CXX_FLAGS=-fPIC -DCMAKE_BUILD_TYPE=$BuildType -DCMAKE_INSTALL_PREFIX=$InstallPrefix
+# Auto-detect platform and use appropriate cmake command
+case "$(uname -s)" in
+    Darwin)
+        echo "Detected macOS - using default cmake generator"
+        cmake .. -DCMAKE_CXX_FLAGS=-fPIC -DCMAKE_BUILD_TYPE=$BuildType -DCMAKE_INSTALL_PREFIX=$InstallPrefix
+        ;;
+    MINGW*|MSYS*)
+        echo "Detected Windows (MSYS2/MinGW) - using MinGW Makefiles generator"
+        cmake -G "MinGW Makefiles" .. -DCMAKE_CXX_FLAGS=-fPIC -DCMAKE_BUILD_TYPE=$BuildType -DCMAKE_INSTALL_PREFIX=$InstallPrefix
+        ;;
+    Linux)
+        echo "Detected Linux - using default cmake generator"
+        cmake .. -DCMAKE_CXX_FLAGS=-fPIC -DCMAKE_BUILD_TYPE=$BuildType -DCMAKE_INSTALL_PREFIX=$InstallPrefix
+        ;;
+    *)
+        echo "Unknown platform: $(uname -s) - trying default cmake generator"
+        cmake .. -DCMAKE_CXX_FLAGS=-fPIC -DCMAKE_BUILD_TYPE=$BuildType -DCMAKE_INSTALL_PREFIX=$InstallPrefix
+        ;;
+esac
 
-# For Mac OS using the clang set use this line
-#cmake .. -DCMAKE_CXX_FLAGS=-fPIC -DCMAKE_BUILD_TYPE=$BuildType -DCMAKE_INSTALL_PREFIX=$InstallPrefix
-
-# For Mac OS using the GNU compiler set installed via Homebrew, use the next line
-#cmake .. -DCMAKE_C_COMPILER=/opt/homebrew/bin/gcc -DCMAKE_CXX_COMPILER=/opt/homebrew/bin/g++ -DCMAKE_CXX_FLAGS=-fPIC -DCMAKE_BUILD_TYPE=$BuildType -DCMAKE_OSX_SYSROOT=/Library/Developer/CommandLineTools/SDKs/MacOSX14.5.sdk -DCMAKE_INSTALL_PREFIX=$InstallPrefix 
-make -j $threads 
+make -j $threads
 make install
 
 if [ "$(expr substr $(uname -s) 1 5)" == "Linux" ]; then
