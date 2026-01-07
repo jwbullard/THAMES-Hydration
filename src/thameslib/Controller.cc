@@ -1943,98 +1943,15 @@ int Controller::calculateState(double &currTime, double dt, bool isFirst,
     /// should be calculated.
     ///
 
-    // if first call of GEMS returns an error, the dissolution time is modified
-    //   generating new values into a small interval centered on the initial
-    //   value
+    // Log result - retry logic is now handled by doCycle() with adaptive time stepping
     if (timesGEMFailed > 0) {
-      double currTimeLoc = currTime;
-
-      std::clog << "  Controller::calculateState - failed : currTime = "
-                << currTime << "   currTimeLoc = " << currTimeLoc
-                << "   timesGEMFailed = " << timesGEMFailed
-                << "   =>   choose a new time arround currTime!" << endl;
-
-      double minTime = currTime - deltaTime_;
-      if (abs(minTime - lastGoodTime_) > stepTimeTHR_) { // 1.e-3
-        double delta2Time = 2 * deltaTime_;
-        double rNum;
-        double timeStepLoc;
-        int numTimesGEMFailed = 0;
-        std::clog << "  Controller::calculateState - failed : currTime = "
-                  << currTime << " & abs(minTime - lastGoodTime_ = "
-                  << abs(minTime - lastGoodTime_) << "  => use RNG => WAIT..."
-                  << endl;
-
-        // while (timesGEMFailed > 0 && timesGEMFailed  < 1000) {
-        while (numTimesGEMFailed < 1000) {
-          numTimesGEMFailed++;
-
-          rNum = lattice_->callRNG();
-          currTimeLoc = minTime + (rNum * delta2Time);
-          timeStepLoc = currTimeLoc - lastGoodTime_;
-
-          chemSys_->initDCLowerLimit(0.0);
-          chemSys_->initDCUpperLimit(1.0e6);
-          kineticController_->calculateKineticStep(currTimeLoc, timeStepLoc,
-                                                   cyc);
-
-          ///
-          /// Now that the method is done determining the change in moles of
-          /// each IC, launch a thermodynamic calculation to determine new
-          /// equilibrium state
-          ///
-          /// The `ChemicalSystem` object provides an interface for these
-          /// calculations
-          ///
-
-          try {
-
-            // timesGEMFailed = chemSys_->calculateState(currTimeLoc,
-            // updateDCId, updatePHId,
-            //                                           isFirst, cyc);
-            timesGEMFailed =
-                chemSys_->calculateState(currTimeLoc, isFirst, cyc);
-            if (verbose_) {
-              std::clog << "*Returned from ChemicalSystem::calculateState"
-                        << endl;
-              std::clog << "*called by function Controller::calculateState"
-                        << endl;
-              std::clog << "*timesGEMFailed = " << timesGEMFailed << endl;
-              std::clog.flush();
-            }
-          } catch (GEMException gex) {
-            gex.printException();
-            exit(1);
-          }
-
-          if (timesGEMFailed == 0)
-            break;
-        }
-
-        if (timesGEMFailed == 0) {
-          std::clog << "  Controller::calculateState - solved : currTime = "
-                    << currTime << "   currTimeLoc = " << currTimeLoc
-                    << "   timesGEMFailed = " << timesGEMFailed
-                    << "   numTimesGEMFailed = " << numTimesGEMFailed << endl;
-          currTime = currTimeLoc;
-        } else {
-          std::clog << "  Controller::calculateState - not solved : currTime = "
-                    << currTime << "   currTimeLoc = " << currTimeLoc
-                    << "   timesGEMFailed = " << timesGEMFailed
-                    << "   numTimesGEMFailed = " << numTimesGEMFailed << endl;
-        }
-      } else {
-        std::clog << "  ChemicalSystem::calculateState - failed : currTime = "
-                  << currTime << "   currTimeLoc = " << currTimeLoc
-                  << "   timesGEMFailed = " << timesGEMFailed
-                  << "   cannot use RNG!!! (abs(minTime - lastGoodTime_) = "
-                  << abs(minTime - lastGoodTime_) << ")" << endl;
-      }
+      std::clog << "  Controller::calculateState - GEMS failed : currTime = "
+                << currTime << "   timesGEMFailed = " << timesGEMFailed
+                << " (retry handled by adaptive time stepping in doCycle)"
+                << endl;
     } else {
-      std::clog
-          << "  Controller::calculateState - OK (did not use RNG) : currTime = "
-          << currTime << "   currTimeLoc = " << currTime
-          << "   timesGEMFailed = " << timesGEMFailed << endl;
+      std::clog << "  Controller::calculateState - OK : currTime = " << currTime
+                << "   timesGEMFailed = " << timesGEMFailed << endl;
     }
   } catch (FileException fex) {
     fex.printException();
