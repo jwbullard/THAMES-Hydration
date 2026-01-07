@@ -5672,6 +5672,56 @@ public:
   long int getIterDone(void) const { return iterDone_; }
 
   /**
+  @brief Get the Dikin criterion (PCI) from the last GEMS calculation.
+
+  PCI measures how close the IPM algorithm is to convergence.
+  Lower values indicate better convergence. When PCI < DXM,
+  the solver has converged.
+
+  @return Current PCI value from GEMS IPM solver, or -1.0 if unavailable
+  */
+  double getPCI(void) const;
+
+  /**
+  @brief Get the convergence threshold (DXM) used by GEMS.
+
+  This is the target value for the Dikin criterion.
+  Default is typically 1e-5 to 1e-6.
+
+  @return Convergence threshold DXM, or -1.0 if unavailable
+  */
+  double getDXM(void) const;
+
+  /**
+  @brief Get detailed iteration counts from the last GEMS calculation.
+
+  Provides breakdown of iterations in different solver phases:
+  - precLoops: Precision refinement loops
+  - fiaIter: Feasible Initial Approximation iterations (max 130)
+  - ipmIter: Interior Point Method main iterations (max 7000)
+
+  @param[out] precLoops Number of precision loops performed
+  @param[out] fiaIter Number of FIA/EFD iterations
+  @param[out] ipmIter Number of IPM descent iterations
+  @return Total iterations (fiaIter + ipmIter)
+  */
+  long int getDetailedIterations(long int &precLoops, long int &fiaIter,
+                                 long int &ipmIter) const;
+
+  /**
+  @brief Get the ratio of PCI to DXM as a convergence quality metric.
+
+  Returns PCI/DXM ratio:
+  - < 1.0: Converged (good)
+  - 1-10: Marginal convergence
+  - 10-100: Poor convergence (solver struggled)
+  - > 100: Near failure
+
+  @return PCI/DXM ratio, or -1.0 if DXM is zero or unavailable
+  */
+  double getConvergenceRatio(void) const;
+
+  /**
   @brief Set the number of times in a row that GEM_run has failed.
 
   Calculations of equilibrium state sometimes fail to converge.  It is

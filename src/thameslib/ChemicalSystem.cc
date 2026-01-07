@@ -4943,3 +4943,38 @@ void ChemicalSystem::testDCinSimparamsFile(int cyc) {
   }
   // for test of simparams.json - final
 }
+
+// ============================================================================
+// GEMS Convergence Accessor Methods (for adaptive time stepping)
+// ============================================================================
+
+double ChemicalSystem::getPCI(void) const {
+  if (node_ && node_->pMulti()) {
+    return node_->pMulti()->GetPM()->PCI;
+  }
+  return -1.0; // Invalid/unavailable
+}
+
+double ChemicalSystem::getDXM(void) const {
+  if (node_ && node_->pMulti()) {
+    return node_->pMulti()->GetPM()->DXM;
+  }
+  return -1.0; // Invalid/unavailable
+}
+
+long int ChemicalSystem::getDetailedIterations(long int &precLoops,
+                                               long int &fiaIter,
+                                               long int &ipmIter) const {
+  if (node_) {
+    return node_->GEM_Iterations(precLoops, fiaIter, ipmIter);
+  }
+  precLoops = fiaIter = ipmIter = 0;
+  return 0;
+}
+
+double ChemicalSystem::getConvergenceRatio(void) const {
+  double dxm = getDXM();
+  if (dxm <= 0.0)
+    return -1.0;
+  return getPCI() / dxm;
+}
