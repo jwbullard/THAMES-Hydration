@@ -18,6 +18,14 @@ Controller::Controller(Lattice *msh, KineticController *kc, ChemicalSystem *cs,
 
   stepTimeTHR_ = 1.e-3;
 
+  // Initialize adaptive time stepping (enabled by default)
+  useAdaptiveTimeStepping_ = true;
+  AdaptiveTimeConfig adaptiveConfig;
+  adaptiveConfig.dt_min = stepTimeTHR_;
+  adaptiveConfig.dt_initial = 0.001; // ~3.6 seconds
+  adaptiveConfig.verbose = verbose;
+  adaptiveTimeController_ = std::make_unique<AdaptiveTimeController>(adaptiveConfig);
+
   // xyz_ = xyz;
   xyzMovie_ = xyz;
   xyzFiles_ = false;
@@ -624,43 +632,55 @@ void Controller::doCycle(double elemTimeInterval) {
 
     if (currTime < beginAttackTime_) {
       if (timesGEMFailed_loc > 0) {
-        // if the first call of GEMS returns an error,
-        //   the dissolution time step is divided by two
+        // GEMS failed - adjust timestep using adaptive controller or legacy halving
         i--;
 
         old_timestep = timestep;
 
-        timestep = timestep / 2;
+        if (useAdaptiveTimeStepping_ && adaptiveTimeController_) {
+          // Use adaptive time controller to get new timestep
+          timestep = adaptiveTimeController_->recordFailure(timesGEMFailed_loc);
 
-        if (timestep > stepTimeTHR_) { // stepTimeTHR_ = 1.e-3
+          // Check if we've exceeded max failures
+          if (adaptiveTimeController_->hasExceededMaxFailures()) {
+            std::clog << endl
+                      << "##### Controller::doCycle - ADAPTIVE TIME STEPPING: "
+                         "MAX FAILURES EXCEEDED #####"
+                      << endl;
+            std::clog << adaptiveTimeController_->getStatusString() << endl;
+            break;
+          }
 
-          currTime -= timestep;
+          // Calculate new current time based on adaptive timestep
+          currTime = lastGoodTime_ + timestep;
 
         } else {
+          // Legacy behavior: halve the timestep
+          timestep = timestep / 2;
 
-          if (i < timeSize) {
-            currTime = time_[i];
-
-            time_.erase(time_.begin() + (i - 1));
-            timeSize = time_.size();
-
-            timestep = currTime - lastGoodTime_;
+          if (timestep > stepTimeTHR_) { // stepTimeTHR_ = 1.e-3
+            currTime -= timestep;
           } else {
-            std::clog << endl
-                      << endl
-                      << endl
-                      << "##### Controller::doCycle - START NEW CYCLE - "
-                         "CHANGE TIME NOT POSSIBLE #####"
-                      << endl;
-            std::clog
-                << endl
-                << "##### i/timeSize/lastGoodTime_/initialLastTime/currTime : "
-                << i << " / " << timeSize << " / " << lastGoodTime_ << " / "
-                << initialLastTime << " / " << currTime
-                << " (time in hours) #####" << endl;
-            break;
-            // throw EOBException("Controller", "doCycle - 1", "time_",
-            // timeSize, i);
+            if (i < timeSize) {
+              currTime = time_[i];
+              time_.erase(time_.begin() + (i - 1));
+              timeSize = time_.size();
+              timestep = currTime - lastGoodTime_;
+            } else {
+              std::clog << endl
+                        << endl
+                        << endl
+                        << "##### Controller::doCycle - START NEW CYCLE - "
+                           "CHANGE TIME NOT POSSIBLE #####"
+                        << endl;
+              std::clog
+                  << endl
+                  << "##### i/timeSize/lastGoodTime_/initialLastTime/currTime : "
+                  << i << " / " << timeSize << " / " << lastGoodTime_ << " / "
+                  << initialLastTime << " / " << currTime
+                  << " (time in hours) #####" << endl;
+              break;
+            }
           }
         }
 
@@ -683,16 +703,29 @@ void Controller::doCycle(double elemTimeInterval) {
                   << old_timestep << " / " << timestep << endl;
 
       } else {
-        // if the previous call of GEMS returns without error, the dissolution
-        // time
-        //   step is computed as the difference between the next computation
-        //   time value and the time corresponding to the previous step
+        // Previous GEMS call succeeded - compute next timestep
 
-        if (i - 1 < timeSize) {
-          currTime = time_[i - 1];
+        if (useAdaptiveTimeStepping_ && adaptiveTimeController_) {
+          // Use adaptive time controller to get next timestep
+          timestep = adaptiveTimeController_->getNextTimestep();
 
-          timestep = currTime - lastGoodTime_;
+          // Ensure we don't overshoot final simulation time
+          double finalTime = time_[timeSize - 1];
+          if (lastGoodTime_ + timestep > finalTime) {
+            timestep = finalTime - lastGoodTime_;
+          }
 
+          // Ensure we hit output times exactly
+          for (size_t ot = 0; ot < outputImageTime_.size(); ot++) {
+            double outTime = outputImageTime_[ot];
+            if (outTime > lastGoodTime_ && outTime < lastGoodTime_ + timestep) {
+              // There's an output time before our proposed next time
+              timestep = outTime - lastGoodTime_;
+              break;
+            }
+          }
+
+          currTime = lastGoodTime_ + timestep;
           dissTimeInterval = timestep;
 
           chemSys_->setAllKeepDCLowerLimitZero();
@@ -700,27 +733,46 @@ void Controller::doCycle(double elemTimeInterval) {
           std::clog << endl
                     << endl
                     << endl
-                    << "##### Controller::doCycle - START NEW CYCLE   "
-                       "i/cyc/time_[i]/currTime/lastGoodTime_/timestep : "
-                    << i << " / " << cyc << " / " << time_[i] << " / "
-                    << currTime << " / " << lastGoodTime_ << " / " << timestep
+                    << "##### Controller::doCycle - START NEW CYCLE (ADAPTIVE) "
+                       "i/cyc/currTime/lastGoodTime_/timestep : "
+                    << i << " / " << cyc << " / " << currTime << " / "
+                    << lastGoodTime_ << " / " << timestep
                     << " (time in hours) #####" << endl;
+
         } else {
-          std::clog << endl
-                    << endl
-                    << endl
-                    << "##### Controller::doCycle - START NEW CYCLE : "
-                       "ALL TIME VALUES HAVE BEEN USED !  #####"
-                    << endl;
-          std::clog
-              << endl
-              << "##### i/timeSize/lastGoodTime_/initialLastTime/currTime : "
-              << i << " / " << timeSize << " / " << lastGoodTime_ << " / "
-              << initialLastTime << " / " << currTime
-              << " (time in hours) #####" << endl;
-          break;
-          // throw EOBException("Controller", "doCycle - 0", "time_", timeSize,
-          // i - 1);
+          // Legacy mode: use pre-generated time array
+          if (i - 1 < timeSize) {
+            currTime = time_[i - 1];
+
+            timestep = currTime - lastGoodTime_;
+
+            dissTimeInterval = timestep;
+
+            chemSys_->setAllKeepDCLowerLimitZero();
+
+            std::clog << endl
+                      << endl
+                      << endl
+                      << "##### Controller::doCycle - START NEW CYCLE   "
+                         "i/cyc/time_[i]/currTime/lastGoodTime_/timestep : "
+                      << i << " / " << cyc << " / " << time_[i] << " / "
+                      << currTime << " / " << lastGoodTime_ << " / " << timestep
+                      << " (time in hours) #####" << endl;
+          } else {
+            std::clog << endl
+                      << endl
+                      << endl
+                      << "##### Controller::doCycle - START NEW CYCLE : "
+                         "ALL TIME VALUES HAVE BEEN USED !  #####"
+                      << endl;
+            std::clog
+                << endl
+                << "##### i/timeSize/lastGoodTime_/initialLastTime/currTime : "
+                << i << " / " << timeSize << " / " << lastGoodTime_ << " / "
+                << initialLastTime << " / " << currTime
+                << " (time in hours) #####" << endl;
+            break;
+          }
         }
       }
 
@@ -822,6 +874,19 @@ void Controller::doCycle(double elemTimeInterval) {
                      "i/cyc/time[i]/currTime/getTimesGEMFailed_loc: "
                   << i << " / " << cyc << " / " << time_[i] << " / " << currTime
                   << " / " << timesGEMFailed_loc << endl;
+
+        // Record successful GEMS calculation for adaptive time stepping
+        if (useAdaptiveTimeStepping_ && adaptiveTimeController_) {
+          long int iterDone = chemSys_->getIterDone();
+          double pci = chemSys_->getPCI();
+          double dxm = chemSys_->getDXM();
+          adaptiveTimeController_->recordSuccess(iterDone, pci, dxm);
+
+          if (verbose_) {
+            std::clog << "AdaptiveTime status: "
+                      << adaptiveTimeController_->getStatusString() << endl;
+          }
+        }
       }
 
     } catch (GEMException gex) {

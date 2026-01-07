@@ -6,12 +6,14 @@
 #ifndef SRC_THAMESLIB_CONTROLLER_H_
 #define SRC_THAMESLIB_CONTROLLER_H_
 
+#include "AdaptiveTimeController.h"
 #include "Exceptions.h"
 #include "KineticController.h"
 #include "Lattice.h"
 #include "Site.h"
 #include "ThermalStrain.h"
 #include "global.h"
+#include <memory>
 
 struct RestoreSite {
   // for each site in site_:
@@ -188,6 +190,23 @@ private:
   double lastGoodTime_;
   double stepTimeTHR_;
 
+  /**
+  @brief Adaptive time stepping controller.
+
+  Manages timestep selection based on GEMS solver feedback.
+  Replaces fixed linear time stepping with intelligent adaptation.
+  Only used when useAdaptiveTimeStepping_ is true.
+  */
+  std::unique_ptr<AdaptiveTimeController> adaptiveTimeController_;
+
+  /**
+  @brief Flag to enable/disable adaptive time stepping.
+
+  When true, uses AdaptiveTimeController for timestep decisions.
+  When false, uses legacy pre-generated time array.
+  */
+  bool useAdaptiveTimeStepping_;
+
 public:
   /**
   @brief The constructor.
@@ -333,6 +352,35 @@ public:
   @return the warning flag
   */
   bool getWarning() const { return warning_; }
+
+  /**
+  @brief Enable or disable adaptive time stepping.
+
+  When enabled, the controller uses GEMS solver feedback to
+  intelligently adjust timestep size. When disabled, uses
+  the legacy pre-generated time array.
+
+  @param enable true to enable adaptive stepping
+  */
+  void setUseAdaptiveTimeStepping(bool enable) {
+    useAdaptiveTimeStepping_ = enable;
+  }
+
+  /**
+  @brief Check if adaptive time stepping is enabled.
+
+  @return true if adaptive stepping is enabled
+  */
+  bool getUseAdaptiveTimeStepping() const { return useAdaptiveTimeStepping_; }
+
+  /**
+  @brief Get pointer to the adaptive time controller.
+
+  @return pointer to AdaptiveTimeController, or nullptr if not initialized
+  */
+  AdaptiveTimeController *getAdaptiveTimeController() {
+    return adaptiveTimeController_.get();
+  }
 
   /**
   @brief Set the xyz flag
