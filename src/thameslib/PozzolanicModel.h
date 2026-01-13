@@ -350,6 +350,16 @@ public:
                                     double totalDOR, bool doTweak,
                                     bool &doNotModif);
 
+  /**
+  @brief Estimate the initial dissolution rate for this pozzolanic phase.
+
+  Uses the dissolution rate constant with conservative assumptions
+  about surface area, OH- activity, and saturation index.
+
+  @return the estimated dissolution rate [1/hour]
+  */
+  double estimateInitialDissolutionRate() const override;
+
 }; // End of PozzolanicModel class
 
 #endif // SRC_THAMESLIB_POZZOLANICMODEL_H_

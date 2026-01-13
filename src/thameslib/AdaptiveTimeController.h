@@ -261,6 +261,19 @@ public:
   */
   void setVerbose(bool verbose) { config_.verbose = verbose; }
 
+  /**
+  @brief Set initial timestep based on kinetic rates.
+
+  Calculates an appropriate initial timestep to limit the relative change
+  in dissolving phases to a specified maximum. This provides a physics-based
+  initial timestep rather than using a hard-coded default.
+
+  @param maxRate Maximum dissolution rate across all phases [1/hour]
+  @param maxRelativeChange Maximum allowed relative change per timestep (default 5%)
+  */
+  void setInitialTimestepFromKinetics(double maxRate,
+                                      double maxRelativeChange = 0.05);
+
 private:
   /// Configuration parameters
   AdaptiveTimeConfig config_;

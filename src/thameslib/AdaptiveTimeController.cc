@@ -273,3 +273,46 @@ void AdaptiveTimeController::setConfig(const AdaptiveTimeConfig &config) {
   // Ensure current timestep is within new bounds
   dt_current_ = clampTimestep(dt_current_);
 }
+
+void AdaptiveTimeController::setInitialTimestepFromKinetics(
+    double maxRate, double maxRelativeChange) {
+  //
+  // Calculate an appropriate initial timestep based on kinetic rates.
+  //
+  // The idea is to limit the relative change in any dissolving phase
+  // to maxRelativeChange (e.g., 5%) per timestep. Given a dissolution
+  // rate R [1/hour], the change in mass fraction per timestep dt is:
+  //
+  //   delta_m / m = R * dt
+  //
+  // To keep delta_m / m <= maxRelativeChange:
+  //
+  //   dt <= maxRelativeChange / R
+  //
+
+  if (maxRate <= 0.0 || maxRelativeChange <= 0.0) {
+    // No valid kinetic data, keep the default initial timestep
+    if (config_.verbose) {
+      std::cout << "AdaptiveTime: No valid kinetic rate, using default dt_initial="
+                << config_.dt_initial << " h" << std::endl;
+    }
+    dt_current_ = clampTimestep(config_.dt_initial);
+    return;
+  }
+
+  // Calculate timestep that limits relative change to maxRelativeChange
+  double dt_kinetic = maxRelativeChange / maxRate;
+
+  // Clamp to allowed bounds
+  dt_current_ = clampTimestep(dt_kinetic);
+
+  // Also update config_.dt_initial so reset() uses this value
+  config_.dt_initial = dt_current_;
+
+  if (config_.verbose) {
+    std::cout << "AdaptiveTime: Initial timestep from kinetics: maxRate="
+              << maxRate << " 1/h, maxRelChange=" << maxRelativeChange
+              << ", dt_kinetic=" << dt_kinetic << " h, dt_initial="
+              << dt_current_ << " h" << std::endl;
+  }
+}

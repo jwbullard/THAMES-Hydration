@@ -315,3 +315,35 @@ void StandardKineticModel::calculateKineticStep(const double timestep,
 
   return;
 }
+
+double StandardKineticModel::estimateInitialDissolutionRate() const {
+  //
+  // Estimate the initial dissolution rate for adaptive timestep sizing.
+  //
+  // The Standard model rate equation is:
+  //   dissrate [mol/100g/h] = k * rh * area * f(SI) * arrhenius
+  //   massDissolved [g/100g] = dissrate * dt * molarMass
+  //
+  // For initial estimation, we assume:
+  //   - SI ≈ 0 (far from equilibrium), so f(SI) ≈ 1
+  //   - Initial surface area estimated from scaled mass and typical specific area
+  //
+
+  if (initScaledMass_ <= 0.0 || dissolutionRateConst_ <= 0.0) {
+    return 0.0;
+  }
+
+  // Estimate initial surface area: assume ~1 m2 per gram of phase
+  // (this is a rough estimate; actual value depends on particle size)
+  double estimatedArea = initScaledMass_ * surfaceAreaMultiplier_;
+
+  // dissrate in mol/100g/h (assuming SI=0, so driving force = 1)
+  double dissrate = dissolutionRateConst_ * rhFactor_ * estimatedArea * arrhenius_;
+
+  // Convert to mass fraction rate [1/h]
+  // dissrate [mol/100g/h] * molarMass [g/mol] / initScaledMass [g/100g] = [1/h]
+  double molarMass = chemSys_->getDCMolarMass(DCId_);
+  double rate = (dissrate * molarMass) / initScaledMass_;
+
+  return rate;
+}

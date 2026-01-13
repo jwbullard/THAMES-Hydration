@@ -516,6 +516,18 @@ public:
   */
   void setIniAttackTime(const double val) { beginAttackTime_ = val; }
 
+  /**
+  @brief Estimate the maximum initial dissolution rate across all kinetic models.
+
+  This method queries each kinetic model for its estimated initial dissolution
+  rate and returns the maximum rate found. This is used for adaptive timestep
+  initialization - the fastest-reacting phase determines the initial timestep.
+
+  @return the maximum estimated dissolution rate [1/hour], or 0 if no kinetic
+          models are defined
+  */
+  double getMaxInitialDissolutionRate() const;
+
 }; // End of KineticController class
 
 #endif // SRC_THAMESLIB_KINETICCONTROLLER_H_

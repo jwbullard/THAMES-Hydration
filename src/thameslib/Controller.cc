@@ -22,9 +22,20 @@ Controller::Controller(Lattice *msh, KineticController *kc, ChemicalSystem *cs,
   useAdaptiveTimeStepping_ = true;
   AdaptiveTimeConfig adaptiveConfig;
   adaptiveConfig.dt_min = stepTimeTHR_;
-  adaptiveConfig.dt_initial = 0.001; // ~3.6 seconds
+  adaptiveConfig.dt_initial = 0.001; // ~3.6 seconds (default, may be overridden)
   adaptiveConfig.verbose = verbose;
   adaptiveTimeController_ = std::make_unique<AdaptiveTimeController>(adaptiveConfig);
+
+  // Set initial timestep based on kinetic rates
+  // This provides a physics-based initial timestep rather than hard-coded default
+  double maxKineticRate = kc->getMaxInitialDissolutionRate();
+  if (maxKineticRate > 0.0) {
+    // Limit relative change to 5% per timestep
+    adaptiveTimeController_->setInitialTimestepFromKinetics(maxKineticRate, 0.05);
+    std::clog << "Controller: Initial timestep set from kinetics, maxRate="
+              << maxKineticRate << " 1/h, dt_initial="
+              << adaptiveTimeController_->getCurrentTimestep() << " h" << endl;
+  }
 
   // xyz_ = xyz;
   xyzMovie_ = xyz;

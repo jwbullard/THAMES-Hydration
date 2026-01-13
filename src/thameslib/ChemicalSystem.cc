@@ -2363,6 +2363,10 @@ int ChemicalSystem::calculateState(double time, bool isFirst = false,
 
   vector<double> microPhaseVolumes = getMicroPhaseVolume();
 
+  // Always use AIA (Automatic Initial Approximation) mode.
+  // SIA mode was tried but caused E06IPM Main Descent failures
+  // because large IC changes between cycles make the previous
+  // solution a poor starting point.
   nodeStatus_ = NEED_GEM_AIA;
 
   for (int i = 0; i < numDCs_; i++) {
@@ -2413,10 +2417,10 @@ int ChemicalSystem::calculateState(double time, bool isFirst = false,
   setGasComposition(doAttack);
   */
 
-  // All the ICMoles_ that are less than 10^-9 are set to 10^-9
-  if (isFirst) {
-    checkICMoles();
-  }
+  // Enforce minimum IC amounts (ICTHRESH) on every cycle.
+  // This prevents ICs from depleting to near-zero values that cause
+  // numerical instability in GEMS Mass Balance Refinement (MBR).
+  checkICMoles();
 
   if (verbose_) {
     std::clog << endl
@@ -2483,7 +2487,7 @@ int ChemicalSystem::calculateState(double time, bool isFirst = false,
   node_->GEM_from_MT_time(time, 1.0);
 
   ///
-  /// Attempt to run GEM with automatic initial approximation (AIA)
+  /// Run GEM thermodynamic calculation.
   ///
   /// This starts the thermodynamic calculation and returns the results,
   /// including the ionic strength, pH, IC chemical potentials, DC moles,
@@ -2496,6 +2500,10 @@ int ChemicalSystem::calculateState(double time, bool isFirst = false,
   /// speciation from a previous GEM_run, but is true if we want to use the
   /// activity coefficients and speciation stored in a DBR memory structure
   /// read from a DBR file
+  ///
+  /// For continuation problems (advancing timesteps), using the previous
+  /// solution (SIA mode with false) gives a much better initial guess and
+  /// helps the Mass Balance Refinement (MBR) algorithm converge.
   ///
   /// Possible return values for nodeStatus_:
   ///    0 (NO_GEM_SOLVER): No GEM recalculation needed for node
@@ -2510,6 +2518,7 @@ int ChemicalSystem::calculateState(double time, bool isFirst = false,
   ///    error (e.g., memory corruption). Need restart
   ///
 
+  // Always use true for AIA mode (fresh start from DBR file each cycle)
   nodeStatus_ = node_->GEM_run(true);
 
   if (!(nodeStatus_ == OK_GEM_AIA || nodeStatus_ == OK_GEM_SIA)) {

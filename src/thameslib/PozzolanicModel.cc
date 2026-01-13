@@ -405,3 +405,48 @@ void PozzolanicModel::calculateKineticStep(const double timestep,
 
   return;
 }
+
+double PozzolanicModel::estimateInitialDissolutionRate() const {
+  //
+  // Estimate the initial dissolution rate for adaptive timestep sizing.
+  //
+  // The Pozzolanic model has a complex rate equation involving:
+  //   - Base rate constant + alkali effects (Langmuir terms)
+  //   - OH- activity dependence
+  //   - Surface area
+  //   - Saturation index driving force
+  //   - LOI and SiO2 content corrections
+  //
+  // For initial estimation, we make conservative assumptions:
+  //   - SI ≈ 0, so driving force ≈ 1
+  //   - OH- activity ≈ 0.01 (typical cement pore solution)
+  //   - Alkali effects are modest
+  //
+
+  if (initScaledMass_ <= 0.0 || dissolutionRateConst_ <= 0.0) {
+    return 0.0;
+  }
+
+  // Estimate base rate constant (without alkali effects for simplicity)
+  double baserateconst = dissolutionRateConst_;
+
+  // Estimate OH- activity effect (typical high-pH cement solution)
+  double ohEffect = pow(0.01, ohexp_);
+
+  // Estimate initial surface area: assume ~1 m2 per gram of phase
+  double estimatedArea = initScaledMass_ * surfaceAreaMultiplier_;
+
+  // Corrections for LOI and SiO2 content
+  double loiCorrection = 1.0 - (lossOnIgnition_ / 100.0);
+  double sio2Correction = sio2_;
+
+  // dissrate in mol/100g/h (assuming SI=0, driving force = 1, water activity = 1)
+  double dissrate = baserateconst * rhFactor_ * ohEffect * estimatedArea *
+                    loiCorrection * sio2Correction * arrhenius_;
+
+  // Convert to mass fraction rate [1/h]
+  double molarMass = chemSys_->getDCMolarMass(DCId_);
+  double rate = (dissrate * molarMass) / initScaledMass_;
+
+  return rate;
+}

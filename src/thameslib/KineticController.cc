@@ -1426,3 +1426,24 @@ void KineticController::updateKineticStep(int cyc, int pId, double scaledMass,
     }
   }
 }
+
+double KineticController::getMaxInitialDissolutionRate() const {
+  //
+  // Find the maximum initial dissolution rate across all kinetic models.
+  // This determines the fastest-reacting phase, which constrains the
+  // initial timestep for adaptive time stepping.
+  //
+
+  double maxRate = 0.0;
+
+  for (int i = 0; i < pKMsize_; ++i) {
+    if (phaseKineticModel_[i] != nullptr) {
+      double rate = phaseKineticModel_[i]->estimateInitialDissolutionRate();
+      if (rate > maxRate) {
+        maxRate = rate;
+      }
+    }
+  }
+
+  return maxRate;
+}

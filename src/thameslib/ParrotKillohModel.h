@@ -282,6 +282,17 @@ public:
                                     double totalDOR, bool doTweak,
                                     bool &doNotModif);
 
+  /**
+  @brief Estimate the initial dissolution rate for this clinker phase.
+
+  Uses the Parrot-Killoh rate equations at DOR ≈ 0 to estimate the
+  initial dissolution rate. At very low DOR, the nucleation and growth
+  rate typically dominates.
+
+  @return the estimated dissolution rate [1/hour]
+  */
+  double estimateInitialDissolutionRate() const override;
+
 }; // End of ParrotKillohModel class
 
 #endif // SRC_THAMESLIB_PARROTKILLOHMODEL_H_

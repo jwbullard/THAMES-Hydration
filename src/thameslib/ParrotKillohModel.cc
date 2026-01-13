@@ -376,3 +376,48 @@ void ParrotKillohModel::calculateKineticStep(const double timestep,
 
   return;
 }
+
+double ParrotKillohModel::estimateInitialDissolutionRate() const {
+  //
+  // Estimate the dissolution rate at very early times (DOR ~ 0.001)
+  // using the Parrot-Killoh rate equations.
+  //
+  // At very low DOR, we use a small positive value to avoid
+  // numerical issues with ln(1-DOR) when DOR=0.
+  //
+
+  const double DOR = 0.001; // Small initial DOR for rate estimation
+
+  double ngrate = 1.0e-10;
+  double hsrate = 1.0e-10;
+  double diffrate = 1.0e9;
+
+  // Nucleation and growth rate
+  if (fabs(n1_) > 0.0) {
+    ngrate = (k1_ / n1_) * (1.0 - DOR) * pow((-log(1.0 - DOR)), (1.0 - n1_));
+    ngrate *= ssaFactor_;
+    if (ngrate < 1.0e-10)
+      ngrate = 1.0e-10;
+  }
+
+  // Hydration shell (late diffusion) rate
+  hsrate = k3_ * pow((1.0 - DOR), n3_);
+  if (hsrate < 1.0e-10)
+    hsrate = 1.0e-10;
+
+  // Early diffusion rate
+  diffrate = (k2_ * pow((1.0 - DOR), (2.0 / 3.0))) /
+             (1.0 - pow((1.0 - DOR), (1.0 / 3.0)));
+  if (diffrate < 1.0e-10)
+    diffrate = 1.0e-10;
+
+  // Select minimum rate (rate-limiting step)
+  double rate = (ngrate < hsrate) ? ngrate : hsrate;
+  if (diffrate < rate)
+    rate = diffrate;
+
+  // Apply temperature and RH corrections, convert from per-day to per-hour
+  rate *= (pfk_ * rhFactor_ * arrhenius_ / H_PER_DAY);
+
+  return rate;
+}

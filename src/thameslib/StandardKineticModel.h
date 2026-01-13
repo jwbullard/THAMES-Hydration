@@ -196,6 +196,16 @@ public:
                                     double totalDOR, bool doTweak,
                                     bool &doNotModif);
 
+  /**
+  @brief Estimate the initial dissolution rate for this phase.
+
+  Uses the dissolution rate constant with conservative assumptions
+  about surface area and saturation index to estimate the initial rate.
+
+  @return the estimated dissolution rate [1/hour]
+  */
+  double estimateInitialDissolutionRate() const override;
+
 }; // End of StandardKineticModel class
 
 #endif // SRC_THAMESLIB_STANDARDKINETICMODEL_H_

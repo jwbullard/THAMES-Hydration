@@ -543,6 +543,24 @@ public:
                                     bool &doNotModif) = 0;
 
   /**
+  @brief Estimate the initial dissolution rate for this phase.
+
+  This method estimates the dissolution rate at the start of the simulation
+  (when DOR is near zero) for use in adaptive timestep initialization.
+  The rate is returned as mass fraction dissolved per hour.
+
+  @return the estimated dissolution rate [1/hour], or 0 if not applicable
+  */
+  virtual double estimateInitialDissolutionRate() const { return 0.0; }
+
+  /**
+  @brief Get the initial scaled mass of this phase.
+
+  @return the initial scaled mass [g/100g solids]
+  */
+  double getInitScaledMass() const { return initScaledMass_; }
+
+  /**
   @brief Set up the number of moles of dependent components in the kinetic
   phases.
 
