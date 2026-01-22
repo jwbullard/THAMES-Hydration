@@ -2411,11 +2411,9 @@ int ChemicalSystem::calculateState(double time, bool isFirst = false,
     DCUpperLimit_[ferriteDCId_] = DCMoles_[ferriteDCId_];
   }
 
-  /*
   // Check and set chemical conditions on electrolyte and gas phase
   setElectrolyteComposition(doAttack);
   setGasComposition(doAttack);
-  */
 
   // Enforce minimum IC amounts (ICTHRESH) on every cycle.
   // This prevents ICs from depleting to near-zero values that cause
@@ -4420,12 +4418,31 @@ void ChemicalSystem::setElectrolyteComposition(bool doAttack) {
       DCId = it->first;
       if (DCId != waterDCId_) {
         DCconc = it->second;
-        DCMoles_[DCId] = DCconc * waterMass;
+        double targetDCMoles = DCconc * waterMass;
+        double currentDCMoles = DCMoles_[DCId];
+        double deltaDCMoles = targetDCMoles - currentDCMoles;
+
+        // Set the DC moles to the target value
+        DCMoles_[DCId] = targetDCMoles;
+
+        // Add the corresponding IC moles to represent external source
+        // This ensures GEMS has enough of each element to maintain the
+        // fixed concentration
+        if (deltaDCMoles > 0) {
+          for (int i = 0; i < numICs_; i++) {
+            double stoich = getDCStoich(DCId, i);
+            if (stoich != 0.0) {
+              ICMoles_[i] += deltaDCMoles * stoich;
+            }
+          }
+        }
+
+        std::clog << "        ChemicalSystem::setElectrolyteComposition fixed  - "
+                     "waterMass/DCconc/DCMoles_/deltaDC/DCId/DCName : "
+                  << waterMass << " / " << DCconc << " / " << DCMoles_[DCId]
+                  << " / " << deltaDCMoles << " / " << DCId << " / "
+                  << DCName_[DCId] << endl;
       }
-      std::clog << "        ChemicalSystem::setElectrolyteComposition fixed  - "
-                   "waterMass/DCconc/DCMoles_/DCId/DCName : "
-                << waterMass << " / " << DCconc << " / " << DCMoles_[DCId]
-                << " / " << DCId << " / " << DCName_[DCId] << endl;
       it++;
     }
   }

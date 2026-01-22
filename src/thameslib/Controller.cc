@@ -16,22 +16,24 @@ Controller::Controller(Lattice *msh, KineticController *kc, ChemicalSystem *cs,
                        const string &jsonFileName, const string &jobname,
                        const bool verbose, const bool warning, const bool xyz) {
 
-  stepTimeTHR_ = 1.e-3;
+  stepTimeTHR_ = 1.e-5;  // Minimum timestep: 0.036 seconds (lowered from 1e-3)
 
   // Initialize adaptive time stepping (enabled by default)
   useAdaptiveTimeStepping_ = true;
   AdaptiveTimeConfig adaptiveConfig;
   adaptiveConfig.dt_min = stepTimeTHR_;
-  adaptiveConfig.dt_initial = 0.001; // ~3.6 seconds (default, may be overridden)
+  adaptiveConfig.dt_initial = 0.0001; // ~0.36 seconds (default, may be overridden)
   adaptiveConfig.verbose = verbose;
   adaptiveTimeController_ = std::make_unique<AdaptiveTimeController>(adaptiveConfig);
 
   // Set initial timestep based on kinetic rates
   // This provides a physics-based initial timestep rather than hard-coded default
+  // Use conservative 2% max relative change to avoid overshooting equilibrium
+  // when starting far from equilibrium (high driving force)
   double maxKineticRate = kc->getMaxInitialDissolutionRate();
   if (maxKineticRate > 0.0) {
-    // Limit relative change to 5% per timestep
-    adaptiveTimeController_->setInitialTimestepFromKinetics(maxKineticRate, 0.05);
+    // Limit relative change to 2% per timestep (conservative for stiff systems)
+    adaptiveTimeController_->setInitialTimestepFromKinetics(maxKineticRate, 0.02);
     std::clog << "Controller: Initial timestep set from kinetics, maxRate="
               << maxKineticRate << " 1/h, dt_initial="
               << adaptiveTimeController_->getCurrentTimestep() << " h" << endl;
@@ -2775,15 +2777,12 @@ string Controller::getTimeString(const double curtime) {
   int s_per_year = static_cast<int>(S_PER_YEAR);
   int s_per_day = static_cast<int>(S_PER_DAY);
   int s_per_minute = static_cast<int>(S_PER_MINUTE);
-  int min_per_h = 60;
-  int h_per_day = 24;
-  int d_per_year = 365;
 
   // Convert curtime (currently in h) into nearest second
   double curtime_in_s_dbl = curtime * S_PER_H;
   int curtime_s = static_cast<int>(curtime_in_s_dbl + 0.5);
 
-  int years, days, hours, mins;
+  int years, days, hours, mins, secs;
   // How many years is this?
   years = curtime_s / s_per_year;
   curtime_s -= (years * s_per_year);
@@ -2796,26 +2795,10 @@ string Controller::getTimeString(const double curtime) {
   // Convert remaining time into minutes
   mins = curtime_s / s_per_minute;
   curtime_s -= (mins * s_per_minute);
+  // Remaining time is seconds
+  secs = curtime_s;
 
-  // Round up minutes if curtime_in_s >= 30
-  if (curtime_s >= 30) {
-    mins += 1;
-    // Propagate this rounding to other time units
-    if (mins > min_per_h) {
-      hours += 1;
-      mins -= min_per_h;
-      if (hours > h_per_day) {
-        days += 1;
-        hours -= h_per_day;
-        if (days > d_per_year) {
-          years += 1;
-          days -= d_per_year;
-        }
-      }
-    }
-  }
-
-  ostringstream ostrY, ostrD, ostrH, ostrM;
+  ostringstream ostrY, ostrD, ostrH, ostrM, ostrS;
   ostrY << setfill('0') << std::setw(3) << years;
   string timestrY(ostrY.str());
   ostrD << setfill('0') << std::setw(3) << days;
@@ -2824,9 +2807,16 @@ string Controller::getTimeString(const double curtime) {
   string timestrH(ostrH.str());
   ostrM << setfill('0') << std::setw(2) << mins;
   string timestrM(ostrM.str());
+  ostrS << setfill('0') << std::setw(2) << secs;
+  string timestrS(ostrS.str());
 
+  // Include seconds in filename when non-zero for sub-minute precision
+  // Format: 000y000d00h00m (backward compatible) or 000y000d00h00m00s
   string timeString =
       timestrY + "y" + timestrD + "d" + timestrH + "h" + timestrM + "m";
+  if (secs > 0) {
+    timeString += timestrS + "s";
+  }
 
   return timeString;
 }
