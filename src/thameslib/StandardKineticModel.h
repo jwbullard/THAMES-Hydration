@@ -206,6 +206,17 @@ public:
   */
   double estimateInitialDissolutionRate() const override;
 
+  /**
+  @brief Estimate the initial dissolution rate using actual saturation index.
+
+  Uses the actual SI from pre-equilibration to compute the driving force
+  term (1 - SI^siexp)^dfexp rather than assuming SI ≈ 0.
+
+  @param saturationIndex the saturation index from GEMS equilibration
+  @return the estimated dissolution rate [1/hour]
+  */
+  double estimateInitialDissolutionRate(double saturationIndex) const override;
+
 }; // End of StandardKineticModel class
 
 #endif // SRC_THAMESLIB_STANDARDKINETICMODEL_H_

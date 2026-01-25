@@ -450,3 +450,59 @@ double PozzolanicModel::estimateInitialDissolutionRate() const {
 
   return rate;
 }
+
+double PozzolanicModel::estimateInitialDissolutionRate(
+    double saturationIndex) const {
+  //
+  // Estimate the initial dissolution rate using actual saturation index.
+  //
+  // This method uses the SI from pre-equilibration to compute the driving
+  // force term rather than assuming SI ≈ 0 (maximum driving force).
+  //
+  // The pozzolanic model rate equation includes:
+  //   - Base rate constant + alkali effects
+  //   - OH- activity dependence
+  //   - Surface area
+  //   - Saturation index driving force: (1 - SI^siexp)^dfexp
+  //
+
+  if (initScaledMass_ <= 0.0 || dissolutionRateConst_ <= 0.0) {
+    return 0.0;
+  }
+
+  // Calculate driving force from actual SI
+  double drivingForce = 1.0; // Default: maximum driving force
+
+  if (saturationIndex > 0.0 && saturationIndex < 1.0) {
+    // Undersaturated: dissolution occurs
+    drivingForce = pow((1.0 - pow(saturationIndex, siexp_)), dfexp_);
+  } else if (saturationIndex >= 1.0) {
+    // Supersaturated: precipitation occurs
+    // Use absolute value of driving force for rate magnitude
+    drivingForce = pow((pow(saturationIndex, siexp_) - 1.0), dfexp_);
+  }
+  // If SI ≈ 0 or invalid, drivingForce remains 1.0 (maximum)
+
+  // Estimate base rate constant (without alkali effects for simplicity)
+  double baserateconst = dissolutionRateConst_;
+
+  // Estimate OH- activity effect (typical high-pH cement solution)
+  double ohEffect = pow(0.01, ohexp_);
+
+  // Estimate initial surface area
+  double estimatedArea = initScaledMass_ * surfaceAreaMultiplier_;
+
+  // Corrections for LOI and SiO2 content
+  double loiCorrection = 1.0 - (lossOnIgnition_ / 100.0);
+  double sio2Correction = sio2_;
+
+  // dissrate in mol/100g/h with actual driving force
+  double dissrate = baserateconst * rhFactor_ * ohEffect * estimatedArea *
+                    drivingForce * loiCorrection * sio2Correction * arrhenius_;
+
+  // Convert to mass fraction rate [1/h]
+  double molarMass = chemSys_->getDCMolarMass(DCId_);
+  double rate = (dissrate * molarMass) / initScaledMass_;
+
+  return rate;
+}

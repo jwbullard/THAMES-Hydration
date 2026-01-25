@@ -18,24 +18,78 @@ Controller::Controller(Lattice *msh, KineticController *kc, ChemicalSystem *cs,
 
   stepTimeTHR_ = 1.e-5;  // Minimum timestep: 0.036 seconds (lowered from 1e-3)
 
+  // Detect kinetic model types to choose adaptive time stepping parameters.
+  // SI-driven models (Standard, Pozzolanic) can be stiff and need conservative settings.
+  // ParrotKilloh models are DOR-driven and can use more aggressive settings.
+  // Note: We check for significant mass, not just presence - fast-dissolving
+  // phases like sulfates shouldn't force conservative settings for the whole run.
+  bool hasSIDriven = kc->hasSignificantSIDrivenMass();
+
   // Initialize adaptive time stepping (enabled by default)
   useAdaptiveTimeStepping_ = true;
   AdaptiveTimeConfig adaptiveConfig;
   adaptiveConfig.dt_min = stepTimeTHR_;
-  adaptiveConfig.dt_initial = 0.0001; // ~0.36 seconds (default, may be overridden)
   adaptiveConfig.verbose = verbose;
+
+  if (hasSIDriven) {
+    // Conservative settings for SI-driven models (Standard, Pozzolanic)
+    // These can exhibit stiff behavior when far from equilibrium
+    adaptiveConfig.dt_initial = 0.0001;    // ~0.36 seconds
+    adaptiveConfig.dt_max = 1.0;           // 1 hour max
+    adaptiveConfig.growth_factor = 1.2;    // 20% growth per success
+    adaptiveConfig.successes_for_growth = 3;
+    std::clog << "Controller: SI-driven kinetic models detected - "
+              << "using conservative adaptive time stepping" << endl;
+  } else {
+    // Aggressive settings for ParrotKilloh-only systems
+    // These are DOR-driven and numerically stable
+    // Settings chosen to match original (non-adaptive) performance
+    adaptiveConfig.dt_initial = 0.01;      // ~36 seconds
+    adaptiveConfig.dt_max = 12.0;          // 12 hours max (late-age hydration is slow)
+    adaptiveConfig.growth_factor = 2.0;    // Double timestep on each success
+    adaptiveConfig.successes_for_growth = 1; // Grow immediately on success
+    std::clog << "Controller: ParrotKilloh-only kinetics detected - "
+              << "using aggressive adaptive time stepping" << endl;
+  }
+
   adaptiveTimeController_ = std::make_unique<AdaptiveTimeController>(adaptiveConfig);
+
+  // Pre-equilibration: Run GEMS equilibration with initial electrolyte
+  // composition to get realistic saturation indices for kinetic phases.
+  // This allows the kinetic models to estimate dissolution rates based on
+  // actual thermodynamic driving forces rather than assuming SI ≈ 0.
+  std::clog << "Controller: Running pre-equilibration GEMS calculation..." << endl;
+  try {
+    cs->calculateSI(0, 0.0);  // cyc=0, time=0.0 for pre-equilibration
+
+    // Pass the SI values to the KineticController
+    std::vector<double> initialSI = cs->getMicroPhaseSI();
+    kc->setInitialSaturationIndices(initialSI);
+
+    if (verbose) {
+      std::clog << "Controller: Pre-equilibration complete. "
+                << "SI values for " << initialSI.size() << " phases available."
+                << endl;
+    }
+  } catch (GEMException &gex) {
+    std::clog << "WARNING: Pre-equilibration GEMS calculation failed. "
+              << "Initial timestep will use conservative SI=0 assumption."
+              << endl;
+    // Continue without SI data - getMaxInitialDissolutionRate() will use
+    // the no-argument version that assumes maximum driving force
+  }
 
   // Set initial timestep based on kinetic rates
   // This provides a physics-based initial timestep rather than hard-coded default
-  // Use conservative 2% max relative change to avoid overshooting equilibrium
-  // when starting far from equilibrium (high driving force)
+  // Use different max relative change based on model type
   double maxKineticRate = kc->getMaxInitialDissolutionRate();
   if (maxKineticRate > 0.0) {
-    // Limit relative change to 2% per timestep (conservative for stiff systems)
-    adaptiveTimeController_->setInitialTimestepFromKinetics(maxKineticRate, 0.02);
+    // Conservative 2% for SI-driven, aggressive 5% for ParrotKilloh-only
+    double maxRelChange = hasSIDriven ? 0.02 : 0.05;
+    adaptiveTimeController_->setInitialTimestepFromKinetics(maxKineticRate, maxRelChange);
     std::clog << "Controller: Initial timestep set from kinetics, maxRate="
-              << maxKineticRate << " 1/h, dt_initial="
+              << maxKineticRate << " 1/h, maxRelChange=" << (maxRelChange * 100)
+              << "%, dt_initial="
               << adaptiveTimeController_->getCurrentTimestep() << " h" << endl;
   }
 
@@ -726,6 +780,18 @@ void Controller::doCycle(double elemTimeInterval) {
           double finalTime = time_[timeSize - 1];
           if (lastGoodTime_ + timestep > finalTime) {
             timestep = finalTime - lastGoodTime_;
+          }
+
+          // Check if we've reached the final time (timestep would be zero or tiny)
+          if (timestep < 1.0e-12) {
+            std::clog << std::endl
+                      << std::endl
+                      << "##### Controller::doCycle - ADAPTIVE TIME STEPPING: "
+                         "FINAL TIME REACHED #####"
+                      << std::endl;
+            std::clog << "##### lastGoodTime_ = " << lastGoodTime_
+                      << " h, finalTime = " << finalTime << " h #####" << std::endl;
+            break;
           }
 
           // Ensure we hit output times exactly

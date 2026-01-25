@@ -554,6 +554,25 @@ public:
   virtual double estimateInitialDissolutionRate() const { return 0.0; }
 
   /**
+  @brief Estimate the initial dissolution rate using actual saturation index.
+
+  This overload uses the actual saturation index from a pre-equilibration
+  GEMS calculation to provide a more accurate rate estimate. The driving
+  force term is computed from the actual SI rather than assuming SI ≈ 0.
+
+  The default implementation ignores the SI and calls the no-argument version.
+  This is appropriate for models like ParrotKillohModel where the rate is
+  controlled by degree of reaction (DOR) rather than saturation index.
+
+  @param saturationIndex the saturation index from GEMS equilibration
+  @return the estimated dissolution rate [1/hour], or 0 if not applicable
+  */
+  virtual double estimateInitialDissolutionRate(double saturationIndex) const {
+    (void)saturationIndex; // Suppress unused parameter warning
+    return estimateInitialDissolutionRate();
+  }
+
+  /**
   @brief Get the initial scaled mass of this phase.
 
   @return the initial scaled mass [g/100g solids]

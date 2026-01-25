@@ -347,3 +347,48 @@ double StandardKineticModel::estimateInitialDissolutionRate() const {
 
   return rate;
 }
+
+double StandardKineticModel::estimateInitialDissolutionRate(
+    double saturationIndex) const {
+  //
+  // Estimate the initial dissolution rate using actual saturation index.
+  //
+  // This method uses the SI from pre-equilibration to compute the driving
+  // force term rather than assuming SI ≈ 0 (maximum driving force).
+  //
+  // The driving force is: f(SI) = (1 - SI^siexp)^dfexp for dissolution (SI < 1)
+  //                       f(SI) = (SI^siexp - 1)^dfexp for precipitation (SI > 1)
+  //
+
+  if (initScaledMass_ <= 0.0 || dissolutionRateConst_ <= 0.0) {
+    return 0.0;
+  }
+
+  // Calculate driving force from actual SI
+  double drivingForce = 1.0; // Default: maximum driving force
+
+  if (saturationIndex > 0.0 && saturationIndex < 1.0) {
+    // Undersaturated: dissolution occurs
+    // f(SI) = (1 - SI^siexp)^dfexp
+    drivingForce = pow((1.0 - pow(saturationIndex, siexp_)), dfexp_);
+  } else if (saturationIndex >= 1.0) {
+    // Supersaturated: precipitation occurs
+    // Use absolute value of driving force for rate magnitude
+    // f(SI) = (SI^siexp - 1)^dfexp
+    drivingForce = pow((pow(saturationIndex, siexp_) - 1.0), dfexp_);
+  }
+  // If SI ≈ 0 or invalid, drivingForce remains 1.0 (maximum)
+
+  // Estimate initial surface area
+  double estimatedArea = initScaledMass_ * surfaceAreaMultiplier_;
+
+  // dissrate in mol/100g/h with actual driving force
+  double dissrate = dissolutionRateConst_ * rhFactor_ * estimatedArea *
+                    drivingForce * arrhenius_;
+
+  // Convert to mass fraction rate [1/h]
+  double molarMass = chemSys_->getDCMolarMass(DCId_);
+  double rate = (dissrate * molarMass) / initScaledMass_;
+
+  return rate;
+}

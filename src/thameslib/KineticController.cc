@@ -47,6 +47,10 @@ KineticController::KineticController() {
 
   verbose_ = warning_ = false;
 
+  // Initialize SI data tracking
+  initialMicroPhaseSI_.clear();
+  hasSIData_ = false;
+
   return;
 }
 
@@ -204,6 +208,11 @@ KineticController::KineticController(ChemicalSystem *cs, Lattice *lattice,
   chemSys_->setInitScaledCementMass(initScaledCementMass_);
 
   hydTimeIni_ = 0;
+
+  // Initialize SI data tracking (will be set by setInitialSaturationIndices
+  // if pre-equilibration is performed)
+  initialMicroPhaseSI_.clear();
+  hasSIData_ = false;
 
   return;
 }
@@ -1427,18 +1436,58 @@ void KineticController::updateKineticStep(int cyc, int pId, double scaledMass,
   }
 }
 
+void KineticController::setInitialSaturationIndices(
+    const std::vector<double> &microPhaseSI) {
+  //
+  // Store the saturation indices from pre-equilibration GEMS calculation.
+  // These are used by getMaxInitialDissolutionRate() to provide more
+  // accurate rate estimates based on actual thermodynamic driving forces.
+  //
+
+  initialMicroPhaseSI_ = microPhaseSI;
+  hasSIData_ = !microPhaseSI.empty();
+
+  if (verbose_ && hasSIData_) {
+    std::clog << "KineticController::setInitialSaturationIndices: "
+              << "Stored SI data for " << microPhaseSI.size()
+              << " microPhases" << std::endl;
+  }
+}
+
 double KineticController::getMaxInitialDissolutionRate() const {
   //
   // Find the maximum initial dissolution rate across all kinetic models.
   // This determines the fastest-reacting phase, which constrains the
   // initial timestep for adaptive time stepping.
   //
+  // If SI data from pre-equilibration is available, use the SI-aware
+  // rate estimation for more accurate results.
+  //
 
   double maxRate = 0.0;
 
   for (int i = 0; i < pKMsize_; ++i) {
     if (phaseKineticModel_[i] != nullptr) {
-      double rate = phaseKineticModel_[i]->estimateInitialDissolutionRate();
+      double rate = 0.0;
+      int microPhaseId = phaseKineticModel_[i]->getMicroPhaseId();
+
+      // Use SI-aware estimation if SI data is available for this phase
+      if (hasSIData_ && microPhaseId >= 0 &&
+          microPhaseId < static_cast<int>(initialMicroPhaseSI_.size())) {
+        double si = initialMicroPhaseSI_[microPhaseId];
+        rate = phaseKineticModel_[i]->estimateInitialDissolutionRate(si);
+
+        if (verbose_) {
+          std::clog << "  KineticController::getMaxInitialDissolutionRate: "
+                    << phaseKineticModel_[i]->getName()
+                    << " SI=" << si << " rate=" << rate << " [1/h]"
+                    << std::endl;
+        }
+      } else {
+        // Fall back to no-SI estimation (assumes maximum driving force)
+        rate = phaseKineticModel_[i]->estimateInitialDissolutionRate();
+      }
+
       if (rate > maxRate) {
         maxRate = rate;
       }
@@ -1446,4 +1495,62 @@ double KineticController::getMaxInitialDissolutionRate() const {
   }
 
   return maxRate;
+}
+
+bool KineticController::hasSignificantSIDrivenMass() const {
+  //
+  // Check if any SI-driven kinetic models require conservative time stepping.
+  // SI-driven models (Standard, Pozzolanic) can exhibit stiff behavior
+  // and require more conservative adaptive time stepping.
+  // ParrotKilloh models are DOR-driven and generally more stable.
+  //
+  // Exception: Fast-dissolving sulfate phases (Bassanite, Gypsum, Arcanite,
+  // Thenardite) use SI-driven kinetics but dissolve quickly without causing
+  // stiffness issues. These are excluded from the check.
+  //
+
+  // Phases that dissolve quickly and don't cause stiffness issues
+  // These typically use StandardKineticModel but shouldn't trigger
+  // conservative time stepping
+  static const std::vector<std::string> fastDissolvingPhases = {
+      "Bassanite", "Gypsum", "Arcanite", "Thenardite",
+      "bassanite", "gypsum", "arcanite", "thenardite"
+  };
+
+  for (int i = 0; i < pKMsize_; ++i) {
+    if (phaseKineticModel_[i] != nullptr) {
+      std::string modelType = phaseKineticModel_[i]->getType();
+      if (modelType == StandardType || modelType == PozzolanicType) {
+        std::string phaseName = phaseKineticModel_[i]->getName();
+
+        // Check if this is a fast-dissolving phase (excluded)
+        bool isFastDissolving = false;
+        for (const auto &fastPhase : fastDissolvingPhases) {
+          if (phaseName == fastPhase) {
+            isFastDissolving = true;
+            break;
+          }
+        }
+
+        if (isFastDissolving) {
+          std::clog << "KineticController::hasSignificantSIDrivenMass: "
+                    << "Excluding fast-dissolving phase " << phaseName
+                    << " from SI-driven check" << std::endl;
+          continue;
+        }
+
+        // This is a non-excluded SI-driven model - requires conservative settings
+        std::clog << "KineticController::hasSignificantSIDrivenMass: "
+                  << "Found SI-driven model (" << modelType << ") for "
+                  << phaseName << " - requires conservative time stepping"
+                  << std::endl;
+        return true;
+      }
+    }
+  }
+
+  std::clog << "KineticController::hasSignificantSIDrivenMass: "
+            << "No significant SI-driven models found (PK-only or only "
+            << "fast-dissolving sulfates)" << std::endl;
+  return false;
 }

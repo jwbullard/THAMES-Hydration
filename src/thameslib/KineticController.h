@@ -105,6 +105,12 @@ private:
                                        before to start the dissolution for a given
                                        time step */
 
+  std::vector<double> initialMicroPhaseSI_; /**< Saturation indices for each microPhase
+                                                 from pre-equilibration GEMS calculation.
+                                                 Used for SI-aware initial timestep
+                                                 estimation. */
+  bool hasSIData_; /**< Flag indicating if SI data from pre-equilibration is available */
+
 public:
   /**
   @brief Default constructor.
@@ -517,16 +523,53 @@ public:
   void setIniAttackTime(const double val) { beginAttackTime_ = val; }
 
   /**
+  @brief Set the initial saturation indices from pre-equilibration GEMS calculation.
+
+  This method stores the saturation indices for each microPhase, which are used
+  to provide more accurate initial dissolution rate estimates. The SI values
+  allow the kinetic models to compute realistic driving forces rather than
+  assuming SI ≈ 0 (maximum driving force).
+
+  @param microPhaseSI vector of saturation indices indexed by microPhaseId
+  */
+  void setInitialSaturationIndices(const std::vector<double> &microPhaseSI);
+
+  /**
   @brief Estimate the maximum initial dissolution rate across all kinetic models.
 
   This method queries each kinetic model for its estimated initial dissolution
   rate and returns the maximum rate found. This is used for adaptive timestep
   initialization - the fastest-reacting phase determines the initial timestep.
 
+  If SI data from pre-equilibration is available (via setInitialSaturationIndices),
+  the SI-aware rate estimation is used for more accurate results.
+
   @return the maximum estimated dissolution rate [1/hour], or 0 if no kinetic
           models are defined
   */
   double getMaxInitialDissolutionRate() const;
+
+  /**
+  @brief Check if any SI-driven kinetic models have significant mass remaining.
+
+  SI-driven models (StandardKineticModel, PozzolanicModel) use the saturation
+  index to compute dissolution rates and can exhibit stiff behavior when far
+  from equilibrium. ParrotKilloh models use degree of reaction (DOR) and are
+  generally more numerically stable.
+
+  This method checks not just whether SI-driven models exist, but whether they
+  have significant mass remaining (> 1% of initial). Fast-dissolving phases
+  like sulfates may use SI-driven kinetics but deplete quickly and shouldn't
+  force conservative time stepping for the entire simulation.
+
+  This method is used to select adaptive time stepping parameters:
+  - If only ParrotKilloh models (or SI-driven phases depleted): aggressive
+  - If SI-driven models with significant mass: conservative
+
+  @return true if any Standard or Pozzolanic kinetic models have significant
+          mass remaining (> 1% of initial)
+  */
+  bool hasSignificantSIDrivenMass() const;
 
 }; // End of KineticController class
 
