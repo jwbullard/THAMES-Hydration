@@ -1513,8 +1513,8 @@ bool KineticController::hasSignificantSIDrivenMass() const {
   // These typically use StandardKineticModel but shouldn't trigger
   // conservative time stepping
   static const std::vector<std::string> fastDissolvingPhases = {
-      "Bassanite", "Gypsum", "Arcanite", "Thenardite",
-      "bassanite", "gypsum", "arcanite", "thenardite"
+      "Bassanite", "Gypsum", "Arcanite", "Thenardite", "Anhydrite",
+      "bassanite", "gypsum", "arcanite", "thenardite", "anhydrite"
   };
 
   for (int i = 0; i < pKMsize_; ++i) {
