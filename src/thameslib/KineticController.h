@@ -550,28 +550,6 @@ public:
   double getMaxInitialDissolutionRate() const;
 
   /**
-  @brief Check if any SI-driven kinetic models have significant mass remaining.
-
-  SI-driven models (StandardKineticModel, PozzolanicModel) use the saturation
-  index to compute dissolution rates and can exhibit stiff behavior when far
-  from equilibrium. ParrotKilloh models use degree of reaction (DOR) and are
-  generally more numerically stable.
-
-  This method checks not just whether SI-driven models exist, but whether they
-  have significant mass remaining (> 1% of initial). Fast-dissolving phases
-  like sulfates may use SI-driven kinetics but deplete quickly and shouldn't
-  force conservative time stepping for the entire simulation.
-
-  This method is used to select adaptive time stepping parameters:
-  - If only ParrotKilloh models (or SI-driven phases depleted): aggressive
-  - If SI-driven models with significant mass: conservative
-
-  @return true if any Standard or Pozzolanic kinetic models have significant
-          mass remaining (> 1% of initial)
-  */
-  bool hasSignificantSIDrivenMass() const;
-
-  /**
   @brief Compute the maximum timestep based on kinetics to limit DC mole changes.
 
   This method queries each kinetic model for its current molar rate, then computes

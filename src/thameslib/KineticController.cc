@@ -1497,64 +1497,6 @@ double KineticController::getMaxInitialDissolutionRate() const {
   return maxRate;
 }
 
-bool KineticController::hasSignificantSIDrivenMass() const {
-  //
-  // Check if any SI-driven kinetic models require conservative time stepping.
-  // SI-driven models (Standard, Pozzolanic) can exhibit stiff behavior
-  // and require more conservative adaptive time stepping.
-  // ParrotKilloh models are DOR-driven and generally more stable.
-  //
-  // Exception: Fast-dissolving sulfate phases (Bassanite, Gypsum, Arcanite,
-  // Thenardite) use SI-driven kinetics but dissolve quickly without causing
-  // stiffness issues. These are excluded from the check.
-  //
-
-  // Phases that dissolve quickly and don't cause stiffness issues
-  // These typically use StandardKineticModel but shouldn't trigger
-  // conservative time stepping
-  static const std::vector<std::string> fastDissolvingPhases = {
-      "Bassanite", "Gypsum", "Arcanite", "Thenardite", "Anhydrite",
-      "bassanite", "gypsum", "arcanite", "thenardite", "anhydrite"
-  };
-
-  for (int i = 0; i < pKMsize_; ++i) {
-    if (phaseKineticModel_[i] != nullptr) {
-      std::string modelType = phaseKineticModel_[i]->getType();
-      if (modelType == StandardType || modelType == PozzolanicType) {
-        std::string phaseName = phaseKineticModel_[i]->getName();
-
-        // Check if this is a fast-dissolving phase (excluded)
-        bool isFastDissolving = false;
-        for (const auto &fastPhase : fastDissolvingPhases) {
-          if (phaseName == fastPhase) {
-            isFastDissolving = true;
-            break;
-          }
-        }
-
-        if (isFastDissolving) {
-          std::clog << "KineticController::hasSignificantSIDrivenMass: "
-                    << "Excluding fast-dissolving phase " << phaseName
-                    << " from SI-driven check" << std::endl;
-          continue;
-        }
-
-        // This is a non-excluded SI-driven model - requires conservative settings
-        std::clog << "KineticController::hasSignificantSIDrivenMass: "
-                  << "Found SI-driven model (" << modelType << ") for "
-                  << phaseName << " - requires conservative time stepping"
-                  << std::endl;
-        return true;
-      }
-    }
-  }
-
-  std::clog << "KineticController::hasSignificantSIDrivenMass: "
-            << "No significant SI-driven models found (PK-only or only "
-            << "fast-dissolving sulfates)" << std::endl;
-  return false;
-}
-
 double KineticController::computeKineticsBasedMaxTimestep(
     double maxRelativeChange) const {
   //

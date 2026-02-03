@@ -18,39 +18,21 @@ Controller::Controller(Lattice *msh, KineticController *kc, ChemicalSystem *cs,
 
   stepTimeTHR_ = 1.e-5;  // Minimum timestep: 0.036 seconds (lowered from 1e-3)
 
-  // Detect kinetic model types to choose adaptive time stepping parameters.
-  // SI-driven models (Standard, Pozzolanic) can be stiff and need conservative settings.
-  // ParrotKilloh models are DOR-driven and can use more aggressive settings.
-  // Note: We check for significant mass, not just presence - fast-dissolving
-  // phases like sulfates shouldn't force conservative settings for the whole run.
-  bool hasSIDriven = kc->hasSignificantSIDrivenMass();
-
-  // Initialize adaptive time stepping (enabled by default)
+  // Initialize adaptive time stepping with unified parameters.
+  // The kinetics-based timestep constraint (computeKineticsBasedMaxTimestep)
+  // provides dynamic, physics-based adaptation that responds to actual
+  // dissolution/precipitation rates regardless of model type.
   useAdaptiveTimeStepping_ = true;
   AdaptiveTimeConfig adaptiveConfig;
   adaptiveConfig.dt_min = stepTimeTHR_;
+  adaptiveConfig.dt_initial = 0.001;       // ~3.6 seconds (middle ground)
+  adaptiveConfig.dt_max = 4.0;             // 4 hours max
+  adaptiveConfig.growth_factor = 1.5;      // 50% growth per success
+  adaptiveConfig.successes_for_growth = 2; // Grow after 2 consecutive successes
   adaptiveConfig.verbose = verbose;
 
-  if (hasSIDriven) {
-    // Conservative settings for SI-driven models (Standard, Pozzolanic)
-    // These can exhibit stiff behavior when far from equilibrium
-    adaptiveConfig.dt_initial = 0.0001;    // ~0.36 seconds
-    adaptiveConfig.dt_max = 1.0;           // 1 hour max
-    adaptiveConfig.growth_factor = 1.2;    // 20% growth per success
-    adaptiveConfig.successes_for_growth = 3;
-    std::clog << "Controller: SI-driven kinetic models detected - "
-              << "using conservative adaptive time stepping" << endl;
-  } else {
-    // Aggressive settings for ParrotKilloh-only systems
-    // These are DOR-driven and numerically stable
-    // Settings chosen to match original (non-adaptive) performance
-    adaptiveConfig.dt_initial = 0.01;      // ~36 seconds
-    adaptiveConfig.dt_max = 12.0;          // 12 hours max (late-age hydration is slow)
-    adaptiveConfig.growth_factor = 2.0;    // Double timestep on each success
-    adaptiveConfig.successes_for_growth = 1; // Grow immediately on success
-    std::clog << "Controller: ParrotKilloh-only kinetics detected - "
-              << "using aggressive adaptive time stepping" << endl;
-  }
+  std::clog << "Controller: Using unified adaptive time stepping parameters"
+            << " (kinetics constraint provides dynamic adaptation)" << endl;
 
   adaptiveTimeController_ = std::make_unique<AdaptiveTimeController>(adaptiveConfig);
 
@@ -81,11 +63,11 @@ Controller::Controller(Lattice *msh, KineticController *kc, ChemicalSystem *cs,
 
   // Set initial timestep based on kinetic rates
   // This provides a physics-based initial timestep rather than hard-coded default
-  // Use different max relative change based on model type
   double maxKineticRate = kc->getMaxInitialDissolutionRate();
   if (maxKineticRate > 0.0) {
-    // Conservative 2% for SI-driven, aggressive 5% for ParrotKilloh-only
-    double maxRelChange = hasSIDriven ? 0.02 : 0.05;
+    // Use 5% max relative change - the kinetics constraint in doCycle()
+    // will further limit timesteps when rates are high
+    double maxRelChange = 0.05;
     adaptiveTimeController_->setInitialTimestepFromKinetics(maxKineticRate, maxRelChange);
     std::clog << "Controller: Initial timestep set from kinetics, maxRate="
               << maxKineticRate << " 1/h, maxRelChange=" << (maxRelChange * 100)
