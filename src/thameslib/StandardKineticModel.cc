@@ -392,3 +392,45 @@ double StandardKineticModel::estimateInitialDissolutionRate(
 
   return rate;
 }
+
+double StandardKineticModel::getCurrentMolarRate(double scaledMass) const {
+  //
+  // Calculate the current molar rate of dissolution/precipitation.
+  //
+  // The Standard model rate equation is:
+  //   dissrate [mol/100g/h] = k * rh * area * f(SI) * arrhenius
+  //
+  // Returns positive for dissolution, negative for precipitation.
+  //
+
+  if (scaledMass <= 0.0 || dissolutionRateConst_ <= 0.0) {
+    return 0.0;
+  }
+
+  // Get current surface area from lattice
+  double area = lattice_->getSurfaceArea(microPhaseId_);
+  if (area <= 1.0e-9) {
+    area = 1.0;
+  }
+  area *= surfaceAreaMultiplier_;
+
+  // Get current saturation index
+  double saturationIndex = chemSys_->getMicroPhaseSI(microPhaseId_);
+
+  // Calculate dissolution rate
+  double dissrate = 0.0;
+
+  if (saturationIndex < 1.0) {
+    // Undersaturated: dissolution (positive rate)
+    dissrate = dissolutionRateConst_ * rhFactor_ * area *
+               pow((1.0 - pow(saturationIndex, siexp_)), dfexp_);
+  } else {
+    // Supersaturated: precipitation (negative rate)
+    dissrate = -dissolutionRateConst_ * rhFactor_ * area *
+               pow((pow(saturationIndex, siexp_) - 1.0), dfexp_);
+  }
+
+  dissrate *= arrhenius_;
+
+  return dissrate;
+}

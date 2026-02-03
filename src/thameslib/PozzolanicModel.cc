@@ -506,3 +506,102 @@ double PozzolanicModel::estimateInitialDissolutionRate(
 
   return rate;
 }
+
+double PozzolanicModel::getCurrentMolarRate(double scaledMass) const {
+  //
+  // Calculate the current molar rate of dissolution/precipitation.
+  //
+  // The Pozzolanic model has a complex rate equation involving:
+  //   - Base rate constant + alkali effects (Langmuir terms)
+  //   - OH- activity dependence
+  //   - Surface area
+  //   - Saturation index driving force
+  //   - Diffusion limitation (uses minimum of dissrate and diffrate)
+  //
+  // Returns positive for dissolution, negative for precipitation.
+  //
+
+  if (scaledMass <= 0.0 || dissolutionRateConst_ <= 0.0) {
+    return 0.0;
+  }
+
+  // Calculate base rate constant with alkali effects
+  double baserateconst = dissolutionRateConst_;
+
+  double ca = chemSys_->getDCConcentration("Ca+2");
+  double kca = 0.00144;
+  double Kca = 10.0;
+  double na = chemSys_->getDCConcentration("Na+");
+  double kna = 0.002286;
+  double Kna = 58.3;
+  double k = chemSys_->getDCConcentration("K+");
+  double kk = 0.002016;
+  double Kk = 46.6;
+
+  baserateconst += (kca * Kca * ca / (1.0 + (Kca * ca)));
+  baserateconst += (kna * Kna * na / (1.0 + (Kna * na)));
+  baserateconst += (kk * Kk * k / (1.0 + (Kk * k)));
+
+  double ohActivity = chemSys_->getDCActivity("OH-");
+
+  // Get current surface area from lattice
+  double area = lattice_->getSurfaceArea(microPhaseId_);
+  area *= surfaceAreaMultiplier_;
+
+  // Get current saturation index
+  double saturationIndex = chemSys_->getMicroPhaseSI(microPhaseId_);
+
+  // Activity of water
+  double waterActivity = chemSys_->getDCActivity(chemSys_->getDCId("H2O@"));
+
+  // Calculate dissolution rate
+  double dissrate = 0.0;
+
+  if (saturationIndex < 1.0) {
+    // Undersaturated: dissolution (positive rate)
+    dissrate = baserateconst * rhFactor_ * pow(ohActivity, ohexp_) * area *
+               pow(waterActivity, 2.0) * (1.0 - (lossOnIgnition_ / 100.0)) *
+               (sio2_)*pow((1.0 - pow(saturationIndex, siexp_)), dfexp_);
+  } else {
+    // Supersaturated: precipitation (negative rate)
+    dissrate = -baserateconst * rhFactor_ * pow(ohActivity, ohexp_) * area *
+               pow(waterActivity, 2.0) * (1.0 - (lossOnIgnition_ / 100.0)) *
+               (sio2_)*pow((pow(saturationIndex, siexp_) - 1.0), dfexp_);
+  }
+
+  // Calculate diffusion rate
+  double diffrate = 1.0e9;
+  double DOR = 0.0;
+  if (initScaledMass_ > 0.0) {
+    DOR = (initScaledMass_ - scaledMass) / initScaledMass_;
+  }
+
+  double boundaryLayer = 1.0;
+  if (DOR > 0.0) {
+    diffrate = diffusionRateConstEarly_;
+    double average_cdiff;
+    if (saturationIndex < 1.0) {
+      average_cdiff = (1.0 - pow(saturationIndex, (1.0 / dissolvedUnits_)));
+      diffrate *= average_cdiff / boundaryLayer;
+      if (abs(diffrate) < 1.0e-10)
+        diffrate = 1.0e-10;
+    } else {
+      average_cdiff = -(pow(saturationIndex, (1.0 / dissolvedUnits_)) - 1.0);
+      diffrate *= average_cdiff / boundaryLayer;
+      if (abs(diffrate) < 1.0e-10)
+        diffrate = -1.0e-10;
+    }
+  } else if (saturationIndex >= 1.0) {
+    diffrate = -1.0e9;
+  }
+
+  // Use rate-limiting step
+  double rate = dissrate;
+  if (abs(diffrate) < abs(rate)) {
+    rate = diffrate;
+  }
+
+  rate *= arrhenius_;
+
+  return rate;
+}

@@ -776,6 +776,14 @@ void Controller::doCycle(double elemTimeInterval) {
           // Use adaptive time controller to get next timestep
           timestep = adaptiveTimeController_->getNextTimestep();
 
+          // Apply kinetics-based constraint to limit DC mole changes to 5%
+          double kineticsMaxTimestep = kineticController_->computeKineticsBasedMaxTimestep(0.05);
+          if (kineticsMaxTimestep < timestep) {
+            std::clog << "    Kinetics constraint: reducing timestep from "
+                      << timestep << " to " << kineticsMaxTimestep << " h" << std::endl;
+            timestep = kineticsMaxTimestep;
+          }
+
           // Ensure we don't overshoot final simulation time
           double finalTime = time_[timeSize - 1];
           if (lastGoodTime_ + timestep > finalTime) {

@@ -1554,3 +1554,85 @@ bool KineticController::hasSignificantSIDrivenMass() const {
             << "fast-dissolving sulfates)" << std::endl;
   return false;
 }
+
+double KineticController::computeKineticsBasedMaxTimestep(
+    double maxRelativeChange) const {
+  //
+  // Compute the maximum timestep that limits DC mole changes to maxRelativeChange.
+  //
+  // For each kinetically-controlled DC:
+  //   rate [mol/100g/h] = getCurrentMolarRate(scaledMass)
+  //   moles = current DC moles in system
+  //   dt_max = maxRelativeChange * moles / |rate|
+  //
+  // Return the minimum dt_max across all DCs.
+  //
+
+  const double largeTimestep = 1.0e6; // Return this if no constraint applies
+  double minTimestep = largeTimestep;
+
+  if (verbose_) {
+    std::clog << "KineticController::computeKineticsBasedMaxTimestep: "
+              << "maxRelativeChange=" << maxRelativeChange << std::endl;
+  }
+
+  for (int i = 0; i < pKMsize_; ++i) {
+    if (phaseKineticModel_[i] != nullptr) {
+      // Get the DC ID for this kinetic model
+      int dcId = phaseKineticModel_[i]->getDCId();
+
+      // Get the current scaled mass for this phase
+      double scaledMass = phaseKineticModel_[i]->getScaledMass();
+
+      // Skip phases with no mass remaining
+      if (scaledMass <= 0.0) {
+        continue;
+      }
+
+      // Get the current molar rate [mol/100g/h]
+      double molarRate = phaseKineticModel_[i]->getCurrentMolarRate(scaledMass);
+
+      // Skip phases with negligible rate
+      if (fabs(molarRate) < 1.0e-20) {
+        continue;
+      }
+
+      // Get the current DC moles from the chemical system
+      double dcMoles = chemSys_->getDCMoles(dcId);
+
+      // Skip DCs with negligible moles (avoid division issues)
+      if (fabs(dcMoles) < 1.0e-15) {
+        continue;
+      }
+
+      // Compute the timestep that would cause maxRelativeChange
+      // |delta_moles| = |rate| * dt
+      // |delta_moles| / |moles| = maxRelativeChange
+      // dt = maxRelativeChange * |moles| / |rate|
+      double dtConstraint = maxRelativeChange * fabs(dcMoles) / fabs(molarRate);
+
+      if (verbose_) {
+        std::clog << "  Phase " << phaseKineticModel_[i]->getName()
+                  << ": dcMoles=" << dcMoles
+                  << " molarRate=" << molarRate
+                  << " dt_constraint=" << dtConstraint << " h" << std::endl;
+      }
+
+      if (dtConstraint < minTimestep) {
+        minTimestep = dtConstraint;
+      }
+    }
+  }
+
+  if (verbose_) {
+    if (minTimestep < largeTimestep) {
+      std::clog << "KineticController::computeKineticsBasedMaxTimestep: "
+                << "minTimestep=" << minTimestep << " h" << std::endl;
+    } else {
+      std::clog << "KineticController::computeKineticsBasedMaxTimestep: "
+                << "No kinetics constraint applies" << std::endl;
+    }
+  }
+
+  return minTimestep;
+}

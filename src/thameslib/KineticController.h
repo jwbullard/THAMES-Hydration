@@ -571,6 +571,29 @@ public:
   */
   bool hasSignificantSIDrivenMass() const;
 
+  /**
+  @brief Compute the maximum timestep based on kinetics to limit DC mole changes.
+
+  This method queries each kinetic model for its current molar rate, then computes
+  the timestep that would limit the relative change in DC moles to a specified
+  maximum (default 5%). This provides a physics-based upper bound on the timestep
+  to prevent overshooting equilibrium positions.
+
+  The algorithm:
+  1. For each kinetically-controlled DC with non-zero moles:
+     - Get current molar rate from kinetic model [mol/100g/h]
+     - Get current DC moles from chemical system
+     - Compute dt that would cause maxRelativeChange: dt = maxChange * moles / |rate|
+  2. Return the minimum dt across all DCs (most restrictive constraint)
+
+  This complements the GEMS-feedback-based adaptive time stepping by preventing
+  large chemical changes that could cause GEMS solver difficulties.
+
+  @param maxRelativeChange Maximum allowed relative change per timestep (default 5%)
+  @return Maximum timestep in hours, or a large value (1e6) if no kinetics constraint
+  */
+  double computeKineticsBasedMaxTimestep(double maxRelativeChange = 0.05) const;
+
 }; // End of KineticController class
 
 #endif // SRC_THAMESLIB_KINETICCONTROLLER_H_

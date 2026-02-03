@@ -454,11 +454,9 @@ public:
 
   The scaled mass of a phase is its mass percent on a total solids basis.
 
-  @note NOT USED.
-
-  @return the vector of scaled masses [percent solids]
+  @return the scaled mass [percent solids]
   */
-  // double getScaledMass() const { return scaledMass_; }
+  double getScaledMass() const { return scaledMass_; }
 
   /**
   @brief Set the <i>initial</i> mass of the phase in the kinetic model.
@@ -571,6 +569,23 @@ public:
     (void)saturationIndex; // Suppress unused parameter warning
     return estimateInitialDissolutionRate();
   }
+
+  /**
+  @brief Get the current molar rate of dissolution/precipitation.
+
+  This method calculates the current rate at which the phase is dissolving
+  (positive rate) or precipitating (negative rate), based on the current
+  system state (saturation index, surface area, etc.).
+
+  The rate is expressed in moles of the phase's DC per hour, normalized to
+  100g of total initial solid. This rate can be used by the adaptive time
+  stepping system to limit DC mole changes per timestep.
+
+  @param scaledMass the current scaled mass of this phase [g/100g solids]
+  @return the current molar rate [mol/hour per 100g solids]
+          Positive = dissolution, Negative = precipitation
+  */
+  virtual double getCurrentMolarRate(double scaledMass) const { return 0.0; }
 
   /**
   @brief Get the initial scaled mass of this phase.

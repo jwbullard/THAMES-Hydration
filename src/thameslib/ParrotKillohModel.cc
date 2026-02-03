@@ -421,3 +421,69 @@ double ParrotKillohModel::estimateInitialDissolutionRate() const {
 
   return rate;
 }
+
+double ParrotKillohModel::getCurrentMolarRate(double scaledMass) const {
+  //
+  // Calculate the current molar rate of dissolution using the
+  // Parrot-Killoh model equations.
+  //
+  // The PK model is DOR-driven (degree of reaction), not SI-driven.
+  // It only handles dissolution of clinker phases.
+  //
+  // Returns molar rate in mol/hour per 100g solids.
+  //
+
+  if (scaledMass <= 0.0 || initScaledMass_ <= 0.0) {
+    return 0.0;
+  }
+
+  // Calculate current DOR
+  double DOR = (initScaledMass_ - scaledMass) / initScaledMass_;
+
+  if (DOR >= 1.0) {
+    return 0.0; // Fully dissolved
+  }
+
+  double ngrate = 1.0e-10;
+  double hsrate = 1.0e-10;
+  double diffrate = 1.0e9;
+
+  // Nucleation and growth rate
+  if (fabs(n1_) > 0.0 && DOR < 1.0) {
+    ngrate = (k1_ / n1_) * (1.0 - DOR) * pow((-log(1.0 - DOR)), (1.0 - n1_));
+    ngrate *= ssaFactor_;
+    if (ngrate < 1.0e-10)
+      ngrate = 1.0e-10;
+  }
+
+  // Hydration shell (late diffusion) rate
+  hsrate = k3_ * pow((1.0 - DOR), n3_);
+  if (hsrate < 1.0e-10)
+    hsrate = 1.0e-10;
+
+  // Early diffusion rate
+  if (DOR > 0.0) {
+    diffrate = (k2_ * pow((1.0 - DOR), (2.0 / 3.0))) /
+               (1.0 - pow((1.0 - DOR), (1.0 / 3.0)));
+    if (diffrate < 1.0e-10)
+      diffrate = 1.0e-10;
+  }
+
+  // Select minimum rate (rate-limiting step)
+  double rate = (ngrate < hsrate) ? ngrate : hsrate;
+  if (diffrate < rate)
+    rate = diffrate;
+
+  // Apply temperature, RH corrections, convert from per-day to per-hour
+  // This gives d(DOR)/dt in units of 1/hour
+  rate *= (pfk_ * rhFactor_ * arrhenius_ / H_PER_DAY);
+
+  // Convert from d(DOR)/dt to molar rate:
+  // d(mass)/dt = initScaledMass_ * d(DOR)/dt  [g/100g/hour]
+  // d(moles)/dt = d(mass)/dt / molarMass  [mol/100g/hour]
+  double massRate = initScaledMass_ * rate; // g/100g/hour
+  double molarMass = chemSys_->getDCMolarMass(DCId_);
+  double molarRate = massRate / molarMass; // mol/100g/hour
+
+  return molarRate;
+}

@@ -217,6 +217,19 @@ public:
   */
   double estimateInitialDissolutionRate(double saturationIndex) const override;
 
+  /**
+  @brief Get the current molar rate of dissolution/precipitation.
+
+  Calculates the current rate based on the Standard model rate equation:
+    rate = k * rh * area * f(SI) * arrhenius
+  where f(SI) is the driving force term based on saturation index.
+
+  @param scaledMass the current scaled mass of this phase [g/100g solids]
+  @return the current molar rate [mol/hour per 100g solids]
+          Positive = dissolution, Negative = precipitation
+  */
+  double getCurrentMolarRate(double scaledMass) const override;
+
 }; // End of StandardKineticModel class
 
 #endif // SRC_THAMESLIB_STANDARDKINETICMODEL_H_

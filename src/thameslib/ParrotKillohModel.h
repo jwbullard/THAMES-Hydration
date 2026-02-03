@@ -293,6 +293,22 @@ public:
   */
   double estimateInitialDissolutionRate() const override;
 
+  /**
+  @brief Get the current molar rate of dissolution.
+
+  Calculates the current dissolution rate based on the Parrot-Killoh model
+  equations. The rate depends on the degree of reaction (DOR), not on
+  saturation index.
+
+  Note: The PK model only handles dissolution (positive rates). Precipitation
+  is handled by GEMS thermodynamics for the hydration products.
+
+  @param scaledMass the current scaled mass of this phase [g/100g solids]
+  @return the current molar rate [mol/hour per 100g solids]
+          Always positive (dissolution only) for clinker phases
+  */
+  double getCurrentMolarRate(double scaledMass) const override;
+
 }; // End of ParrotKillohModel class
 
 #endif // SRC_THAMESLIB_PARROTKILLOHMODEL_H_
