@@ -697,6 +697,16 @@ void Controller::doCycle(double elemTimeInterval) {
                          "MAX FAILURES EXCEEDED #####"
                       << endl;
             std::clog << adaptiveTimeController_->getStatusString() << endl;
+
+            // Write exit status for UI
+            std::ostringstream diagStream;
+            long int totalCycles = adaptiveTimeController_->getTotalSuccesses() +
+                                   adaptiveTimeController_->getTotalFailures();
+            diagStream << "Simulation stopped at " << lastGoodTime_
+                       << " hours after " << totalCycles
+                       << " cycles. " << adaptiveTimeController_->getStatusString();
+            writeExitStatus(1, "GEMS solver exceeded maximum consecutive failures",
+                            diagStream.str());
             break;
           }
 
@@ -781,6 +791,15 @@ void Controller::doCycle(double elemTimeInterval) {
                       << std::endl;
             std::clog << "##### lastGoodTime_ = " << lastGoodTime_
                       << " h, finalTime = " << finalTime << " h #####" << std::endl;
+
+            // Write exit status for UI - normal completion
+            std::ostringstream diagStream;
+            long int totalCycles = adaptiveTimeController_->getTotalSuccesses() +
+                                   adaptiveTimeController_->getTotalFailures();
+            diagStream << "Simulation completed " << lastGoodTime_ << " hours in "
+                       << totalCycles << " cycles. "
+                       << adaptiveTimeController_->getStatusString();
+            writeExitStatus(0, "Simulation completed successfully", diagStream.str());
             break;
           }
 
@@ -2875,4 +2894,46 @@ string Controller::getTimeString(const double curtime) {
   }
 
   return timeString;
+}
+
+void Controller::writeExitStatus(int exit_code, const std::string &exit_reason,
+                                  const std::string &diagnostics) {
+  //
+  // Write exit status to JSON file for UI consumption.
+  // The file is written to the Result directory alongside other output files.
+  //
+  std::string filename = "Result/exit_status.json";
+  std::ofstream ofs(filename.c_str());
+
+  if (!ofs) {
+    std::clog << "WARNING: Could not write exit_status.json" << std::endl;
+    return;
+  }
+
+  // Get current timestamp
+  time_t now = time(nullptr);
+  char timestamp[64];
+  strftime(timestamp, sizeof(timestamp), "%c", localtime(&now));
+
+  // Write JSON format
+  ofs << "{" << std::endl;
+  ofs << "  \"exit_code\": " << exit_code << "," << std::endl;
+  ofs << "  \"exit_reason\": \"" << exit_reason << "\"," << std::endl;
+  ofs << "  \"success\": " << (exit_code == 0 ? "true" : "false") << ","
+      << std::endl;
+  ofs << "  \"timestamp\": \"" << timestamp << "\"";
+
+  if (!diagnostics.empty()) {
+    ofs << "," << std::endl;
+    ofs << "  \"diagnostics\": \"" << diagnostics << "\"" << std::endl;
+  } else {
+    ofs << std::endl;
+  }
+
+  ofs << "}" << std::endl;
+  ofs.close();
+
+  std::clog << "Exit status written to " << filename << ": "
+            << (exit_code == 0 ? "SUCCESS" : "FAILURE") << " - " << exit_reason
+            << std::endl;
 }

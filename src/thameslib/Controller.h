@@ -255,6 +255,20 @@ public:
   void doCycle(double elemTimeInterval);
 
   /**
+  @brief Write exit status to a JSON file for UI consumption.
+
+  This method writes an exit_status.json file to the Result directory
+  indicating how the simulation terminated. The UI reads this file to
+  display appropriate messages to the user.
+
+  @param exit_code 0 for normal completion, non-zero for abnormal exit
+  @param exit_reason Human-readable description of why simulation ended
+  @param diagnostics Additional diagnostic information (optional)
+  */
+  void writeExitStatus(int exit_code, const std::string &exit_reason,
+                       const std::string &diagnostics = "");
+
+  /**
   @brief Calculate the state of the system (called by doCycle).
 
   This method calculates the change in state of the system during a cycle,

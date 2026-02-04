@@ -3091,28 +3091,136 @@ public:
   The exception is for charge, which should always be set to zero
   for these kinds of simulations.
 
-  Only the ICMoles_ that are less than 10^-9 after the first call
-  of calculateKineticStep(...) are set to 10^-9
+  When an IC drops below ICTHRESH, we add a small amount of a simple aqueous
+  DC containing that element to maintain stoichiometric consistency between
+  ICMoles_ and DCMoles_. This prevents GEMS Mass Balance Refinement failures
+  caused by artificially boosting ICMoles_ without corresponding DC mass.
+
+  After adding DCs, we compensate any charge imbalance by adding H+ or OH-.
   */
   void checkICMoles(void) {
     int i, j;
     std::vector<double> ICMoles;
     ICMoles.resize(numICs_, 0.0);
 
+    // Calculate current IC moles from DC stoichiometry
     for (j = 0; j < numDCs_; j++) {
       for (i = 0; i < numICs_; i++) {
         ICMoles[i] += (DCMoles_[j] - DCLowerLimit_[j]) * getDCStoich(j, i);
       }
     }
-    // std::clog << endl << "ICMOLES :" << endl;
-    for (i = 0; i < numICs_; i++) {
-      // std::clog << "   i = " << i << "  :  ICMoles[i] = " << ICMoles[i] <<
-      // endl;
-      if (ICMoles[i] < ICTHRESH)
-        ICMoles_[i] = ICTHRESH;
-      if (i == numICs_ - 1) // This IC is always charge
-        ICMoles_[i] = 0.0;
+
+    // Track total charge added from DC additions
+    double chargeAdded = 0.0;
+
+    // Check each IC (except charge) and add aqueous DC mass if depleted
+    for (i = 0; i < numICs_ - 1; i++) {  // Skip last IC (charge)
+      if (ICMoles[i] < ICTHRESH) {
+        double deficit = ICTHRESH - ICMoles[i];
+
+        // Find a simple aqueous DC for this IC and add mass
+        // Map IC names to simple aqueous DCs (class code 'S')
+        std::string icName = getICName(i);
+        std::string dcName = "";
+
+        // ================================================================
+        // MAINTAINER NOTE: IC-to-DC Mapping for Depletion Recovery
+        // ================================================================
+        // If the GEMS thermodynamic database (thames-dch.dat) is modified
+        // to include NEW Independent Components (ICs), you must add a
+        // corresponding entry here mapping that IC to a simple aqueous
+        // Dependent Component (DC) from the electrolyte phase.
+        //
+        // Requirements for the mapped DC:
+        //   1. Must be an aqueous species (class code 'S' in thames-dch.dat)
+        //   2. Must contain the IC with a positive stoichiometry coefficient
+        //   3. Prefer simple ions (e.g., Fe+2) over complex species
+        //   4. The DC name must exactly match the name in thames-dch.dat
+        //
+        // Example: To add support for a new IC "Mn" (Manganese):
+        //   else if (icName == "Mn") dcName = "Mn+2";
+        //
+        // Note: Charge compensation is handled automatically after all
+        // DC additions by adding H+ or OH- as needed.
+        //
+        // If no mapping is provided, the IC will only have ICMoles_ set
+        // to ICTHRESH without corresponding DC mass, which may cause
+        // GEMS Mass Balance Refinement failures.
+        // ================================================================
+
+        // Select a simple aqueous species for each IC
+        if (icName == "Al") dcName = "Al+3";
+        else if (icName == "C") dcName = "HCO3-";
+        else if (icName == "Ca") dcName = "Ca+2";
+        else if (icName == "Cl") dcName = "Cl-";
+        else if (icName == "Fe") dcName = "Fe+2";
+        else if (icName == "K") dcName = "K+";
+        else if (icName == "Mg") dcName = "Mg+2";
+        else if (icName == "Na") dcName = "Na+";
+        else if (icName == "Nit") dcName = "N2@";
+        else if (icName == "S") dcName = "SO4-2";
+        else if (icName == "Si") dcName = "SiO2@";
+        // H and O are not boosted - they come from water
+
+        if (!dcName.empty()) {
+          int dcIdx = getDCId(dcName);
+          if (dcIdx >= 0 && dcIdx < numDCs_) {
+            // Get stoichiometry coefficient for this IC in the DC
+            double stoich = getDCStoich(dcIdx, i);
+            if (stoich > 0.0) {
+              // Calculate DC amount needed to provide the deficit IC moles
+              double dcAdd = deficit / stoich;
+
+              // Track charge contribution from this DC
+              double dcCharge = getDCCharge(dcIdx);
+              chargeAdded += dcAdd * dcCharge;
+
+              // Add DC mass and update ICMoles_
+              DCMoles_[dcIdx] += dcAdd;
+              ICMoles_[i] = ICTHRESH;
+
+              std::clog << "checkICMoles: IC " << icName << " depleted to "
+                        << ICMoles[i] << " mol, adding " << dcAdd << " mol of "
+                        << dcName << " (charge=" << dcCharge << ")"
+                        << " to maintain ICTHRESH=" << ICTHRESH << std::endl;
+            }
+          }
+        } else {
+          // No DC mapping - just set ICMoles_ (H, O)
+          ICMoles_[i] = ICTHRESH;
+        }
+      }
     }
+
+    // Compensate charge imbalance with H+ or OH-
+    // If chargeAdded > 0 (net positive), add OH- to neutralize
+    // If chargeAdded < 0 (net negative), add H+ to neutralize
+    if (std::fabs(chargeAdded) > 1.0e-15) {
+      if (chargeAdded > 0.0) {
+        // Add OH- (charge = -1) to compensate positive charge
+        int ohIdx = getDCId("OH-");
+        if (ohIdx >= 0 && ohIdx < numDCs_) {
+          double ohAdd = chargeAdded;  // |charge of OH-| = 1
+          DCMoles_[ohIdx] += ohAdd;
+          std::clog << "checkICMoles: Adding " << ohAdd
+                    << " mol of OH- to compensate +" << chargeAdded
+                    << " charge from IC recovery" << std::endl;
+        }
+      } else {
+        // Add H+ (charge = +1) to compensate negative charge
+        int hIdx = getDCId("H+");
+        if (hIdx >= 0 && hIdx < numDCs_) {
+          double hAdd = -chargeAdded;  // chargeAdded is negative
+          DCMoles_[hIdx] += hAdd;
+          std::clog << "checkICMoles: Adding " << hAdd
+                    << " mol of H+ to compensate " << chargeAdded
+                    << " charge from IC recovery" << std::endl;
+        }
+      }
+    }
+
+    // Charge IC is always set to zero
+    ICMoles_[numICs_ - 1] = 0.0;
     return;
   }
 
