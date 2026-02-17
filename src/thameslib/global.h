@@ -258,6 +258,21 @@ inline const int EXTERNALFORMAT = 0;
 inline const double ICTHRESH = 1.0e-8;
 inline const double limitICTHRESH = 1.0e-3;
 
+/**
+@brief Proactive IC floor for checkICMoles() depletion recovery.
+
+ICs that drop below this floor are topped up with corresponding aqueous DCs
+(+ charge compensation). This is intentionally higher than ICTHRESH to prevent
+GEMS R-matrix degeneration caused by near-zero IC moles.
+
+WARNING: 1e-5 mol is approaching the range where added species could introduce
+noticeable artifacts in simulation results. Do NOT raise this value further.
+If GEMS degeneration problems persist at this floor, a fundamentally different
+approach will be needed (e.g., reformulating the system to remove trace ICs,
+or using GEMS preconditioner adjustments).
+*/
+inline const double IC_FLOOR = 1.0e-5;
+
 inline const double Pi = 3.14159265359;
 
 inline const double S_PER_MINUTE = 60.0;

@@ -207,6 +207,15 @@ private:
   */
   bool useAdaptiveTimeStepping_;
 
+  /**
+  @brief Maximum relative change in DC moles per timestep (kinetics constraint).
+
+  Used with computeKineticsBasedMaxTimestep() to limit timesteps when
+  dissolution/precipitation rates are high. Read from simparams.json
+  adaptive_stepping.max_relative_change. Default: 0.05 (5%).
+  */
+  double maxRelativeChange_;
+
 public:
   /**
   @brief The constructor.

@@ -3113,10 +3113,13 @@ public:
     // Track total charge added from DC additions
     double chargeAdded = 0.0;
 
-    // Check each IC (except charge) and add aqueous DC mass if depleted
+    // Check each IC (except charge) and add aqueous DC mass if depleted.
+    // Uses IC_FLOOR (1e-5) rather than ICTHRESH (1e-8) to proactively prevent
+    // GEMS R-matrix degeneration from near-zero IC moles. See global.h for
+    // warnings about not raising IC_FLOOR further.
     for (i = 0; i < numICs_ - 1; i++) {  // Skip last IC (charge)
-      if (ICMoles[i] < ICTHRESH) {
-        double deficit = ICTHRESH - ICMoles[i];
+      if (ICMoles[i] < IC_FLOOR) {
+        double deficit = IC_FLOOR - ICMoles[i];
 
         // Find a simple aqueous DC for this IC and add mass
         // Map IC names to simple aqueous DCs (class code 'S')
@@ -3177,17 +3180,17 @@ public:
 
               // Add DC mass and update ICMoles_
               DCMoles_[dcIdx] += dcAdd;
-              ICMoles_[i] = ICTHRESH;
+              ICMoles_[i] = IC_FLOOR;
 
               std::clog << "checkICMoles: IC " << icName << " depleted to "
                         << ICMoles[i] << " mol, adding " << dcAdd << " mol of "
                         << dcName << " (charge=" << dcCharge << ")"
-                        << " to maintain ICTHRESH=" << ICTHRESH << std::endl;
+                        << " to maintain IC_FLOOR=" << IC_FLOOR << std::endl;
             }
           }
         } else {
           // No DC mapping - just set ICMoles_ (H, O)
-          ICMoles_[i] = ICTHRESH;
+          ICMoles_[i] = IC_FLOOR;
         }
       }
     }

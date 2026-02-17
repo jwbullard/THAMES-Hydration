@@ -4454,18 +4454,41 @@ void ChemicalSystem::setInitialElectrolyteComposition(void) {
   double waterMoles = DCMoles_[waterDCId_];
   double waterMass = 0.001 * waterMoles * waterMolarMass_; // in kg
 
+  // Minimum concentration to ensure IC moles stay above IC_FLOOR.
+  // IC_FLOOR / waterMass gives the concentration (mol/kg) that would produce
+  // exactly IC_FLOOR moles of the corresponding IC. Concentrations below this
+  // are overridden to prevent GEMS R-matrix degeneration.
+  double minConc = (waterMass > 0.0) ? (IC_FLOOR / waterMass) : 1.0e-4;
+
+  // Track any overrides for UI notification
+  std::vector<std::string> overrideMessages;
+
   std::clog << endl
             << "  ChemicalSystem::setInitialElectrolyteComposition -"
                " initialSolutionComposition_.size() = "
             << initialSolutionComposition_.size()
             << " :  waterMoles = " << waterMoles
-            << "  &   waterMass = " << waterMass << endl;
+            << "  &   waterMass = " << waterMass
+            << "  &   minConc = " << minConc << " mol/kg" << endl;
   if (initialSolutionComposition_.size() > 0) {
     map<int, double>::iterator it = initialSolutionComposition_.begin();
     while (it != initialSolutionComposition_.end()) {
       DCId = it->first;
       if (DCId != waterDCId_) {
         DCconc = it->second;
+        if (DCconc > 0.0 && DCconc < minConc) {
+          std::clog << "    WARNING: " << DCName_[DCId]
+                    << " concentration " << DCconc
+                    << " mol/kg is below minimum " << minConc
+                    << " mol/kg (based on IC_FLOOR=" << IC_FLOOR
+                    << " mol). Overriding to " << minConc << endl;
+          std::ostringstream msg;
+          msg << DCName_[DCId] << ": " << DCconc << " -> " << minConc
+              << " mol/kg";
+          overrideMessages.push_back(msg.str());
+          DCconc = minConc;
+          it->second = minConc; // Update the stored value too
+        }
         DCMoles_[DCId] = DCconc * waterMass;
         std::clog << "    DCId = " << std::setw(3) << std::right << DCId
                   << " / " << std::setw(15) << std::left << DCName_[DCId]
@@ -4487,6 +4510,18 @@ void ChemicalSystem::setInitialElectrolyteComposition(void) {
       DCId = it->first;
       if (DCId != waterDCId_) {
         DCconc = it->second;
+        if (DCconc > 0.0 && DCconc < minConc) {
+          std::clog << "    WARNING: " << DCName_[DCId]
+                    << " (fixed) concentration " << DCconc
+                    << " mol/kg is below minimum " << minConc
+                    << " mol/kg. Overriding to " << minConc << endl;
+          std::ostringstream msg;
+          msg << DCName_[DCId] << " (fixed): " << DCconc << " -> " << minConc
+              << " mol/kg";
+          overrideMessages.push_back(msg.str());
+          DCconc = minConc;
+          it->second = minConc;
+        }
         DCMoles_[DCId] = DCconc * waterMass;
         std::clog << "    DCId = " << std::setw(3) << std::right << DCId
                   << " / " << std::setw(15) << std::left << DCName_[DCId]
@@ -4494,6 +4529,34 @@ void ChemicalSystem::setInitialElectrolyteComposition(void) {
                   << "   DCMoles_ = " << DCMoles_[DCId] << endl;
       }
       it++;
+    }
+  }
+
+  // Write overrides to a JSON file so the UI can notify the user
+  if (!overrideMessages.empty()) {
+    std::clog << endl
+              << "  *** " << overrideMessages.size()
+              << " electrolyte concentration(s) were overridden to ensure "
+              << "numerical stability (IC_FLOOR = " << IC_FLOOR << " mol) ***"
+              << endl;
+    std::ofstream warnFile("concentration_overrides.json", std::ios::out);
+    if (warnFile) {
+      warnFile << "{\n";
+      warnFile << "  \"message\": \"Some electrolyte concentrations were below "
+                  "the minimum required for numerical stability and were "
+                  "automatically increased.\",\n";
+      warnFile << "  \"ic_floor_mol\": " << IC_FLOOR << ",\n";
+      warnFile << "  \"min_concentration_mol_per_kg\": " << minConc << ",\n";
+      warnFile << "  \"water_mass_kg\": " << waterMass << ",\n";
+      warnFile << "  \"overrides\": [\n";
+      for (size_t i = 0; i < overrideMessages.size(); ++i) {
+        warnFile << "    \"" << overrideMessages[i] << "\"";
+        if (i + 1 < overrideMessages.size()) warnFile << ",";
+        warnFile << "\n";
+      }
+      warnFile << "  ]\n";
+      warnFile << "}\n";
+      warnFile.close();
     }
   }
 }

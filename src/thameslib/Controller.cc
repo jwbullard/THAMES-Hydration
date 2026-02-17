@@ -17,11 +17,13 @@ Controller::Controller(Lattice *msh, KineticController *kc, ChemicalSystem *cs,
                        const bool verbose, const bool warning, const bool xyz) {
 
   stepTimeTHR_ = 1.e-5;  // Minimum timestep: 0.036 seconds (lowered from 1e-3)
+  maxRelativeChange_ = 0.05; // Default: 5% max DC mole change per timestep
 
   // Initialize adaptive time stepping with unified parameters.
   // The kinetics-based timestep constraint (computeKineticsBasedMaxTimestep)
   // provides dynamic, physics-based adaptation that responds to actual
   // dissolution/precipitation rates regardless of model type.
+  // These defaults may be overridden by simparams.json in parseDoc().
   useAdaptiveTimeStepping_ = true;
   AdaptiveTimeConfig adaptiveConfig;
   adaptiveConfig.dt_min = stepTimeTHR_;
@@ -65,12 +67,9 @@ Controller::Controller(Lattice *msh, KineticController *kc, ChemicalSystem *cs,
   // This provides a physics-based initial timestep rather than hard-coded default
   double maxKineticRate = kc->getMaxInitialDissolutionRate();
   if (maxKineticRate > 0.0) {
-    // Use 5% max relative change - the kinetics constraint in doCycle()
-    // will further limit timesteps when rates are high
-    double maxRelChange = 0.05;
-    adaptiveTimeController_->setInitialTimestepFromKinetics(maxKineticRate, maxRelChange);
+    adaptiveTimeController_->setInitialTimestepFromKinetics(maxKineticRate, maxRelativeChange_);
     std::clog << "Controller: Initial timestep set from kinetics, maxRate="
-              << maxKineticRate << " 1/h, maxRelChange=" << (maxRelChange * 100)
+              << maxKineticRate << " 1/h, maxRelChange=" << (maxRelativeChange_ * 100)
               << "%, dt_initial="
               << adaptiveTimeController_->getCurrentTimestep() << " h" << endl;
   }
@@ -398,6 +397,18 @@ Controller::Controller(Lattice *msh, KineticController *kc, ChemicalSystem *cs,
   for (int i = 0; i < static_cast<int>(time_.size() - 1); i++) {
     if (abs(time_[i] - time_[i + 1]) <= 1.0e-6) {
       time_.erase(time_.begin() + i);
+    }
+  }
+
+  // Re-compute kinetics-based initial timestep if maxRelativeChange_ was
+  // updated by parseDoc() (from simparams.json adaptive_stepping config)
+  if (useAdaptiveTimeStepping_ && adaptiveTimeController_) {
+    double maxKinRate = kc->getMaxInitialDissolutionRate();
+    if (maxKinRate > 0.0) {
+      adaptiveTimeController_->setInitialTimestepFromKinetics(maxKinRate, maxRelativeChange_);
+      std::clog << "Controller: Re-computed initial timestep after config load, "
+                << "dt_initial=" << adaptiveTimeController_->getCurrentTimestep()
+                << " h" << endl;
     }
   }
 
@@ -768,8 +779,8 @@ void Controller::doCycle(double elemTimeInterval) {
           // Use adaptive time controller to get next timestep
           timestep = adaptiveTimeController_->getNextTimestep();
 
-          // Apply kinetics-based constraint to limit DC mole changes to 5%
-          double kineticsMaxTimestep = kineticController_->computeKineticsBasedMaxTimestep(0.05);
+          // Apply kinetics-based constraint to limit DC mole changes per step
+          double kineticsMaxTimestep = kineticController_->computeKineticsBasedMaxTimestep(maxRelativeChange_);
           if (kineticsMaxTimestep < timestep) {
             std::clog << "    Kinetics constraint: reducing timestep from "
                       << timestep << " to " << kineticsMaxTimestep << " h" << std::endl;
@@ -2555,6 +2566,78 @@ void Controller::parseDoc(const string &docName) {
           break;
         }
       }
+    }
+
+    // Read adaptive time stepping configuration if present in JSON.
+    // If absent, the hard-coded defaults from the constructor are kept.
+    auto asi = it.value().find("adaptive_stepping");
+    if (asi != it.value().end()) {
+      std::clog << "Controller::parseDoc: Found adaptive_stepping configuration"
+                << endl;
+
+      // Read the enabled flag
+      auto enabledIt = asi.value().find("enabled");
+      if (enabledIt != asi.value().end()) {
+        useAdaptiveTimeStepping_ = enabledIt.value().get<bool>();
+      }
+
+      if (useAdaptiveTimeStepping_ && adaptiveTimeController_) {
+        // Read parameters and apply to the existing adaptive controller
+        AdaptiveTimeConfig config = adaptiveTimeController_->getConfig();
+
+        auto valIt = asi.value().find("dt_initial");
+        if (valIt != asi.value().end()) {
+          config.dt_initial = valIt.value().get<double>();
+        }
+
+        valIt = asi.value().find("dt_max");
+        if (valIt != asi.value().end()) {
+          config.dt_max = valIt.value().get<double>();
+        }
+
+        valIt = asi.value().find("growth_factor");
+        if (valIt != asi.value().end()) {
+          config.growth_factor = valIt.value().get<double>();
+        }
+
+        valIt = asi.value().find("shrink_factor");
+        if (valIt != asi.value().end()) {
+          config.shrink_factor = valIt.value().get<double>();
+        }
+
+        valIt = asi.value().find("successes_for_growth");
+        if (valIt != asi.value().end()) {
+          config.successes_for_growth = valIt.value().get<int>();
+        }
+
+        valIt = asi.value().find("max_consecutive_failures");
+        if (valIt != asi.value().end()) {
+          config.max_consecutive_failures = valIt.value().get<int>();
+        }
+
+        adaptiveTimeController_->setConfig(config);
+        adaptiveTimeController_->reset();
+
+        std::clog << "  Adaptive params loaded: dt_initial=" << config.dt_initial
+                  << ", dt_max=" << config.dt_max
+                  << ", growth=" << config.growth_factor
+                  << ", shrink=" << config.shrink_factor
+                  << ", successes=" << config.successes_for_growth
+                  << ", max_failures=" << config.max_consecutive_failures << endl;
+      } else if (!useAdaptiveTimeStepping_) {
+        std::clog << "  Adaptive time stepping DISABLED by configuration" << endl;
+      }
+
+      // max_relative_change applies regardless of adaptive stepping enabled/disabled
+      auto mrcIt = asi.value().find("max_relative_change");
+      if (mrcIt != asi.value().end()) {
+        maxRelativeChange_ = mrcIt.value().get<double>();
+        std::clog << "  maxRelativeChange set to " << (maxRelativeChange_ * 100)
+                  << "%" << endl;
+      }
+    } else {
+      std::clog << "Controller::parseDoc: No adaptive_stepping section found, "
+                << "using defaults" << endl;
     }
 
     // There may be times associated with chemical attack
