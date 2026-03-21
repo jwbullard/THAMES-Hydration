@@ -2640,6 +2640,31 @@ void Controller::parseDoc(const string &docName) {
                 << "using defaults" << endl;
     }
 
+    // Read suppressed phases list (top-level key in simparams.json).
+    // For each suppressed GEMS phase, set DCUpperLimit_ to a very small
+    // value to prevent GEMS from precipitating it.
+    auto spIt = data.find("suppressed_phases");
+    if (spIt != data.end() && spIt.value().is_array()) {
+      int suppressedCount = 0;
+      for (const auto &phaseName : spIt.value()) {
+        std::string name = phaseName.get<std::string>();
+        // Look up phase in GEMPhaseIdLookup_ via chemSys_
+        int gemPhaseIdx = chemSys_->getGEMPhaseId(name);
+        if (gemPhaseIdx < chemSys_->getNumGEMPhases()) {
+          // Get all DCs belonging to this phase and cap their upper limits
+          std::vector<int> dcIds = chemSys_->getGEMPhaseDCMembers(gemPhaseIdx);
+          for (int dcId : dcIds) {
+            chemSys_->setDCUpperLimit(dcId, 1.0e-8);
+          }
+          suppressedCount++;
+        }
+        // Silently skip phases not found in GEMS database
+      }
+      std::clog << endl
+                << "Controller::parseDoc: Suppressed " << suppressedCount
+                << " GEMS phases (DCUpperLimit set to 1e-8)" << endl;
+    }
+
     // There may be times associated with chemical attack
     // Next three blocks search for this
     cdi = it.value().find("beginattacktime");
