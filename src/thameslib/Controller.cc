@@ -2646,23 +2646,46 @@ void Controller::parseDoc(const string &docName) {
     auto spIt = data.find("suppressed_phases");
     if (spIt != data.end() && spIt.value().is_array()) {
       int suppressedCount = 0;
+      int skippedCount = 0;
+      // Get the full DC members map once for safe lookup
+      int numGEMPhases = chemSys_->getNumGEMPhases();
+
+      // Build a complete phase-to-DC mapping from the GEMS nDCinPH array.
+      // DCs are assigned sequentially: phase 0 gets DCs 0..nDCinPH[0]-1,
+      // phase 1 gets the next nDCinPH[1] DCs, etc.
+      auto *node = chemSys_->getNode();
+      std::map<int, std::vector<int>> allPhaseDCs;
+      int dcOffset = 0;
+      for (int ph = 0; ph < numGEMPhases; ph++) {
+        int nDC = node->pCSD()->nDCinPH[ph];
+        std::vector<int> dcIds;
+        for (int d = 0; d < nDC; d++) {
+          dcIds.push_back(dcOffset + d);
+        }
+        allPhaseDCs[ph] = dcIds;
+        dcOffset += nDC;
+      }
+
       for (const auto &phaseName : spIt.value()) {
         std::string name = phaseName.get<std::string>();
-        // Look up phase in GEMPhaseIdLookup_ via chemSys_
         int gemPhaseIdx = chemSys_->getGEMPhaseId(name);
-        if (gemPhaseIdx < chemSys_->getNumGEMPhases()) {
-          // Get all DCs belonging to this phase and cap their upper limits
-          std::vector<int> dcIds = chemSys_->getGEMPhaseDCMembers(gemPhaseIdx);
-          for (int dcId : dcIds) {
-            chemSys_->setDCUpperLimit(dcId, 1.0e-8);
-          }
-          suppressedCount++;
+        if (gemPhaseIdx >= numGEMPhases) {
+          skippedCount++;
+          continue;
         }
-        // Silently skip phases not found in GEMS database
+        auto &dcIds = allPhaseDCs[gemPhaseIdx];
+        for (int dcId : dcIds) {
+          chemSys_->addSuppressedDC(dcId);
+          chemSys_->setDCUpperLimit(dcId, 0.0);
+        }
+        suppressedCount++;
       }
       std::clog << endl
                 << "Controller::parseDoc: Suppressed " << suppressedCount
-                << " GEMS phases (DCUpperLimit set to 1e-8)" << endl;
+                << " GEMS phases (DCUpperLimit set to 0)";
+      if (skippedCount > 0)
+        std::clog << " (" << skippedCount << " skipped)";
+      std::clog << endl;
     }
 
     // There may be times associated with chemical attack

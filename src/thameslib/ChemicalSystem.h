@@ -646,6 +646,9 @@ class ChemicalSystem {
   double corPorCSHQ_;
 
   std::vector<double> keepDCLowerLimit_;
+  std::set<int> suppressedDCIds_; /**< DC indices suppressed by user (unchecked
+                                       phases). initDCUpperLimit will keep these
+                                       at 0.0 instead of resetting to 1e6. */
 
   int electrolyteIntPorosity_;
   int voidIntPorosity_;
@@ -4354,9 +4357,20 @@ public:
   */
   void initDCUpperLimit(double val) {
     for (int i = 0; i < numDCs_; i++) {
-      DCUpperLimit_[i] = val;
+      // Keep suppressed DCs at 0.0 regardless of the reset value
+      if (suppressedDCIds_.count(i) > 0) {
+        DCUpperLimit_[i] = 0.0;
+      } else {
+        DCUpperLimit_[i] = val;
+      }
     }
   }
+
+  /**
+  @brief Mark a DC as suppressed (unchecked phase in UI).
+  @param dcId is the DC index to suppress
+  */
+  void addSuppressedDC(int dcId) { suppressedDCIds_.insert(dcId); }
 
   /**
   @brief Get the lower bound on the moles of a dependent component (DC).
