@@ -638,7 +638,9 @@ void Controller::doCycle(double elemTimeInterval) {
   std::ofstream progressFile;
 
   // Main computation cycle
-  while ((currTime <= time_[timeSize - 1]) &&
+  // Use initialLastTime instead of time_[timeSize-1] because the time_ vector
+  // gets modified during the loop (entries overwritten with actual cycle times).
+  while ((currTime <= initialLastTime) &&
          (chemSys_->getGEMPhaseVolume(ElectrolyteGEMName) > 0.0)) {
 
     // Update progress file if necessary
@@ -652,7 +654,7 @@ void Controller::doCycle(double elemTimeInterval) {
       progressFile << "{";
       progressFile << "\"cycle\": " << cyc << ", ";
       progressFile << "\"time_hours\": " << currTime << ", ";
-      progressFile << "\"target_time_hours\": " << (time_[timeSize - 1])
+      progressFile << "\"target_time_hours\": " << initialLastTime
                    << ", ";
       progressFile << "\"timestamp\": \"" << lgf::time_stamp() << "\"";
       progressFile << "}";
@@ -787,10 +789,12 @@ void Controller::doCycle(double elemTimeInterval) {
             timestep = kineticsMaxTimestep;
           }
 
-          // Ensure we don't overshoot final simulation time
-          double finalTime = time_[timeSize - 1];
-          if (lastGoodTime_ + timestep > finalTime) {
-            timestep = finalTime - lastGoodTime_;
+          // Ensure we don't overshoot final simulation time.
+          // Use initialLastTime (saved before the time_ vector gets modified
+          // by the cycle loop) rather than time_[timeSize-1] which gets
+          // overwritten with lastGoodTime_ each cycle.
+          if (lastGoodTime_ + timestep > initialLastTime) {
+            timestep = initialLastTime - lastGoodTime_;
           }
 
           // Check if we've reached the final time (timestep would be zero or tiny)
@@ -801,7 +805,7 @@ void Controller::doCycle(double elemTimeInterval) {
                          "FINAL TIME REACHED #####"
                       << std::endl;
             std::clog << "##### lastGoodTime_ = " << lastGoodTime_
-                      << " h, finalTime = " << finalTime << " h #####" << std::endl;
+                      << " h, finalTime = " << initialLastTime << " h #####" << std::endl;
 
             // Write exit status for UI - normal completion
             std::ostringstream diagStream;

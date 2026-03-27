@@ -124,6 +124,14 @@ add_executable (thames ${SOURCES})
 
 target_link_libraries (thames thameslib ${EXTRA_LIBS} PNG::PNG)
 
+# macOS 26.4+ requires explicit ad-hoc signing for binaries to run
+if(APPLE)
+  add_custom_command(TARGET thames POST_BUILD
+    COMMAND codesign --force --sign - $<TARGET_FILE:thames>
+    COMMENT "Ad-hoc signing thames binary for macOS"
+  )
+endif()
+
 install (TARGETS thames DESTINATION ${CMAKE_SOURCE_DIR}/bin)
 if (EXISTS ${CMAKE_SOURCE_DIR}/build/html)
   install (DIRECTORY ${CMAKE_SOURCE_DIR}/build/html DESTINATION ${CMAKE_SOURCE_DIR}/doc)
