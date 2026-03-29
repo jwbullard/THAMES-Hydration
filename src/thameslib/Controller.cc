@@ -673,11 +673,17 @@ void Controller::doCycle(double elemTimeInterval) {
                 << i << " / " << cyc << " / " << lastGoodI
                 << " : lastGoodTime_ = " << lastGoodTime_;
       if (i > 0) {
-        std::clog << "  => modif: time_[" << lastGoodI
-                  << "] = " << time_[lastGoodI] << "  --->  time_[" << lastGoodI
-                  << "] = " << currTime << endl;
-        time_[lastGoodI] = currTime;
-        lastGoodI++;
+        if (lastGoodI < static_cast<int>(time_.size())) {
+          std::clog << "  => modif: time_[" << lastGoodI
+                    << "] = " << time_[lastGoodI] << "  --->  time_[" << lastGoodI
+                    << "] = " << currTime << endl;
+          time_[lastGoodI] = currTime;
+          lastGoodI++;
+        } else {
+          std::clog << "  => lastGoodI (" << lastGoodI
+                    << ") >= time_.size() (" << time_.size()
+                    << "), skipping time_ update" << endl;
+        }
       } else {
         std::clog << "  => time_[" << lastGoodI << "] = " << time_[lastGoodI]
                   << " / timeSize = " << timeSize
@@ -781,8 +787,13 @@ void Controller::doCycle(double elemTimeInterval) {
           // Use adaptive time controller to get next timestep
           timestep = adaptiveTimeController_->getNextTimestep();
 
-          // Apply kinetics-based constraint to limit DC mole changes per step
+          // Apply kinetics-based constraint to limit DC mole changes per step.
+          // Enforce a minimum timestep (stepTimeTHR_) so the kinetics constraint
+          // can't reduce the timestep to an unusably small value.
           double kineticsMaxTimestep = kineticController_->computeKineticsBasedMaxTimestep(maxRelativeChange_);
+          if (kineticsMaxTimestep < stepTimeTHR_) {
+            kineticsMaxTimestep = stepTimeTHR_;
+          }
           if (kineticsMaxTimestep < timestep) {
             std::clog << "    Kinetics constraint: reducing timestep from "
                       << timestep << " to " << kineticsMaxTimestep << " h" << std::endl;
@@ -797,8 +808,11 @@ void Controller::doCycle(double elemTimeInterval) {
             timestep = initialLastTime - lastGoodTime_;
           }
 
-          // Check if we've reached the final time (timestep would be zero or tiny)
-          if (timestep < 1.0e-12) {
+          // Check if we've reached the final time. Only terminate when
+          // lastGoodTime_ is actually close to the target, not when the
+          // kinetics constraint happens to produce a very small timestep.
+          if (timestep < 1.0e-12 &&
+              (initialLastTime - lastGoodTime_) < 1.0e-6) {
             std::clog << std::endl
                       << std::endl
                       << "##### Controller::doCycle - ADAPTIVE TIME STEPPING: "
