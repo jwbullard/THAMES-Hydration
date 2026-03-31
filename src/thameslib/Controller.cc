@@ -1138,8 +1138,42 @@ void Controller::doCycle(double elemTimeInterval) {
         timesGEMFailed_recall = -1;
         bool testDiff = true;
         int numSitesNotAvailableSize;
+        static const int MAX_LATTICE_RETRIES = 50;
         while (changeLattice == 0) { // - for many phases!
           whileCount++;
+
+          // Prevent infinite retry loop when the lattice geometry
+          // cannot satisfy the GEMS dissolution/growth request
+          if (whileCount > MAX_LATTICE_RETRIES) {
+            std::clog << endl
+                      << "WARNING: Controller::doCycle - cyc = " << cyc
+                      << " : lattice retry limit (" << MAX_LATTICE_RETRIES
+                      << ") reached. Accepting current microstructure and "
+                      << "logging voxel mismatch." << endl;
+
+            // Log mismatch details to a dedicated file
+            std::ofstream mismatchFile("voxel_mismatch.log",
+                                       std::ios::app);
+            if (mismatchFile) {
+              mismatchFile << "Cycle " << cyc
+                           << ", Time(h) " << currTime
+                           << ", Retries " << whileCount - 1 << endl;
+              for (int mj = 0;
+                   mj < static_cast<int>(numSitesNotAvailable.size());
+                   mj++) {
+                mismatchFile << "  Phase " << vectPhIdDiff[mj]
+                             << " (" << vectPhNameDiff[mj]
+                             << "): " << numSitesNotAvailable[mj]
+                             << " voxels could not be changed" << endl;
+              }
+              mismatchFile << endl;
+              mismatchFile.close();
+            }
+
+            // Accept the current state and move on
+            changeLattice = 1;
+            break;
+          }
           numSitesNotAvailableSize = numSitesNotAvailable.size();
           std::clog << endl
                     << "Controller::doCycle - cyc = " << cyc
