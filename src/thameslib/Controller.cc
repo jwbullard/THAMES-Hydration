@@ -729,6 +729,21 @@ void Controller::doCycle(double elemTimeInterval) {
             break;
           }
 
+          // Apply kinetics constraint to the post-failure timestep.
+          // Without this, the adaptive controller may return a timestep
+          // much larger than what the kinetics can handle, causing the
+          // kinetic step to overshoot and drive ICs negative.
+          double kineticsMax = kineticController_->computeKineticsBasedMaxTimestep(maxRelativeChange_);
+          if (kineticsMax < stepTimeTHR_) {
+            kineticsMax = stepTimeTHR_;
+          }
+          if (kineticsMax < timestep) {
+            std::clog << "    Kinetics constraint (post-failure): reducing "
+                      << "timestep from " << timestep << " to "
+                      << kineticsMax << " h" << endl;
+            timestep = kineticsMax;
+          }
+
           // Calculate new current time based on adaptive timestep
           currTime = lastGoodTime_ + timestep;
 
