@@ -543,6 +543,9 @@ void KineticController::parseKineticDataForStandard(
                         "activationEnergy not found");
   }
 
+  // Optional CNT nucleation block; leaves kineticData.nucleation empty if absent.
+  parseNucleationBlock(p, kineticData);
+
   return;
 }
 
@@ -698,7 +701,72 @@ void KineticController::parseKineticDataForPozzolanic(
                         "activationEnergy not found");
   }
 
+  // Optional CNT nucleation block; leaves kineticData.nucleation empty if absent.
+  parseNucleationBlock(p, kineticData);
+
   return;
+}
+
+// Parses an optional "nucleation" sub-block from a phase's "kinetic_data"
+// object. Absent block = CNT disabled for this phase.
+//
+// Expected JSON (all three fields required when the block is present):
+//   "nucleation": {
+//     "gamma": {"value": 0.044,  "range": [0.030, 0.070], "provenance": "..."},
+//     "theta": {"value": 180,    "range": [1, 180],       "provenance": "..."},
+//     "A0":    {"value": 1.0e30, "range": [1.0e28, 1.0e32], "provenance": "..."}
+//   }
+//
+// Only the "value" field is read into runtime memory. "range" and
+// "provenance" are curation metadata for humans and sweep tooling; they
+// stay in the JSON file as documentation but never enter the simulation.
+//
+// theta is validated to [1, 180]. theta = 180 designates homogeneous
+// placement (uniform-random over electrolyte voxels via
+// Lattice::nucleatePhaseRnd). theta in [1, 179] is reserved for future
+// heterogeneous placement on substrate voxels.
+void KineticController::parseNucleationBlock(const json::iterator p,
+                                             struct KineticData &kineticData) {
+  json::iterator nucIt = p.value().find("nucleation");
+  if (nucIt == p.value().end()) {
+    return;  // Absent block = CNT disabled; kineticData.nucleation stays empty
+  }
+
+  // Each parameter is a {value, range, provenance} object; runtime reads only
+  // the value field. range and provenance are user-facing metadata (documented
+  // in the JSON for what-if / sweep tooling) and are ignored here.
+  auto readValue = [&](const std::string &key) -> json::iterator {
+    auto it = nucIt.value().find(key);
+    if (it == nucIt.value().end()) {
+      throw DataException("KineticController", "parseNucleationBlock",
+                          key + " not found in nucleation block");
+    }
+    auto valIt = it.value().find("value");
+    if (valIt == it.value().end()) {
+      throw DataException("KineticController", "parseNucleationBlock",
+                          key + ".value not found");
+    }
+    return valIt;
+  };
+
+  NucleationParameters np;
+  np.gamma = readValue("gamma").value().get<double>();
+  np.theta_deg = readValue("theta").value().get<int>();
+  np.A0 = readValue("A0").value().get<double>();
+
+  if (np.theta_deg < 1 || np.theta_deg > 180) {
+    throw DataException("KineticController", "parseNucleationBlock",
+                        "theta must be integer in [1, 180]");
+  }
+
+  kineticData.nucleation = np;
+
+  if (verbose_) {
+    std::clog << "--->Parsed nucleation block for " << kineticData.name
+              << ": gamma=" << np.gamma << " J/m^2, theta=" << np.theta_deg
+              << " deg, A0=" << np.A0 << " /(m^3 s)" << endl;
+    std::clog.flush();
+  }
 }
 
 void KineticController::calcPhaseMasses(void) {
@@ -1029,6 +1097,42 @@ void KineticController::calculateKineticStep(double time, const double timestep,
 
       //*******
 
+      // ---------- CNT pre-loop lock (guard G4 in docs/CNT_ARCHITECTURE.md) ----------
+      // For every phase that has (a) CNT configured, (b) currently zero mass,
+      // set both DC limits to 0. This coordinates with three other pieces:
+      //   1. Standard/Pozzolanic::calculateKineticStep has an early-return
+      //      bypass (guard G3) that skips their rate calculation entirely
+      //      for CNT-controlled zero-mass phases, so DCMoles_ is not
+      //      incremented by the kinetic model.
+      //   2. The CNT placement block at the tail of this same phase loop
+      //      raises both DC limits to DCMoles_[dcId] AFTER placing nuclei
+      //      (guard G5) — GEMS then respects the new floor and does not
+      //      dissolve the placed nuclei back.
+      //   3. GEMS at end-of-cycle sees limits = 0 for phases not yet
+      //      bootstrapped by CNT and cannot precipitate them of its own
+      //      accord. Only CNT can create such a phase from mass = 0.
+      // Without this pre-loop lock, GEMS is free to precipitate portlandite
+      // (or any CNT-configured phase) at S > 1 the moment it appears, and
+      // CNT's role as the sole nucleation mechanism is defeated.
+      if (useNucleationKinetics_) {
+        for (int i = 0; i < pKMsize_; ++i) {
+          if (phaseKineticModel_[i] != nullptr &&
+              phaseKineticModel_[i]->hasNucleation() &&
+              phaseKineticModel_[i]->getScaledMass() <= 0.0) {
+            int dcId = phaseKineticModel_[i]->getDCId();
+            chemSys_->setDCLowerLimit(dcId, 0.0);
+            chemSys_->setDCUpperLimit(dcId, 0.0);
+            if (verbose_) {
+              std::clog << "  CNT-lock: "
+                        << phaseKineticModel_[i]->getName()
+                        << " has nucleation block and zero mass; DC["
+                        << dcId << "] locked to 0 until CNT places nuclei"
+                        << endl;
+            }
+          }
+        }
+      }
+
       double dcmoles;
       bool runKM = true;
 
@@ -1232,6 +1336,65 @@ void KineticController::calculateKineticStep(double time, const double timestep,
                       << scaledMass << " / " << massDissolved << " / "
                       << totMassImpurity << " / "
                       << massDissolved - totMassImpurity << endl;
+          }
+        }
+
+        // ---------- CNT placement block (see docs/CNT_ARCHITECTURE.md §3) ----------
+        // Runs at the natural END of each per-phase iteration so that any
+        // early-continue path (doNotModif = true from GEMS "don't modify"
+        // decisions, negative-mass exit, etc.) naturally skips CNT for
+        // that phase this cycle.
+        //
+        // Sequence per phase:
+        //   1. dN = model->computeNucleationVoxels(dt)  -- fractional voxels
+        //   2. model->accumulateNucleation(dN)          -- per-phase accumulator
+        //   3. nWant = floor(accumulator), fractional remainder carries forward
+        //   4. Lattice::nucleatePhaseRnd places nWant voxels at uniform-random
+        //      electrolyte sites; returns nPlaced (may be < nWant if sites exhausted)
+        //   5. DCMoles_[dcId] += nPlaced * V_voxel / V_molar
+        //   6. Raise BOTH DC lower and upper limits to the new DCMoles_[dcId] —
+        //      lower to prevent GEMS from dissolving the nuclei back to the
+        //      stale kinetic-computed floor, upper because the pre-loop CNT-lock
+        //      may have zeroed it and DCMoles > 0 would violate UpperLimit = 0.
+        if (useNucleationKinetics_) {
+          double dN =
+              phaseKineticModel_[midx]->computeNucleationVoxels(timestep);
+          if (dN > 0.0) {
+            phaseKineticModel_[midx]->accumulateNucleation(dN);
+            int nWant = phaseKineticModel_[midx]->drainNucleationInteger();
+            if (nWant > 0) {
+              int microPhId = phaseKineticModel_[midx]->getMicroPhaseId();
+              int dcId = phaseKineticModel_[midx]->getDCId();
+              int nPlaced = lattice_->nucleatePhaseRnd(microPhId, nWant);
+              if (nPlaced > 0) {
+                double vVoxel = lattice_->getVolumePerVoxel();
+                double vMolar = chemSys_->getDCMolarVolume(dcId);
+                double moles =
+                    static_cast<double>(nPlaced) * vVoxel / vMolar;
+                DCMoles_[dcId] += moles;
+                // Lock the newly-placed nuclei against GEMS redissolving
+                // them back this cycle. Without this, GEMS uses the
+                // kinetic-computed DCLowerLimit set at line ~1271 (pre-CNT
+                // state) as its floor, and immediately "dissolves" all the
+                // placed voxels back to that stale floor.
+                // Also raise the UpperLimit — otherwise, if the pre-loop
+                // "CNT-lock" block zeroed both limits (zero-mass CNT phase),
+                // DCMoles > 0 would violate UpperLimit=0 and GEMS would
+                // reject the placement.
+                chemSys_->setDCLowerLimit(dcId, DCMoles_[dcId]);
+                chemSys_->setDCUpperLimit(dcId, DCMoles_[dcId]);
+                if (verbose_) {
+                  std::clog << "  CNT: "
+                            << phaseKineticModel_[midx]->getName()
+                            << " requested " << nWant << " voxels, placed "
+                            << nPlaced << " (+" << moles << " mol DC["
+                            << dcId << "])" << endl;
+                }
+              }
+              // If nPlaced < nWant, the residual is absorbed by exhausted
+              // sites reality; do not re-accumulate. The fix for exhausted
+              // electrolyte is a smaller dt next cycle, not a queue.
+            }
           }
         }
       }
@@ -1577,4 +1740,49 @@ double KineticController::computeKineticsBasedMaxTimestep(
   }
 
   return minTimestep;
+}
+
+double KineticController::computeNucleationBasedMaxTimestep(
+    double dtProposedHours, double capFraction) const {
+  // The CNT rate J is fixed within a cycle (uses S from the previous
+  // GEMS equilibration). Voxel count for a given dt scales linearly with dt.
+  // If dt is too large, the fixed-J-in-cycle approximation breaks down
+  // because the placement itself would depress solute concentration enough
+  // to change J materially during the cycle.
+  //
+  // The cap: for each phase, if computeNucleationVoxels(dtProposed) exceeds
+  // capFraction * count_[ELECTROLYTEID], shrink dt so the projected N would
+  // exactly land at the cap. Return the minimum shrunk dt across all phases.
+  // Same idiom as computeKineticsBasedMaxTimestep — "iterate phases, take
+  // the tightest per-phase constraint."
+  //
+  // Composes with the kinetics cap via sequential min at the two Controller
+  // dt-selection sites (success path and post-failure path). Final dt is
+  // min(adaptive-controller-proposed, kinetics cap, this CNT cap).
+  if (!useNucleationKinetics_) return dtProposedHours;
+
+  const double nElec =
+      static_cast<double>(lattice_->getCount(ELECTROLYTEID));
+  const double nCap = capFraction * nElec;
+  double dtMax = dtProposedHours;
+
+  for (int i = 0; i < pKMsize_; ++i) {
+    if (phaseKineticModel_[i] == nullptr) continue;
+    double nPhase =
+        phaseKineticModel_[i]->computeNucleationVoxels(dtProposedHours);
+    if (nPhase > nCap) {
+      double dtShrunk = dtProposedHours * (nCap / nPhase);
+      if (dtShrunk < dtMax) {
+        dtMax = dtShrunk;
+        if (verbose_) {
+          std::clog << "  CNT cap: phase "
+                    << phaseKineticModel_[i]->getName()
+                    << " would produce " << nPhase << " voxels at dt="
+                    << dtProposedHours << " h (cap=" << nCap
+                    << "); shrinking dt to " << dtShrunk << " h" << endl;
+        }
+      }
+    }
+  }
+  return dtMax;
 }

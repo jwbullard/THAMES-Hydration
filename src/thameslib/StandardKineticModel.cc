@@ -5,6 +5,10 @@
 */
 #include "StandardKineticModel.h"
 
+#include <cmath>
+
+#include "NucleationRate.h"
+
 using std::cout;
 using std::endl;
 
@@ -106,6 +110,11 @@ StandardKineticModel::StandardKineticModel(ChemicalSystem *cs, Lattice *lattice,
   scaledMass_ = kineticData.scaledMass;
   initScaledMass_ = kineticData.scaledMass;
 
+  // Copy in CNT parameters if present in the input JSON (empty otherwise).
+  // std::optional propagates the empty state naturally when CNT is not
+  // configured for this phase.
+  nucleation_ = kineticData.nucleation;
+
   double critporediam = lattice_->getLargestSaturatedPore(); // in nm
   critporediam *= 1.0e-9;                                    // in m
   rh_ = exp(-6.23527e-7 / critporediam / temperature_);
@@ -169,6 +178,24 @@ void StandardKineticModel::calculateKineticStep(const double timestep,
     /// @todo revisit the contact angle issue
 
     scaledMass_ = scaledMass;
+
+    // ---------- CNT bypass (guard G3 in docs/CNT_ARCHITECTURE.md) ----------
+    // If this phase has a nucleation block AND currently has zero mass,
+    // skip the entire rate calculation. Two consequences:
+    //   * The classical "area = 1.0" fallback at line ~199 below (which
+    //     lets Standard produce a nonzero rate from zero surface area)
+    //     cannot spontaneously precipitate the phase.
+    //   * DCMoles_ is not touched here, so the pre-loop CNT-lock in
+    //     KineticController::calculateKineticStep (which set DC upper and
+    //     lower limits to 0 for this phase) still holds. CNT is then the
+    //     ONLY code path that can bring the phase into existence.
+    // Once CNT places nuclei this cycle, scaledMass becomes > 0 in the
+    // next cycle and the bypass no longer fires — normal Standard growth
+    // kinetics apply from then on.
+    if (nucleation_.has_value() && scaledMass <= 0.0) {
+      massDissolved = 0.0;
+      return;
+    }
 
     // JWB BEWARE: The new definition of area is truly a geometric calculation
     // made on the microstructure. It does not catch BET or internal surface
@@ -433,4 +460,36 @@ double StandardKineticModel::getCurrentMolarRate(double scaledMass) const {
   dissrate *= arrhenius_;
 
   return dissrate;
+}
+
+double StandardKineticModel::computeNucleationVoxels(double dt_hours) const {
+  if (!nucleation_.has_value()) return 0.0;
+
+  // ChemicalSystem stores S already as the linear ratio IAP/Ksp; the log10
+  // conversion from GEMS happens inside ChemicalSystem::calculateSI
+  // (ChemicalSystem.cc:3244 via pow(10, Ph_SatInd(...))).
+  double S = chemSys_->getMicroPhaseSI(microPhaseId_);
+  if (S <= 1.0) return 0.0;
+
+  double v_m = chemSys_->getDCMolarVolume(DCId_);           // [m^3/mol]
+  double T_K = temperature_;                                 // [K]
+  double V_voxel = lattice_->getVolumePerVoxel();            // [m^3]
+  double V_electrolyte =
+      lattice_->getVolumeFraction(ELECTROLYTEID) *
+      static_cast<double>(lattice_->getNumSites()) * V_voxel; // [m^3]
+  double dt_seconds = dt_hours * 3600.0;
+
+  return cnt::voxelsPerCycle(*nucleation_, v_m, T_K, S,
+                             dt_seconds, V_electrolyte, V_voxel);
+}
+
+void StandardKineticModel::accumulateNucleation(double dN) {
+  if (dN > 0.0) nucleationAccumulator_ += dN;
+}
+
+int StandardKineticModel::drainNucleationInteger() {
+  if (nucleationAccumulator_ < 1.0) return 0;
+  int n = static_cast<int>(std::floor(nucleationAccumulator_));
+  nucleationAccumulator_ -= static_cast<double>(n);
+  return n;
 }

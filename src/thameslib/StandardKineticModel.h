@@ -17,6 +17,8 @@ National Academy of Sciences USA, 105 (2008) 9903–9908.
 #ifndef SRC_THAMESLIB_STANDARDKINETICMODEL_H_
 #define SRC_THAMESLIB_STANDARDKINETICMODEL_H_
 
+#include <optional>
+
 #include "global.h"
 #include "Exceptions.h"
 #include "ChemicalSystem.h"
@@ -24,6 +26,7 @@ National Academy of Sciences USA, 105 (2008) 9903–9908.
 #include "KineticData.h"
 #include "KineticModel.h"
 #include "Lattice.h"
+#include "NucleationParameters.h"
 
 /**
 @class StandardKineticModel
@@ -51,6 +54,11 @@ protected:
                           hydration rate taking into account the ambient relative
                           humidity */
   double arrhenius_; /**< arrhenius factor */
+
+  std::optional<NucleationParameters> nucleation_;
+      /**< CNT parameters for this phase; empty = CNT disabled */
+  double nucleationAccumulator_ = 0.0;
+      /**< fractional-voxel accumulator drained when it crosses 1.0 */
 
 public:
   /**
@@ -229,6 +237,42 @@ public:
           Positive = dissolution, Negative = precipitation
   */
   double getCurrentMolarRate(double scaledMass) const override;
+
+  /**
+  @brief Compute the fractional number of voxels expected to nucleate this cycle.
+
+  Classical Nucleation Theory (CNT) rate for this phase. Guarded: returns 0.0
+  when kineticData_.nucleation is empty (CNT not configured for this phase)
+  or when S <= 1.0 (undersaturated / at equilibrium). Otherwise pulls
+  gamma / theta / A0 from kineticData_.nucleation, v_m from chemSys_,
+  T from temperature_, V_voxel and V_electrolyte from lattice_, and
+  delegates to cnt::voxelsPerCycle in NucleationRate.h.
+
+  Result is fractional; the caller accumulates and places voxels when the
+  accumulator crosses 1.0. Defined in Step 4 of the CNT integration plan
+  but NOT YET CALLED from calculateKineticStep — that wiring happens in
+  Step 5, along with the batched random placement and the
+  AdaptiveTimeController N_cap integration.
+
+  @param dt_hours proposed cycle timestep [hours]
+  @return fractional voxel count for this phase this cycle
+  */
+  double computeNucleationVoxels(double dt_hours) const override;
+
+  /**
+  @brief Report whether this phase has a CNT nucleation block configured.
+  */
+  bool hasNucleation() const override { return nucleation_.has_value(); }
+
+  /**
+  @brief Add fractional voxels to this phase's CNT accumulator (Session-50 spec).
+  */
+  void accumulateNucleation(double dN) override;
+
+  /**
+  @brief Return floor(accumulator) and subtract that many whole voxels.
+  */
+  int drainNucleationInteger() override;
 
 }; // End of StandardKineticModel class
 

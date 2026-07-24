@@ -216,6 +216,28 @@ private:
   */
   double maxRelativeChange_;
 
+  /**
+  @brief Global master switch for Classical Nucleation Theory (CNT) kinetics.
+
+  When true, per-phase `nucleation` blocks in kinetic_data are honored by
+  StandardKineticModel and PozzolanicModel. When false, all nucleation
+  blocks are ignored regardless of per-phase configuration (baseline
+  behavior). Opt-in default: false. Read from simparams.json top-level
+  key `useNucleationKinetics`.
+  */
+  bool useNucleationKinetics_;
+
+  /**
+  @brief Fraction of electrolyte voxel count used as the per-cycle nucleation cap.
+
+  When N_want (voxels to nucleate this cycle from CNT) exceeds
+  N_cap = nucleationCapFraction_ * N_electrolyte, the adaptive time step
+  is shrunk so that N_want <= N_cap. Keeps the fixed-J assumption within a
+  cycle valid. Default: 0.02 (2%). Read from simparams.json top-level key
+  `nucleationCapFraction`.
+  */
+  double nucleationCapFraction_;
+
 public:
   /**
   @brief The constructor.
@@ -395,6 +417,42 @@ public:
   @return true if adaptive stepping is enabled
   */
   bool getUseAdaptiveTimeStepping() const { return useAdaptiveTimeStepping_; }
+
+  /**
+  @brief Enable or disable Classical Nucleation Theory kinetics globally.
+
+  When enabled, per-phase `nucleation` blocks in kinetic_data are honored.
+  When disabled, they are ignored.
+
+  @param enable true to enable CNT
+  */
+  void setUseNucleationKinetics(bool enable) {
+    useNucleationKinetics_ = enable;
+  }
+
+  /**
+  @brief Check whether Classical Nucleation Theory kinetics are enabled globally.
+
+  @return true if CNT is enabled
+  */
+  bool getUseNucleationKinetics() const { return useNucleationKinetics_; }
+
+  /**
+  @brief Set the CNT per-cycle nucleation cap fraction.
+
+  Fraction of the electrolyte voxel count that N_want may not exceed in a
+  single cycle. Drives the CNT-informed adaptive dt reduction.
+
+  @param f fraction in (0, 1]; recommended 0.01-0.05
+  */
+  void setNucleationCapFraction(double f) { nucleationCapFraction_ = f; }
+
+  /**
+  @brief Get the CNT per-cycle nucleation cap fraction.
+
+  @return the nucleation cap fraction
+  */
+  double getNucleationCapFraction() const { return nucleationCapFraction_; }
 
   /**
   @brief Get pointer to the adaptive time controller.

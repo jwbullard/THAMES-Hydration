@@ -17,12 +17,15 @@ National Academy of Sciences USA, 105 (2008) 9903–9908.
 #ifndef SRC_THAMESLIB_POZZOLANICMODEL_H_
 #define SRC_THAMESLIB_POZZOLANICMODEL_H_
 
+#include <optional>
+
 #include "ChemicalSystem.h"
 #include "Exceptions.h"
 #include "KineticController.h"
 #include "KineticData.h"
 #include "KineticModel.h"
 #include "Lattice.h"
+#include "NucleationParameters.h"
 #include "global.h"
 
 /**
@@ -61,6 +64,11 @@ protected:
                           the hydration rate taking into account the ambient
                           relative humidity */
   double arrhenius_; /**< arrhenius factor */
+
+  std::optional<NucleationParameters> nucleation_;
+      /**< CNT parameters for this phase; empty = CNT disabled */
+  double nucleationAccumulator_ = 0.0;
+      /**< fractional-voxel accumulator drained when it crosses 1.0 */
 
 public:
   /**
@@ -382,6 +390,36 @@ public:
           Positive = dissolution, Negative = precipitation
   */
   double getCurrentMolarRate(double scaledMass) const override;
+
+  /**
+  @brief Compute the fractional number of voxels expected to nucleate this cycle.
+
+  CNT rate for this Pozzolanic phase. Guarded on:
+  - `nucleation_.has_value()` — CNT is configured for this phase
+  - `S > 1.0` — thermodynamic driver exists
+  - `lattice_->getGrowthInterfaceSize()[microPhaseId_] == 0` — the Session-50
+    same-phase-interface gating rule that prevents CNT from double-counting
+    when Pozzolanic's empirical acceleration parameters already handle growth
+
+  Result is fractional; caller accumulates and places voxels when the
+  accumulator crosses 1.0.
+  */
+  double computeNucleationVoxels(double dt_hours) const override;
+
+  /**
+  @brief Report whether this phase has a CNT nucleation block configured.
+  */
+  bool hasNucleation() const override { return nucleation_.has_value(); }
+
+  /**
+  @brief Add fractional voxels to this phase's CNT accumulator.
+  */
+  void accumulateNucleation(double dN) override;
+
+  /**
+  @brief Return floor(accumulator) and subtract that many whole voxels.
+  */
+  int drainNucleationInteger() override;
 
 }; // End of PozzolanicModel class
 

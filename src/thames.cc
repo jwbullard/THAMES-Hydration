@@ -550,12 +550,6 @@ int main(int argc, char **argv) {
   }
 
   string jobRoot, statFileName;
-  if (VERBOSE) {
-    std::clog << endl << "About to enter KineticController constructor" << endl;
-    std::clog << "exit" << endl;
-    exit(0);
-    std::clog.flush();
-  }
 
   //
   // Create the KineticController object

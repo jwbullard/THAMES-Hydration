@@ -225,8 +225,10 @@ inline const double REFTEMP = 298.15;
 // Reference lattice resolution [micrometers]
 inline const double REFRES = 4.0;
 
-// Ideal gas constant [J/mol/K]
-inline const double GASCONSTANT = 8.314;
+// Universal physical constants (GASCONSTANT, BOLTZMANNCONSTANT,
+// AVOGADROCONSTANT, Pi) live in PhysicalConstants.h so that dependency-free
+// modules can consume them without pulling in the rest of global.h.
+#include "PhysicalConstants.h"
 
 // Flags for different kinds of probability distributions (NOT USED)
 inline const int DELTA = +1;
@@ -274,7 +276,7 @@ or using GEMS preconditioner adjustments).
 */
 inline const double IC_FLOOR = 1.0e-5;
 
-inline const double Pi = 3.14159265359;
+// Pi now lives in PhysicalConstants.h (included above).
 
 inline const double S_PER_MINUTE = 60.0;
 inline const double S_PER_H = 3600.0;

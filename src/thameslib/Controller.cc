@@ -19,6 +19,10 @@ Controller::Controller(Lattice *msh, KineticController *kc, ChemicalSystem *cs,
   stepTimeTHR_ = 1.e-5;  // Minimum timestep: 0.036 seconds (lowered from 1e-3)
   maxRelativeChange_ = 0.05; // Default: 5% max DC mole change per timestep
 
+  // CNT kinetics defaults — opt-in via simparams.json.
+  useNucleationKinetics_ = false;
+  nucleationCapFraction_ = 0.02;
+
   // Initialize adaptive time stepping with unified parameters.
   // The kinetics-based timestep constraint (computeKineticsBasedMaxTimestep)
   // provides dynamic, physics-based adaptation that responds to actual
@@ -394,6 +398,11 @@ Controller::Controller(Lattice *msh, KineticController *kc, ChemicalSystem *cs,
     throw fex;
   }
 
+  // Propagate CNT global switch from Controller (populated by parseDoc)
+  // down to KineticController. It gates both the CNT placement block in
+  // calculateKineticStep and the CNT dt cap.
+  kc->setUseNucleationKinetics(useNucleationKinetics_);
+
   for (int i = 0; i < static_cast<int>(time_.size() - 1); i++) {
     if (abs(time_[i] - time_[i + 1]) <= 1.0e-6) {
       time_.erase(time_.begin() + i);
@@ -743,6 +752,15 @@ void Controller::doCycle(double elemTimeInterval) {
                       << kineticsMax << " h" << endl;
             timestep = kineticsMax;
           }
+          // Apply CNT cap on top; returns dtProposed unchanged when disabled.
+          double cntMax = kineticController_->computeNucleationBasedMaxTimestep(
+              timestep, nucleationCapFraction_);
+          if (cntMax < timestep) {
+            std::clog << "    CNT constraint (post-failure): reducing timestep "
+                      << "from " << timestep << " to " << cntMax << " h"
+                      << endl;
+            timestep = cntMax;
+          }
 
           // Calculate new current time based on adaptive timestep
           currTime = lastGoodTime_ + timestep;
@@ -813,6 +831,14 @@ void Controller::doCycle(double elemTimeInterval) {
             std::clog << "    Kinetics constraint: reducing timestep from "
                       << timestep << " to " << kineticsMaxTimestep << " h" << std::endl;
             timestep = kineticsMaxTimestep;
+          }
+          // Apply CNT cap on top; returns dtProposed unchanged when disabled.
+          double cntMaxTimestep = kineticController_->computeNucleationBasedMaxTimestep(
+              timestep, nucleationCapFraction_);
+          if (cntMaxTimestep < timestep) {
+            std::clog << "    CNT constraint: reducing timestep from "
+                      << timestep << " to " << cntMaxTimestep << " h" << std::endl;
+            timestep = cntMaxTimestep;
           }
 
           // Ensure we don't overshoot final simulation time.
@@ -2705,6 +2731,22 @@ void Controller::parseDoc(const string &docName) {
     } else {
       std::clog << "Controller::parseDoc: No adaptive_stepping section found, "
                 << "using defaults" << endl;
+    }
+
+    // Read CNT nucleation controls (top-level keys in simparams.json).
+    // Both keep the constructor defaults if absent.
+    auto nkIt = data.find("useNucleationKinetics");
+    if (nkIt != data.end()) {
+      useNucleationKinetics_ = nkIt.value().get<bool>();
+      std::clog << "Controller::parseDoc: useNucleationKinetics = "
+                << (useNucleationKinetics_ ? "true" : "false") << endl;
+    }
+
+    auto ncfIt = data.find("nucleationCapFraction");
+    if (ncfIt != data.end()) {
+      nucleationCapFraction_ = ncfIt.value().get<double>();
+      std::clog << "Controller::parseDoc: nucleationCapFraction = "
+                << nucleationCapFraction_ << endl;
     }
 
     // Read suppressed phases list (top-level key in simparams.json).

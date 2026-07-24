@@ -112,6 +112,36 @@ public:
   virtual std::string getType() const { return (GenericType); }
 
   /**
+  @brief Compute fractional voxels expected to nucleate for this phase this cycle.
+
+  Default returns 0.0 for models with no CNT support (ParrotKilloh, generic).
+  StandardKineticModel overrides. PozzolanicModel will override in Step 7.
+  */
+  virtual double computeNucleationVoxels(double /*dt_hours*/) const {
+    return 0.0;
+  }
+
+  /**
+  @brief Report whether this phase has a CNT nucleation block configured.
+
+  Used by KineticController to enforce that GEMS cannot spontaneously
+  precipitate a CNT-controlled phase from zero mass. Default: false.
+  */
+  virtual bool hasNucleation() const { return false; }
+
+  /**
+  @brief Add fractional voxels to this phase's CNT accumulator.
+  Default: no-op.
+  */
+  virtual void accumulateNucleation(double /*dN*/) {}
+
+  /**
+  @brief Drain the integer part of the CNT accumulator (batched placement count).
+  Default: 0 (no accumulator).
+  */
+  virtual int drainNucleationInteger() { return 0; }
+
+  /**
   @brief Set the specific surface area
 
   @note NOT USED.

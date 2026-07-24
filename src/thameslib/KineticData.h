@@ -54,7 +54,10 @@ component
 #ifndef SRC_THAMESLIB_KINETICDATA_H_
 #define SRC_THAMESLIB_KINETICDATA_H_
 
+#include <optional>
+
 #include "global.h"
+#include "NucleationParameters.h"
 
 struct KineticData {
   std::string name;  /**< Name of the microstructure phase */
@@ -92,5 +95,7 @@ struct KineticData {
   double rhFactor_;      /**< relative humidity factor, i.e. the correction
                               of the hydration rate taking into account the
                               ambient relative humidity */
+  std::optional<NucleationParameters> nucleation;
+      /**< CNT parameters for this phase; empty = CNT disabled */
 };
 #endif // SRC_THAMESLIB_KINETICDATA_H_

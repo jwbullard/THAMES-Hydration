@@ -5,6 +5,10 @@
 */
 #include "PozzolanicModel.h"
 
+#include <cmath>
+
+#include "NucleationRate.h"
+
 using std::cout;
 using std::endl;
 
@@ -124,6 +128,9 @@ PozzolanicModel::PozzolanicModel(ChemicalSystem *cs, Lattice *lattice,
   scaledMass_ = kineticData.scaledMass;
   initScaledMass_ = kineticData.scaledMass;
 
+  // Copy in CNT parameters if present in the input JSON (empty otherwise).
+  nucleation_ = kineticData.nucleation;
+
   double critporediam = lattice_->getLargestSaturatedPore(); // in nm
   critporediam *= 1.0e-9;                                    // in m
   rh_ = exp(-6.23527e-7 / critporediam / temperature_);
@@ -205,6 +212,23 @@ void PozzolanicModel::calculateKineticStep(const double timestep,
     /// @todo revisit the contact angle issue
 
     scaledMass_ = scaledMass;
+
+    // ---------- CNT bypass (guard G3 in docs/CNT_ARCHITECTURE.md) ----------
+    // Symmetric to StandardKineticModel::calculateKineticStep's bypass.
+    // Skip the Pozzolanic rate calculation entirely for CNT-controlled
+    // zero-mass phases so CNT is the sole path to bootstrap them.
+    // Coordinates with the pre-loop CNT-lock (DC upper/lower limits at 0)
+    // and the post-placement lock (both limits raised to new DCMoles_).
+    //
+    // Must precede the initScaledMass_ > 0 check below, which would
+    // otherwise throw for a CNT-controlled phase whose initial mass is 0.
+    // Pozzolanic phases in practice rarely nucleate (they dissolve as
+    // sources of reactive silica) but the guard is present for parity
+    // with Standard.
+    if (nucleation_.has_value() && scaledMass <= 0.0) {
+      massDissolved = 0.0;
+      return;
+    }
 
     if (initScaledMass_ > 0.0) {
       DOR = (initScaledMass_ - scaledMass_) / (initScaledMass_);
@@ -604,4 +628,45 @@ double PozzolanicModel::getCurrentMolarRate(double scaledMass) const {
   rate *= arrhenius_;
 
   return rate;
+}
+
+double PozzolanicModel::computeNucleationVoxels(double dt_hours) const {
+  if (!nucleation_.has_value()) return 0.0;
+
+  // Symmetric to StandardKineticModel::computeNucleationVoxels — CNT fires
+  // whenever S > 1, regardless of same-phase-interface size. Rationale
+  // (see docs/CNT_ARCHITECTURE.md §6):
+  //   * Continuous nucleation: always permissible when S is high enough
+  //     AND sites are available. For homogeneous nucleation (theta = 180)
+  //     every electrolyte voxel is a valid site — condition always met.
+  //   * Site saturation: only relevant for heterogeneous nucleation
+  //     (theta < 180) on scarce substrate voxels — a completely different
+  //     class of gating, indexed by substrate-voxel count NOT same-phase
+  //     interface count. Not implemented; tracked in docs/POST_ALPHA_TODOS.md
+  //     under "Site-saturation gating for heterogeneous CNT."
+
+  double S = chemSys_->getMicroPhaseSI(microPhaseId_);
+  if (S <= 1.0) return 0.0;
+
+  double v_m = chemSys_->getDCMolarVolume(DCId_);
+  double T_K = temperature_;
+  double V_voxel = lattice_->getVolumePerVoxel();
+  double V_electrolyte =
+      lattice_->getVolumeFraction(ELECTROLYTEID) *
+      static_cast<double>(lattice_->getNumSites()) * V_voxel;
+  double dt_seconds = dt_hours * 3600.0;
+
+  return cnt::voxelsPerCycle(*nucleation_, v_m, T_K, S,
+                             dt_seconds, V_electrolyte, V_voxel);
+}
+
+void PozzolanicModel::accumulateNucleation(double dN) {
+  if (dN > 0.0) nucleationAccumulator_ += dN;
+}
+
+int PozzolanicModel::drainNucleationInteger() {
+  if (nucleationAccumulator_ < 1.0) return 0;
+  int n = static_cast<int>(std::floor(nucleationAccumulator_));
+  nucleationAccumulator_ -= static_cast<double>(n);
+  return n;
 }

@@ -62,6 +62,8 @@ private:
   int GEMPhaseNum_;                /**< Number of GEM phases in chemical system */
   bool verbose_;                   /**< Flag for verbose output */
   bool warning_;                   /**< Flag for warnining output */
+  bool useNucleationKinetics_ = false;
+      /**< CNT global switch — set by Controller after parseDoc */
 
   std::vector<double> DCMoles_;    /**< vector of all DC moles - after the dissolution
                                         corresponding to the current time step - to be
@@ -165,6 +167,9 @@ public:
     kineticData.activationEnergy = 0.0;
     kineticData.loi = kineticData.sio2 = kineticData.al2o3 = kineticData.cao =
         0.0;
+    // Reset the CNT block so a per-phase parse of one phase does not leak
+    // into the next phase's KineticData (which is reused across the parse loop).
+    kineticData.nucleation.reset();
   }
 
   /**
@@ -234,6 +239,20 @@ public:
   */
   void parseKineticDataForPozzolanic(const json::iterator pp,
                                      struct KineticData &kineticData);
+
+  /**
+  @brief Parses the optional `nucleation` sub-block inside a phase's `kinetic_data`.
+
+  Reads only the `.value` field of each parameter (`gamma`, `theta`, `A0`);
+  the accompanying `range` and `provenance` fields are user-facing metadata
+  and are ignored at runtime. If no `nucleation` block is present, the
+  `kineticData.nucleation` optional is left empty (CNT disabled for the phase).
+
+  @param pp is the iterator into the phase's `kinetic_data` JSON block
+  @param kineticData is the KineticData struct being populated
+  */
+  void parseNucleationBlock(const json::iterator pp,
+                            struct KineticData &kineticData);
 
   /**
   @brief Get the scaled mass of the phase in the kinetic model.
@@ -571,6 +590,45 @@ public:
   @return Maximum timestep in hours, or a large value (1e6) if no kinetics constraint
   */
   double computeKineticsBasedMaxTimestep(double maxRelativeChange = 0.05) const;
+
+  /**
+  @brief CNT-driven per-phase cap on dt.
+
+  Iterates over kinetic models. For each phase whose CNT would produce
+  more than `capFraction * count_[ELECTROLYTEID]` voxels at the proposed
+  dt, computes a per-phase dt-shrink so its N would exactly land at the
+  cap. Returns the minimum of the phase-level shrunk dts and dtProposed.
+
+  Same idiom as computeKineticsBasedMaxTimestep — "iterate phases, take
+  the min." Fixed-J-within-cycle scaling is exactly what the cap exists
+  to protect, so predictive rescaling is safe; no retry loop needed.
+
+  Returns dtProposed unchanged when useNucleationKinetics_ is false or
+  when no phase carries a nucleation block.
+
+  @param dtProposedHours the proposed cycle timestep [hours]
+  @param capFraction     N_cap / N_electrolyte, from simparams.json
+  @return dt to actually use [hours]; always <= dtProposedHours
+  */
+  double computeNucleationBasedMaxTimestep(double dtProposedHours,
+                                            double capFraction) const;
+
+  /**
+  @brief Enable/disable Classical Nucleation Theory placement at cycle time.
+
+  When false, the CNT placement block in calculateKineticStep is a no-op
+  even when phases carry nucleation blocks in their kinetic_data, and
+  computeNucleationBasedMaxTimestep returns dtProposed unchanged.
+  Set by Controller after parsing simparams.json.
+  */
+  void setUseNucleationKinetics(bool enable) {
+    useNucleationKinetics_ = enable;
+  }
+
+  /**
+  @brief Query the CNT global switch.
+  */
+  bool getUseNucleationKinetics() const { return useNucleationKinetics_; }
 
 }; // End of KineticController class
 
