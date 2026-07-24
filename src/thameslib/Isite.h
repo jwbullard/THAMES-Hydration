@@ -25,8 +25,12 @@ private:
   int id_;          /**< The id of the corresponding Site */
   int affinityInt_; /**< The affinity for growth of a phase at the site */
   bool verbose_;    /**< Flag for whether to produce verbose output */
-  double prob_;     /**< The growth probability of a phase at this site (computed
-                         according the affinity) */
+  double prob_;     /**< Growth probability of a phase at this site (computed
+                         from affinity). @note DECLARED BUT UNUSED — no
+                         getter, no setter, initialized via the constructor's
+                         default `prb=0` and then never referenced. Candidate
+                         for deletion; kept for now to preserve constructor
+                         ABI. */
 
 public:
   /**

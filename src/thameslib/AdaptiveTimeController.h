@@ -57,7 +57,13 @@ struct AdaptiveTimeConfig {
   double shrink_factor = 0.5;      ///< Multiply dt by this on stiffness failure
   double hard_shrink_factor = 0.7; ///< Multiply dt on hard success (preemptive)
 
-  // Iteration thresholds (based on GEMS3K typical behavior)
+  // Iteration thresholds. GEMS3K IPM solver reports the number of
+  // iterations it needed to converge each equilibration call; these two
+  // thresholds partition that count into a three-state signal.
+  // Empirically calibrated against GEMS3K's default IPM tuning in
+  // Sessions 23-38. If a different IPM solver is ever swapped in, or if
+  // GEMS3K's solver parameters change substantially, these will need to
+  // be retuned.
   long int target_iterations = 500;   ///< Below this = "easy" convergence
   long int warning_iterations = 5000; ///< Above this = "struggling"
 

@@ -3,15 +3,21 @@
 @brief Declaration of the StandardKineticModel class.
 
 @section Introduction
-This class implements a dissolution equation like Dove's for
-amorphous silicates [1].
+General power-law rate model:
+    r = k * (1 - Omega^siexp)^dfexp
+where Omega = IAP/Ksp and k is dissolutionRateConst. Used for phases whose
+kinetics do NOT require the OH-activity / water-activity / LOI / sio2
+factors that PozzolanicModel adds — clinker sulfates (Anhydrite, Bassanite,
+Gypsum), and (with CNT) Portlandite for what-if exploration.
 
-@section References
+Han et al. 2025 CEJ found that this Eq. (6) power-law form diverges at
+high Omega for portlandite dissolution; their Eq. (7) saturating form is
+the follow-on `SaturatingRateModel` work (see
+`memory/project_saturating_rate_model_next.md`).
 
-    -# PM Dove, N Han, AF Wallace, JJ De Yoreo, Kinetics of amorphous silica
-dissolution and the paradox of the silica polymorphs, Proceedings of the
-National Academy of Sciences USA, 105 (2008) 9903–9908.
-
+CNT scaffold (nucleation-controlled bootstrapping of zero-mass phases)
+lives on this class via `nucleation_` + accumulator + four virtual
+overrides; details in `docs/CNT_ARCHITECTURE.md`.
 */
 
 #ifndef SRC_THAMESLIB_STANDARDKINETICMODEL_H_
@@ -30,8 +36,8 @@ National Academy of Sciences USA, 105 (2008) 9903–9908.
 
 /**
 @class StandardKineticModel
-@brief Handles the kinetic model of pozzolanic materials
-
+@brief Power-law kinetic model for non-pozzolanic phases (Anhydrite,
+Bassanite, Gypsum, and Portlandite when CNT is enabled).
 */
 
 class StandardKineticModel : public KineticModel {

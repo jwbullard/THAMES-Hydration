@@ -25,7 +25,11 @@ public:
   /**
   @brief Set the random number seed.
 
-  @param s is the random number seed to set
+  Numerical Recipes' `ran3` initializes its internal state only on the
+  first call with a negative seed. `setSeed` therefore flips a positive
+  input to negative so callers do not need to know the convention.
+
+  @param s is the random number seed to set (sign forced negative)
   */
   void setSeed(int s) { *seed_ = ((s < 0) ? s : -s); }
 

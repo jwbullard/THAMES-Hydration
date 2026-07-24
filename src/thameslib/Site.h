@@ -93,7 +93,12 @@ protected:
 
   int visit_; /**< flag used to avoid acting twice or more
                    on the site (or its neighborhood) during
-                   a current action */
+                   a current action. Set to the current action's ID
+                   when the site is first touched in an iteration;
+                   compared against the same ID on subsequent visits
+                   to short-circuit re-processing. Caller responsible
+                   for clearing (or bumping the action ID) between
+                   distinct iterations. */
 
 public:
   /**

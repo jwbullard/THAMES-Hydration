@@ -7,6 +7,12 @@
 
 using std::vector;
 
+// Comparators used elsewhere by std::sort. Note the opposite sign conventions:
+// `cmp` sorts sites ASCENDING by weighted mean curvature (Wmc) — lowest-Wmc
+// site first, which is the site most likely to dissolve. `affinitySort`
+// sorts DESCENDING by affinity — highest-affinity site first, which is the
+// site most likely to grow. Both are used with std::sort but at different
+// call sites; do NOT swap them.
 bool cmp(const Site *s1, const Site *s2) { return s1->getWmc() < s2->getWmc(); }
 
 bool affinitySort(const Isite s1, const Isite s2) {

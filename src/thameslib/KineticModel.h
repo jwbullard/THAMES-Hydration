@@ -1,14 +1,22 @@
 /**
 @file KineticModel.h
-@brief Declaration of the KineticModel class.
+@brief Declaration of the KineticModel abstract base class.
 
 @section Introduction
 
-In THAMES, the `KineticModel` class can be perceived as the engine that
-calculates the kinetic changes in the system during a given time increment.  The
-primary kinetic aspect that is calculated is the extent of dissolution of
-mineral phases in the original cement.  This is just the base class.  It is not
-used.
+Abstract base for the three concrete kinetic-model implementations:
+`ParrotKillohModel` (Avrami-Cottrell fit for clinker phases),
+`StandardKineticModel` (power-law for non-pozzolanic phases), and
+`PozzolanicModel` (Dove/Crerar-extended power-law for reactive SCMs).
+One phase = one concrete model; the choice is set per phase by the
+`kinetic_data.type` field in `simparams.json`. Never instantiated
+directly.
+
+Also carries the polymorphic CNT hooks (`computeNucleationVoxels`,
+`hasNucleation`, `accumulateNucleation`, `drainNucleationInteger`) as
+default-no-op virtuals so `KineticController` can iterate over all
+kinetic models without knowing which support CNT. See
+`docs/CNT_ARCHITECTURE.md` for the CNT integration architecture.
 
 */
 
@@ -23,9 +31,9 @@ used.
 
 /**
 @class KineticModel
-@brief Base class for all kinetic models
-
-THAMES allows some flexibility in defining different types of kinetic models.
+@brief Abstract base class for all kinetic models. Not instantiated
+directly — concrete subclasses are `ParrotKillohModel`,
+`StandardKineticModel`, and `PozzolanicModel`.
 */
 
 class KineticModel {

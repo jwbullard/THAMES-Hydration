@@ -2,15 +2,19 @@
 @file Exceptions.h
 @brief Declaration of the various exception classes.
 
-THAMES tries to implement exception handling consistently throughout the code,
-although more could be done to check for out-of-bounds errors on arrays and
-other container classes.
+THAMES exception hierarchy: each class carries a description string and a
+"who threw it" identifier for downstream diagnostic messages. All classes
+here follow the same rough shape (classname, function name, description)
+and would benefit from a shared base class — that refactor is documented
+as design debt in `docs/POST_ALPHA_TODOS.md`.
 
-Right now, many of these classes are quite similar and could probably be
-structured better with a generic base class, but the thought is that each class
-will take on more distinct details later.
+Callers use these by `throw`-ing a specific subclass with a fixed
+diagnostic string; there is no runtime message formatting or i18n. Callers
+that want stack context should record it in the description string
+themselves.
 
 @todo Make a virtual base class for common things like descriptions, etc.
+      Tracked in `docs/POST_ALPHA_TODOS.md`.
 
 */
 

@@ -2,12 +2,19 @@
 @file ran3.cc
 @brief Algorithm for the ran3 portable random number generator.
 
-The algorithm is taken directly from Press, W.H., Teukolsky, S.A., Vetterling,
-W.T., Flannery, B.P., Numerical Recipes in C, 2nd Edition, University Press,
-London, 1997.
+Taken directly from Press, W.H., Teukolsky, S.A., Vetterling, W.T.,
+Flannery, B.P., Numerical Recipes in C, 2nd Edition, University Press,
+London, 1997 (Section 7.1). Constants below are Knuth's subtractive
+generator seed values from the same reference.
+
+@warning NOT thread-safe: `ma[]`, `inext`, `inextp`, `iff` are `static`
+locals holding generator state across calls. If THAMES ever runs kinetic
+models in parallel, this must be replaced with a per-thread engine.
+Reset with a negative seed to re-initialize the state.
 */
 #include "ran3.h"
 
+// Knuth's subtractive generator constants (Numerical Recipes §7.1).
 #define MBIG 1000000000
 #define MSEED 161803398
 #define MZ 0
@@ -55,7 +62,6 @@ double ran3(int *idum) {
   ma[inext] = mj;
 
   return mj * FAC;
-  //        return 873519108*FAC;
 }
 
 #undef MBIG

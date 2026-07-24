@@ -90,19 +90,30 @@ int main(int argc, char **argv) {
     exit(1);
   }
 
-  int seedRNG = -25943; // -142234;
-  // cin >> seedRNG;
+  // Random seed for site-selection and any stochastic microstructure ops.
+  // Negative required by Numerical Recipes ran3 (see RanGen::setSeed).
+  // Fixed value gives reproducible runs; change to a different negative
+  // integer for a different realization. To make runs vary each time,
+  // seed from time() or /dev/urandom instead.
+  int seedRNG = -25943;
   std::clog << endl
             << "The RNG seed is                 : seedRNG = " << seedRNG
             << endl;
 
-  double elemTimeInterval = (24.0 * 1.e-5); // 24 factor to convert from days to
-                                            // hours
-  // cin >> elemTimeInterval;
+  // Elementary time interval for Parrot-Killoh integration substeps.
+  // 24 * 1e-5 = 2.4e-4 hours = 0.864 seconds (24 converts the base
+  // rate-constant units from days to hours). Only used by
+  // ParrotKillohModel; other kinetic models use the adaptive controller.
+  double elemTimeInterval = (24.0 * 1.e-5);
   std::clog << "The elementary time interval is : elemTimeInterval = "
             << setprecision(3) << elemTimeInterval
             << " hours (used in Parrot-Killoh model)" << endl;
 
+  // Optional multiplier on the computed CSHQ porosity from GEMS. 1.0 = no
+  // correction; values in (0,1) reduce the assumed C-S-H gel porosity to
+  // account for BET-scale water not resolved at the voxel scale. Wired
+  // through to ChemicalSystem via `corPorCSHQ` field for those runs
+  // that want to sweep it; production runs leave it at 1.
   double corPorCSHQ = 1.0;
   std::clog << "correction CSHQ porrosity : corPorCSHQ = " << corPorCSHQ
             << endl;

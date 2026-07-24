@@ -3,15 +3,23 @@
 @brief Declaration of the PozzolanicModel class.
 
 @section Introduction
-This class implements a dissolution equation like Dove's for
-amorphous silicates [1].
+Extends the power-law form of StandardKineticModel with the empirical
+factors Dove and Crerar identified for silica dissolution — OH-activity
+dependence (ohexp), water-activity squared, LOI correction, sio2 mass
+fraction, and Ca/Na/K Langmuir adsorption on the base rate constant.
+Also adds an early-vs-late diffusion-rate switch for products whose
+kinetics change regime as the surrounding gel densifies.
+
+Used for silica fume, fly-ash, metakaolin, and other reactive SCMs.
 
 @section References
 
     -# PM Dove, N Han, AF Wallace, JJ De Yoreo, Kinetics of amorphous silica
 dissolution and the paradox of the silica polymorphs, Proceedings of the
 National Academy of Sciences USA, 105 (2008) 9903–9908.
-
+    -# PM Dove, DA Crerar, Kinetics of quartz dissolution in electrolyte
+solutions using a hydrothermal mixed flow reactor, Geochimica et
+Cosmochimica Acta, 54 (1990) 955–969.
 */
 
 #ifndef SRC_THAMESLIB_POZZOLANICMODEL_H_
@@ -30,8 +38,11 @@ National Academy of Sciences USA, 105 (2008) 9903–9908.
 
 /**
 @class PozzolanicModel
-@brief Handles the kinetic model of pozzolanic materials
-
+@brief Kinetic model for reactive SCMs (silica fume, fly ash, metakaolin).
+Extends the power-law rate with Dove/Crerar factors for silica/glass
+dissolution kinetics. CNT scaffold present for parity with
+StandardKineticModel; rarely fires in practice because pozzolanic phases
+dissolve rather than nucleate.
 */
 
 class PozzolanicModel : public KineticModel {

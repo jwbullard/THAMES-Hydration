@@ -79,18 +79,15 @@ private:
                                            dissolution of each kinetic controlled
                                            microPhases (in order, DCIds of: K2O, Na2O,
                                            Per, SO3) */
-  std::vector<double> impurity_K2O_;  /**< the number of K2O moles corresponding to the
-                                           dissolved mass from each kinetic controlled
-                                           microPhase during a given time step */
-  std::vector<double> impurity_Na2O_; /**< the number of Na2O moles corresponding to the
-                                           dissolved mass from each kinetic controlled
-                                           microPhase during a given time step */
-  std::vector<double> impurity_Per_;  /**< the number of MgO moles corresponding to the
-                                           dissolved mass from each kinetic controlled
-                                           microPhase during a given time step */
-  std::vector<double> impurity_SO3_;  /**< the number of SO3 moles corresponding to the
-                                           dissolved mass from each kinetic controlled
-                                           microPhase during a given time step */
+  // Per-cycle impurity release vectors [mol]. Indexed by kinetic-model
+  // index (midx) — one entry per kinetic-controlled microphase. Populated
+  // inside calculateKineticStep from the phase's K2O/Na2O/MgO/SO3 mass
+  // fractions and its dissolved mass this cycle, then added to the
+  // corresponding IC (impurityDCID_) columns of DCMoles_.
+  std::vector<double> impurity_K2O_;
+  std::vector<double> impurity_Na2O_;
+  std::vector<double> impurity_Per_;
+  std::vector<double> impurity_SO3_;
 
   int pKMsize_;                  /**< dimension of the phaseKineticModel_ vector */
 

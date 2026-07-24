@@ -16,7 +16,13 @@ Controller::Controller(Lattice *msh, KineticController *kc, ChemicalSystem *cs,
                        const string &jsonFileName, const string &jobname,
                        const bool verbose, const bool warning, const bool xyz) {
 
-  stepTimeTHR_ = 1.e-5;  // Minimum timestep: 0.036 seconds (lowered from 1e-3)
+  // Minimum timestep floor. Lowered from 1e-3 during Sessions 27/36 when
+  // sub-minute-scale timesteps became necessary for high-rate phases
+  // (e.g. Bassanite dissolution) and for oscillation-prone configs. If
+  // the kinetics or CNT constraints try to shrink dt below this, we stop
+  // reducing and let a modest overshoot happen rather than freezing
+  // wall-clock progress. 0.036 seconds per cycle.
+  stepTimeTHR_ = 1.e-5;
   maxRelativeChange_ = 0.05; // Default: 5% max DC mole change per timestep
 
   // CNT kinetics defaults — opt-in via simparams.json.
