@@ -1,2 +1,3 @@
-# Compiled binary from build_and_run.sh
+# Compiled binaries from build_and_run.sh
 test_nucleation_rate
+test_saturating_rate

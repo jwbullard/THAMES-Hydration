@@ -5,6 +5,8 @@
 */
 #include "KineticController.h"
 
+#include "SaturatingRateModel.h"
+
 using std::cout;
 using std::endl;
 using std::string;
@@ -375,6 +377,13 @@ void KineticController::parseKineticData(const json::iterator p,
       typefound = true;
       try {
         parseKineticDataForPozzolanic(p, kineticData);
+      } catch (DataException dex) {
+        throw dex;
+      }
+    } else if (kineticData.type == SaturatingRateType) {
+      typefound = true;
+      try {
+        parseKineticDataForSaturatingRate(p, kineticData);
       } catch (DataException dex) {
         throw dex;
       }
@@ -769,6 +778,101 @@ void KineticController::parseNucleationBlock(const json::iterator p,
   }
 }
 
+void KineticController::parseSaturatingRateSubBlock(
+    const json::iterator p, const std::string &blockName,
+    std::optional<SaturatingRateParameters> &target) {
+  json::iterator blockIt = p.value().find(blockName);
+  if (blockIt == p.value().end()) {
+    return;  // Absent block leaves target unchanged.
+  }
+
+  auto readValue = [&](const std::string &key) -> double {
+    auto it = blockIt.value().find(key);
+    if (it == blockIt.value().end()) {
+      throw DataException("KineticController", "parseSaturatingRateSubBlock",
+                          blockName + "." + key + " not found");
+    }
+    return it.value().get<double>();
+  };
+
+  SaturatingRateParameters params;
+  params.rateConstant = readValue("rateConstant");
+  params.B = readValue("B");
+  params.n = readValue("n");
+  target = params;
+}
+
+// Parser for a SaturatingRate-type phase (Bullard 2015 / Han 2025 Eq. 7).
+//
+// Expected JSON (dissolution required; precipitation optional):
+//   "kinetic_data": {
+//     "type": "SaturatingRate",
+//     "surfaceAreaMultiplier": <double>,      (optional, default 1.0)
+//     "dissolvedUnits":       <double>,        (required)
+//     "activationEnergy":     <double>,        (required, J/mol)
+//     "dissolution": {"rateConstant": ..., "B": ..., "n": ...},
+//     "precipitation": {"rateConstant": ..., "B": ..., "n": ...},
+//     "nucleation": {...optional CNT block...}
+//   }
+//
+// Missing precipitation block => model uses dissolution parameters as
+// symmetric fallback with a one-time log line noting the assumption.
+void KineticController::parseKineticDataForSaturatingRate(
+    const json::iterator p, struct KineticData &kineticData) {
+
+  if (verbose_) {
+    std::clog << "--->Parsing SaturatingRate kinetic data for "
+              << kineticData.name << endl;
+    std::clog.flush();
+  }
+
+  // surfaceAreaMultiplier (optional; default 1.0)
+  json::iterator pp = p.value().find("surfaceAreaMultiplier");
+  if (pp != p.value().end()) {
+    kineticData.surfaceAreaMultiplier = pp.value();
+  } else {
+    kineticData.surfaceAreaMultiplier = 1.0;
+  }
+
+  // dissolvedUnits (required)
+  pp = p.value().find("dissolvedUnits");
+  if (pp != p.value().end()) {
+    kineticData.dissolvedUnits = pp.value();
+  } else {
+    throw DataException("KineticController",
+                        "parseKineticDataForSaturatingRate",
+                        "dissolvedUnits not found");
+  }
+
+  // activationEnergy (required)
+  pp = p.value().find("activationEnergy");
+  if (pp != p.value().end()) {
+    kineticData.activationEnergy = pp.value();
+  } else {
+    throw DataException("KineticController",
+                        "parseKineticDataForSaturatingRate",
+                        "activationEnergy not found");
+  }
+
+  // dissolution block (required)
+  parseSaturatingRateSubBlock(p, "dissolution",
+                              kineticData.saturatingDissolution);
+  if (!kineticData.saturatingDissolution.has_value()) {
+    throw DataException("KineticController",
+                        "parseKineticDataForSaturatingRate",
+                        "dissolution block not found; required for "
+                        "SaturatingRate-type phase");
+  }
+
+  // precipitation block (optional; empty triggers the symmetric fallback
+  // inside the model's rate calculation)
+  parseSaturatingRateSubBlock(p, "precipitation",
+                              kineticData.saturatingPrecipitation);
+
+  // Optional CNT nucleation block; leaves kineticData.nucleation empty if absent.
+  parseNucleationBlock(p, kineticData);
+}
+
 void KineticController::calcPhaseMasses(void) {
   int microPhaseId;
   double pscaledMass = 0.0;
@@ -828,6 +932,10 @@ void KineticController::makeModel(struct KineticData &kineticData) {
     // Read remaining pozzolanic model parameters
     km = new PozzolanicModel(chemSys_, lattice_, kineticData, verbose_,
                              warning_);
+  } else if (kineticData.type == SaturatingRateType) {
+    // Bullard 2015 / Han 2025 Eq. 7 saturating rate model
+    km = new SaturatingRateModel(chemSys_, lattice_, kineticData, verbose_,
+                                 warning_);
   }
 
   phaseKineticModel_.push_back(km);
@@ -1750,11 +1858,28 @@ double KineticController::computeNucleationBasedMaxTimestep(
   // because the placement itself would depress solute concentration enough
   // to change J materially during the cycle.
   //
-  // The cap: for each phase, if computeNucleationVoxels(dtProposed) exceeds
-  // capFraction * count_[ELECTROLYTEID], shrink dt so the projected N would
-  // exactly land at the cap. Return the minimum shrunk dt across all phases.
-  // Same idiom as computeKineticsBasedMaxTimestep — "iterate phases, take
-  // the tightest per-phase constraint."
+  // Two caps apply per phase; the tighter one wins:
+  //
+  //   (1) Electrolyte-fraction cap: capFraction * count_[ELECTROLYTEID].
+  //       Prevents CNT from placing more voxels than a small fraction of
+  //       the currently-saturated pore volume can host in one cycle.
+  //
+  //   (2) Mass-availability cap: for each IC that the phase's DC has
+  //       non-zero stoichiometry, compute how many voxels the currently-
+  //       aqueous IC moles could support. Take the min across ICs. This
+  //       prevents CNT from placing voxels that GEMS then rolls back in
+  //       Lattice::changeMicrostructure because Ca (or another IC) in
+  //       solution can't feed them. This was added 2026-07-24 after S4
+  //       validation of SaturatingRateModel showed CNT requesting ~92k
+  //       Portlandite voxels/cycle at Portlandite SI ~ 10 while GEMS
+  //       could only support ~125; see docs/POST_ALPHA_TODOS.md entry
+  //       "CNT vs. Lattice::changeMicrostructure mass-balance mismatch"
+  //       and docs/SATURATING_RATE.md §6.
+  //
+  // The per-phase effective cap = min(nCap_electrolyte, nCap_mass); if
+  // computeNucleationVoxels(dtProposed) exceeds that, shrink dt so the
+  // projected N would exactly land at the effective cap. Return the
+  // minimum shrunk dt across all phases.
   //
   // Composes with the kinetics cap via sequential min at the two Controller
   // dt-selection sites (success path and post-failure path). Final dt is
@@ -1763,22 +1888,59 @@ double KineticController::computeNucleationBasedMaxTimestep(
 
   const double nElec =
       static_cast<double>(lattice_->getCount(ELECTROLYTEID));
-  const double nCap = capFraction * nElec;
+  const double nCapElec = capFraction * nElec;
   double dtMax = dtProposedHours;
+
+  // Snapshot the aqueous IC moles once per call. getSolution() iterates
+  // over all DCs of aqueous class ('S','T','W') and accumulates
+  // DCMoles * stoich, so O(numDCs * numICs). One snapshot is fine.
+  std::vector<double> aqICMoles = chemSys_->getSolution();
+  const double vVoxel = lattice_->getVolumePerVoxel();
 
   for (int i = 0; i < pKMsize_; ++i) {
     if (phaseKineticModel_[i] == nullptr) continue;
+    if (!phaseKineticModel_[i]->hasNucleation()) continue;
+
     double nPhase =
         phaseKineticModel_[i]->computeNucleationVoxels(dtProposedHours);
-    if (nPhase > nCap) {
-      double dtShrunk = dtProposedHours * (nCap / nPhase);
+    if (nPhase <= 0.0) continue;
+
+    // Mass-availability cap for this phase.
+    // nCapMass = min over ICs of (aqICMoles[ic] / molesPerVoxel_of_ic).
+    // molesPerVoxel_of_ic = (vVoxel / vMolar_DC) * DCStoich[DCId][ic].
+    int dcId = phaseKineticModel_[i]->getDCId();
+    double vMolarDC = chemSys_->getDCMolarVolume(dcId);
+    double nCapMass = std::numeric_limits<double>::infinity();
+    if (vMolarDC > 0.0) {
+      const double molesDCPerVoxel = vVoxel / vMolarDC;
+      const int numICs = static_cast<int>(aqICMoles.size());
+      // Last IC is charge (skip; DCStoich for charge would misbehave here).
+      for (int ic = 0; ic < numICs - 1; ++ic) {
+        const double stoich = chemSys_->getDCStoich(dcId, ic);
+        if (stoich <= 0.0) continue;
+        const double icPerVoxel = molesDCPerVoxel * stoich;
+        if (icPerVoxel <= 0.0) continue;
+        const double nFromThisIC = aqICMoles[ic] / icPerVoxel;
+        if (nFromThisIC < nCapMass) nCapMass = nFromThisIC;
+      }
+    }
+
+    const double effCap = std::min(nCapElec, nCapMass);
+    if (nPhase > effCap && effCap >= 0.0) {
+      // Guard against effCap == 0 which would send dtShrunk to 0.
+      // In that case skip; the accumulator will hold the residual.
+      if (effCap <= 0.0) continue;
+      double dtShrunk = dtProposedHours * (effCap / nPhase);
       if (dtShrunk < dtMax) {
         dtMax = dtShrunk;
         if (verbose_) {
-          std::clog << "  CNT cap: phase "
+          const char *which =
+              (nCapMass < nCapElec) ? "mass-availability" : "electrolyte-fraction";
+          std::clog << "  CNT cap (" << which << "): phase "
                     << phaseKineticModel_[i]->getName()
                     << " would produce " << nPhase << " voxels at dt="
-                    << dtProposedHours << " h (cap=" << nCap
+                    << dtProposedHours << " h (elec_cap=" << nCapElec
+                    << ", mass_cap=" << nCapMass
                     << "); shrinking dt to " << dtShrunk << " h" << endl;
         }
       }

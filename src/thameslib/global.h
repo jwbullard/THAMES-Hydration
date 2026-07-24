@@ -157,6 +157,9 @@ inline const char StandardType[] = "Standard";
 // String indicating the Pozzolanic Reaction Model
 inline const char PozzolanicType[] = "Pozzolanic";
 
+// String indicating the Saturating Rate Model (Bullard 2015 / Han 2025 Eq. 7)
+inline const char SaturatingRateType[] = "SaturatingRate";
+
 // String for the command to convert between image files (Imagemagick)
 inline const std::string ConvertCommand = "magick";
 

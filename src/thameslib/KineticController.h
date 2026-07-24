@@ -167,6 +167,11 @@ public:
     // Reset the CNT block so a per-phase parse of one phase does not leak
     // into the next phase's KineticData (which is reused across the parse loop).
     kineticData.nucleation.reset();
+    // Same reason: reset the SaturatingRate blocks. Otherwise a preceding
+    // SaturatingRate phase's parameters would silently apply to a
+    // Standard/Pozzolanic/ParrotKilloh phase parsed after it.
+    kineticData.saturatingDissolution.reset();
+    kineticData.saturatingPrecipitation.reset();
   }
 
   /**
@@ -236,6 +241,41 @@ public:
   */
   void parseKineticDataForPozzolanic(const json::iterator pp,
                                      struct KineticData &kineticData);
+
+  /**
+  @brief Parse the SaturatingRate-model kinetic data block.
+
+  Fills `kineticData.saturatingDissolution` (required) and
+  `kineticData.saturatingPrecipitation` (optional) from a phase's
+  `kinetic_data` JSON block plus the scalar fields shared with other
+  model types (`surfaceAreaMultiplier`, `dissolvedUnits`,
+  `activationEnergy`). Also invokes `parseNucleationBlock` at the tail
+  so SaturatingRate phases can carry a `nucleation` block just like
+  Standard and Pozzolanic phases.
+
+  @param pp is an iterator into the phase's `kinetic_data` JSON block
+  @param kineticData is the KineticData struct being populated
+  */
+  void parseKineticDataForSaturatingRate(const json::iterator pp,
+                                         struct KineticData &kineticData);
+
+  /**
+  @brief Parses a single `dissolution` or `precipitation` sub-block
+  inside a SaturatingRate phase's `kinetic_data`.
+
+  Expected JSON (all three fields required):
+      { "rateConstant": <double>, "B": <double>, "n": <double> }
+
+  If the sub-block is absent, the target `std::optional` is left
+  unchanged (callers decide whether the absence is an error).
+
+  @param p is the iterator into the phase's `kinetic_data` JSON block
+  @param blockName is either "dissolution" or "precipitation"
+  @param target is the optional to populate on success
+  */
+  void parseSaturatingRateSubBlock(
+      const json::iterator p, const std::string &blockName,
+      std::optional<SaturatingRateParameters> &target);
 
   /**
   @brief Parses the optional `nucleation` sub-block inside a phase's `kinetic_data`.
@@ -591,20 +631,35 @@ public:
   /**
   @brief CNT-driven per-phase cap on dt.
 
-  Iterates over kinetic models. For each phase whose CNT would produce
-  more than `capFraction * count_[ELECTROLYTEID]` voxels at the proposed
-  dt, computes a per-phase dt-shrink so its N would exactly land at the
-  cap. Returns the minimum of the phase-level shrunk dts and dtProposed.
+  Iterates over kinetic models. For each phase carrying a nucleation
+  block, applies two caps and takes the tighter:
 
-  Same idiom as computeKineticsBasedMaxTimestep — "iterate phases, take
-  the min." Fixed-J-within-cycle scaling is exactly what the cap exists
-  to protect, so predictive rescaling is safe; no retry loop needed.
+    (1) Electrolyte-fraction cap: `capFraction * count_[ELECTROLYTEID]`.
+        Prevents CNT placement from overshooting available saturated
+        pore volume in one cycle.
 
-  Returns dtProposed unchanged when useNucleationKinetics_ is false or
-  when no phase carries a nucleation block.
+    (2) Mass-availability cap: for each IC that the phase's DC has
+        non-zero stoichiometry, `aqICMoles[ic] / (vVoxel/vMolar_DC *
+        stoich)` — the number of voxels the currently-aqueous IC moles
+        could support. The min across ICs. Prevents CNT from placing
+        voxels that `Lattice::changeMicrostructure` then rolls back
+        because the mass balance can't feed them. Added 2026-07-24 after
+        S4 validation of `SaturatingRateModel` found the CNT/GEMS
+        placement/roll-back oscillation; see `docs/SATURATING_RATE.md`
+        §6 and the corresponding POST_ALPHA_TODOS entry.
+
+  If `computeNucleationVoxels(dtProposed)` exceeds the effective cap,
+  shrinks dt so N lands exactly at the cap; returns the min of the
+  phase-level shrunk dts and dtProposed. Fixed-J-within-cycle scaling
+  is exactly what the cap exists to protect, so predictive rescaling
+  is safe; no retry loop needed.
+
+  Returns dtProposed unchanged when `useNucleationKinetics_` is false
+  or no phase carries a nucleation block.
 
   @param dtProposedHours the proposed cycle timestep [hours]
-  @param capFraction     N_cap / N_electrolyte, from simparams.json
+  @param capFraction     N_cap_electrolyte / N_electrolyte, from
+                         simparams.json (`nucleationCapFraction`)
   @return dt to actually use [hours]; always <= dtProposedHours
   */
   double computeNucleationBasedMaxTimestep(double dtProposedHours,

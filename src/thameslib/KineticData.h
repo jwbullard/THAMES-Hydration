@@ -58,6 +58,7 @@ component
 
 #include "global.h"
 #include "NucleationParameters.h"
+#include "SaturatingRateParameters.h"
 
 struct KineticData {
   std::string name;  /**< Name of the microstructure phase */
@@ -97,5 +98,13 @@ struct KineticData {
                               ambient relative humidity */
   std::optional<NucleationParameters> nucleation;
       /**< CNT parameters for this phase; empty = CNT disabled */
+  std::optional<SaturatingRateParameters> saturatingDissolution;
+      /**< Bullard 2015 / Han 2025 Eq. 7 params for dissolution
+           direction. Required for a SaturatingRate-type phase; unused
+           by other model types. */
+  std::optional<SaturatingRateParameters> saturatingPrecipitation;
+      /**< Same for precipitation direction. Optional; if absent,
+           SaturatingRateModel falls back to the dissolution values by
+           microscopic reversibility with a one-time log line. */
 };
 #endif // SRC_THAMESLIB_KINETICDATA_H_
