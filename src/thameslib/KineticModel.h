@@ -497,6 +497,26 @@ public:
   double getScaledMass() const { return scaledMass_; }
 
   /**
+  @brief Set the scaled mass of the phase in the kinetic model.
+
+  Used by the CNT placement path in `KineticController::calculateKineticStep`
+  to update the model's own mass tracking when nuclei are placed in the
+  lattice. Without this, a CNT-controlled zero-mass phase (whose kinetic
+  model's `calculateKineticStep` early-returns via the zero-mass bypass)
+  never observes the placed voxels via its own state, which leaves
+  `ChemicalSystem::microPhaseMass_` stale and causes
+  `Lattice::changeMicrostructure` to dissolve the placed voxels the same
+  cycle they were placed.
+
+  Do NOT use this from ordinary rate-computation code paths — the
+  per-cycle mass evolution is otherwise entirely driven by the
+  end-of-`calculateKineticStep` assignment in each subclass.
+
+  @param val the new scaled mass [g per 100 g total solid]
+  */
+  void setScaledMass(double val) { scaledMass_ = val; }
+
+  /**
   @brief Set the <i>initial</i> mass of the phase in the kinetic model.
 
   The scaled mass of a phase is its mass in grams per unit system volume

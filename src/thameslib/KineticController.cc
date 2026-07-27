@@ -1459,8 +1459,14 @@ void KineticController::calculateKineticStep(double time, const double timestep,
         //   3. nWant = floor(accumulator), fractional remainder carries forward
         //   4. Lattice::nucleatePhaseRnd places nWant voxels at uniform-random
         //      electrolyte sites; returns nPlaced (may be < nWant if sites exhausted)
-        //   5. DCMoles_[dcId] += nPlaced * V_voxel / V_molar
-        //   6. Raise BOTH DC lower and upper limits to the new DCMoles_[dcId] —
+        //   5. Convert placed voxel count to normalized-per-100g mass, moles,
+        //      and volume (see block comment below for the scale factors).
+        //   6. Update DCMoles_, KineticModel::scaledMass_, and
+        //      ChemicalSystem::microPhaseMass_ so downstream code (GEMS
+        //      constraint bounds, kinetic bookkeeping, and
+        //      Lattice::changeMicrostructure via getMicroPhaseVolume) all see
+        //      a consistent post-placement state.
+        //   7. Raise BOTH DC lower and upper limits to the new DCMoles_[dcId] —
         //      lower to prevent GEMS from dissolving the nuclei back to the
         //      stale kinetic-computed floor, upper because the pre-loop CNT-lock
         //      may have zeroed it and DCMoles > 0 would violate UpperLimit = 0.
@@ -1475,10 +1481,38 @@ void KineticController::calculateKineticStep(double time, const double timestep,
               int dcId = phaseKineticModel_[midx]->getDCId();
               int nPlaced = lattice_->nucleatePhaseRnd(microPhId, nWant);
               if (nPlaced > 0) {
-                double vVoxel = lattice_->getVolumePerVoxel();
+                // Convert nPlaced voxels to normalized-per-100g state.
+                //
+                // THAMES stores DCMoles_[], microPhaseMass_[],
+                // microPhaseVolume_[], and KineticModel::scaledMass_ in a
+                // "per 100 g of total solid" reference frame, not physical
+                // units. See Lattice::normalizePhaseMasses (Lattice.cc:815,
+                // 834, 857) which establishes the convention. Any code that
+                // combines physical getVolumePerVoxel()/getDCMolarVolume()
+                // with these state variables needs the scale factor
+                //     100 / (numSites * 1e6 * initSolidMass_)
+                // to bridge the two frames (see reference conversion below).
+                //
+                // The formula mirrors Controller.cc:1296-1300, which does the
+                // analogous conversion in the recall (numSitesNotAvailable)
+                // path. Correct output is on the order of 10^-2 mol per 100g
+                // for a 92k-voxel Portlandite placement in a 200³ Portland
+                // paste; the pre-2026-07-25 formula (physical vVoxel/vMolar)
+                // produced 10^-9 — six orders of magnitude too small — and
+                // caused GEMS to hold Portlandite at picogram levels while
+                // Lattice::changeMicrostructure dissolved the placement.
+                double molarMass = chemSys_->getDCMolarMass(dcId);
                 double vMolar = chemSys_->getDCMolarVolume(dcId);
-                double moles =
-                    static_cast<double>(nPlaced) * vVoxel / vMolar;
+                double vfracPlaced =
+                    static_cast<double>(nPlaced) /
+                    static_cast<double>(lattice_->getNumSites());
+                double microPhaseMassPlacedPerCC =
+                    vfracPlaced * molarMass / vMolar / 1.0e6; // g/cm³
+                double placedMass =
+                    microPhaseMassPlacedPerCC * 100.0 /
+                    lattice_->getInitSolidMass();             // g per 100g solid
+                double moles = placedMass / molarMass;        // mol per 100g solid
+
                 DCMoles_[dcId] += moles;
                 // Lock the newly-placed nuclei against GEMS redissolving
                 // them back this cycle. Without this, GEMS uses the
@@ -1491,12 +1525,39 @@ void KineticController::calculateKineticStep(double time, const double timestep,
                 // reject the placement.
                 chemSys_->setDCLowerLimit(dcId, DCMoles_[dcId]);
                 chemSys_->setDCUpperLimit(dcId, DCMoles_[dcId]);
+
+                // Sync KineticModel::scaledMass_ AND
+                // ChemicalSystem::microPhaseMass_/microPhaseVolume_ with the
+                // placed mass. Reason: for kinetic phases (Standard/
+                // Pozzolanic/SaturatingRate with a nucleation block),
+                // ChemicalSystem::calculateState skips the
+                // GEMPhaseVolume->microPhaseVolume fill (guarded by
+                // `if (!isKinetic_[i])` at ChemicalSystem.cc:2763 and :2822).
+                // Kinetic-phase volumes are maintained by KineticController
+                // via updateMicroPhaseMasses. Without this update,
+                // microPhaseVolume_[phase] stays at 0 all cycle,
+                // Lattice::changeMicrostructure reads vfrac_next=0, and
+                // dissolves every CNT-placed voxel the same cycle it was
+                // placed.
+                //
+                // scaledMassIni_[midx] refresh matters if a lattice recall
+                // path fires later in this cycle: Controller.cc:1302 calls
+                // updateKineticStep which uses scaledMassIni_[midx] as the
+                // reset baseline; a stale zero there would undo the CNT
+                // placement in the recall path.
+                double newScaledMass =
+                    phaseKineticModel_[midx]->getScaledMass() + placedMass;
+                phaseKineticModel_[midx]->setScaledMass(newScaledMass);
+                chemSys_->updateMicroPhaseMasses(microPhId, newScaledMass, 1);
+                scaledMassIni_[midx] = newScaledMass;
+
                 if (verbose_) {
                   std::clog << "  CNT: "
                             << phaseKineticModel_[midx]->getName()
                             << " requested " << nWant << " voxels, placed "
                             << nPlaced << " (+" << moles << " mol DC["
-                            << dcId << "])" << endl;
+                            << dcId << "], +" << placedMass
+                            << " g/100g solid)" << endl;
                 }
               }
               // If nPlaced < nWant, the residual is absorbed by exhausted

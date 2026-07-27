@@ -234,6 +234,17 @@ void PozzolanicModel::calculateKineticStep(const double timestep,
       DOR = (initScaledMass_ - scaledMass_) / (initScaledMass_);
       // prevent DOR from prematurely stopping PK calculations
       // DOR = min(DOR, 0.99);
+    } else if (nucleation_.has_value()) {
+      // A CNT-nucleated Pozzolanic phase has no starting mass (initial mass
+      // is 0 by construction — nuclei are placed as the phase is born) so
+      // DOR is undefined as fraction-of-initial. Treat as 0 and skip the
+      // DOR-dependent diffusion-rate branch below (which is gated on
+      // `DOR > 0.0`; see line ~326). This preserves parity with the
+      // Standard model, which does not divide by initScaledMass_ in
+      // calculateKineticStep at all. The throw is preserved for the
+      // non-CNT, non-nucleating "impossible" case where a Pozzolanic phase
+      // somehow reaches calculateKineticStep with initScaledMass_ = 0.
+      DOR = 0.0;
     } else {
       throw FloatException("PozzolanicModel", "calculateKineticStep",
                            "initScaledMass_ = 0.0");
