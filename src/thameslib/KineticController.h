@@ -142,6 +142,38 @@ private:
   */
   std::vector<int> jmakVoxelsInLattice_;
 
+  /**
+  @brief Per-phase snapshot of the growing (unimpinged) surface area
+  summed over all active generations, updated inside updateJMAKPhase.
+
+      A_actual_total  =  V_voxel * sum_g N_g * A_ext_perVoxel_g * (1 - X_g)
+
+  where A_ext_perVoxel_g is `jmak::extendedSurfaceAreaPerVoxel` for
+  generation g (units 1/m). Consumed by `computeJMAKMaxTimestep` to
+  size the adaptive-dt cap: characteristic JMAK growth time is
+  V_voxel / (G * A_actual_max_per_voxel), where A_actual_max_per_voxel
+  is the largest A_actual across generations of this phase.
+
+  Units: m^2 (total actual growing surface across the whole phase).
+  */
+  std::vector<double> jmakActualSurfaceAreaTotal_;
+
+  /**
+  @brief Per-phase snapshot of the growth velocity G(S) at the current
+  cycle. Cached inside updateJMAKPhase so Stage-3 timestep cap can
+  compute characteristic time without re-querying the rate law.
+  Units: m/s.
+  */
+  std::vector<double> jmakGrowthVelocity_;
+
+  /**
+  @brief Per-phase snapshot of the maximum single-generation A_actual
+  in units of m^2 per voxel of that generation. Consumed by the
+  Stage-3 timestep cap.
+  Units: m^2/voxel.
+  */
+  std::vector<double> jmakMaxActualAreaPerVoxel_;
+
   std::vector<double> DCMoles_;    /**< vector of all DC moles - after the dissolution
                                         corresponding to the current time step - to be
                                         sent to GEMS */

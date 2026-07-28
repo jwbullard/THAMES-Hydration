@@ -43,6 +43,9 @@ KineticController::KineticController() {
   jmakGenerations_.clear();
   jmakSeedAccumulator_.clear();
   jmakVoxelsInLattice_.clear();
+  jmakActualSurfaceAreaTotal_.clear();
+  jmakGrowthVelocity_.clear();
+  jmakMaxActualAreaPerVoxel_.clear();
   // ICName_.clear();
   DCNum_ = 0;
   // DCName_.clear();
@@ -374,6 +377,9 @@ void KineticController::parseMicroPhases(const json::iterator it, int &numEntry,
     jmakGenerations_.push_back(std::vector<JMAKGeneration>{});
     jmakSeedAccumulator_.push_back(0.0);
     jmakVoxelsInLattice_.push_back(0);
+    jmakActualSurfaceAreaTotal_.push_back(0.0);
+    jmakGrowthVelocity_.push_back(0.0);
+    jmakMaxActualAreaPerVoxel_.push_back(0.0);
   }
 
   return;
@@ -946,17 +952,66 @@ void KineticController::updateJMAKPhase(int midx, double timestep, int cyc) {
     jmakSeedAccumulator_[midx] -= static_cast<double>(nSeedInt);
   }
 
-  // ---- 4-5. Evaluate all generations; compute total transformed ----
+  // ---- 4-5. Evaluate all generations; compute total transformed AND
+  //           the actual (unimpinged) growing surface area per generation.
+  //
+  // Per-generation quantities (index g suppressed for legibility):
+  //   Y/V         = extendedVolumePerVoxel                (dimensionless)
+  //   X           = 1 - exp(-Y/V)                         (dimensionless)
+  //   A_ext/V     = extendedSurfaceAreaPerVoxel           (1/m)
+  //   A_ext       = (A_ext/V) * V_voxel                   (m^2 per voxel)
+  //   A_actual    = A_ext * (1 - X)                       (m^2 per voxel)
+  //   A_gen_tot   = N * A_actual                           (m^2 for the generation)
+  //
+  // Volume-placement rate identity (see docs/jmak_moment_decomposition.tex,
+  // Stage-2 comment):
+  //
+  //   d(N*X)/dt  =  N * G * (A_ext/V_voxel) * (1 - X)
+  //
+  // so the Y-based sum (Sum_g N*X, floored to integer voxels) is exactly
+  // the integral of the rate-based mass balance up to whole-voxel
+  // discretization. Placement below still uses floor(Sum_g N*X); the
+  // A_actual bookkeeping here is used by (a) the Stage-3 adaptive-dt
+  // cap and (b) the Stage-4 SR-outer suppression decision.
   double transformedVoxelsCumulative = 0.0;
+  double totalActualAreaPhysical = 0.0;   // m^2 across all active generations
+  double maxActualAreaPerVoxel = 0.0;     // m^2 for the widest single-voxel A
   for (auto &g : jmakGenerations_[midx]) {
     const double Y_over_V = jmak::extendedVolumePerVoxel(
         g.seed, jmakGlobals_[midx], jmakParams_[midx]);
     const double X = jmak::transformedFraction(Y_over_V);
     transformedVoxelsCumulative += static_cast<double>(g.Nvoxels) * X;
+
+    const double aExtPerVol = jmak::extendedSurfaceAreaPerVoxel(
+        g.seed, jmakGlobals_[midx]);                        // 1/m
+    const double aExtPerVoxel = aExtPerVol * V_voxel;       // m^2 per voxel
+    const double aActualPerVoxel = aExtPerVoxel * (1.0 - X);
+    if (aActualPerVoxel > maxActualAreaPerVoxel) {
+      maxActualAreaPerVoxel = aActualPerVoxel;
+    }
+    totalActualAreaPhysical +=
+        static_cast<double>(g.Nvoxels) * aActualPerVoxel;   // m^2
   }
+  jmakGrowthVelocity_[midx] = G;
+  jmakActualSurfaceAreaTotal_[midx] = totalActualAreaPhysical;
+  jmakMaxActualAreaPerVoxel_[midx] = maxActualAreaPerVoxel;
+
   const int transformedIntTotal =
       static_cast<int>(std::floor(transformedVoxelsCumulative));
   const int deltaVoxels = transformedIntTotal - jmakVoxelsInLattice_[midx];
+
+  if (verbose_) {
+    std::clog << "  JMAK/rate: " << km->getName()
+              << " cyc=" << cyc
+              << " S=" << S
+              << " J=" << J
+              << " G=" << G
+              << " A_actual_total=" << totalActualAreaPhysical << " m^2"
+              << " A_actual_max/vox=" << maxActualAreaPerVoxel << " m^2"
+              << " gens=" << jmakGenerations_[midx].size()
+              << " sumNX=" << transformedVoxelsCumulative
+              << endl;
+  }
 
   // ---- 6. Place delta voxels in the lattice ----
   if (deltaVoxels > 0) {
