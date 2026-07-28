@@ -168,6 +168,34 @@ double extendedVolumePerVoxel(const GenerationMomentsAtSeed &seed,
                               const JMAKParameters &jp);
 
 /**
+@brief Per-voxel *extended* surface area for one generation at the current time.
+
+    A_ext / V_voxel  =  4*pi * [ r_acc^2 (M0 - M0_c)
+                               - 2 * r_acc (M1 - M1_c)
+                               + (M2 - M2_c) ]
+
+Derived from A_ext = integral J(tau) * 4*pi * [r(tau,t)]^2 dtau; expanding
+the square and separating the tau-dependent factors from the t-dependent
+factors, as with the volume decomposition but requiring only three moments
+(M_0, M_1, M_2). Returns [1/m] (m^2 per m^3 of voxel volume).
+
+Uses the same integer-exponent identity as `extendedVolumePerVoxel`; the
+4*pi coefficient is fixed here because it comes from the sphere surface
+area, not from the morphology-dependent volume coefficient alpha. If the
+generalization to non-spherical crystal habit is done later, this function
+would need a shape-dependent surface prefactor too.
+
+Guards against small negative values from floating-point roundoff at
+t = t_c (where all differences are near zero).
+
+@param seed   moments at generation creation
+@param acc    current global moments
+@return A_ext / V_voxel [1/m]
+*/
+double extendedSurfaceAreaPerVoxel(const GenerationMomentsAtSeed &seed,
+                                   const GlobalMoments &acc);
+
+/**
 @brief JMAK Poisson-impingement correction: X = 1 - exp(-Y/V).
 
 Uses `-expm1` for numerical stability at small Y (X = 1 - exp(-Y) is

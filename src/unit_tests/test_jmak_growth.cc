@@ -218,6 +218,53 @@ int main() {
     report("time-varying J step-change", ok);
   }
 
+  // --- 6. Extended surface area matches closed form for constant J, G ----
+  {
+    // For constant J and G, generation seeded at t = 0, no impingement:
+    //   A_ext(t) / V_voxel = 4*pi * J * G^2 * t^3 / 3
+    // Derivation: A_ext(t) = 4*pi * integral J * V * [G*(t - tau)]^2 dtau
+    //           = 4*pi * J * V * G^2 * t^3 / 3
+    //           Divide by V_voxel -> per-voxel value 4*pi/3 * J * G^2 * t^3
+    // (Wait — the factor of V_voxel cancels because the integrand already
+    //  has V_voxel implicit — see JMAKGrowth.h header discussion. The
+    //  formula in the code is dimensionally per-unit-voxel-volume.)
+    const double J = 1.0e15;
+    const double G = 1.0e-9;
+    const int nsteps = 10000;
+
+    std::printf("\n--- Extended surface area vs closed form 4*pi/3 * J * G^2 * t^3 ---\n");
+    std::printf("%-14s %-14s %-14s %-8s\n", "t (s)", "A_sim (1/m)", "A_closed (1/m)", "match?");
+    const double times[] = {100.0, 1000.0, 5000.0};
+    for (double t : times) {
+      jmak::GlobalMoments acc{0.0, 0.0, 0.0, 0.0, 0.0};
+      const jmak::GenerationMomentsAtSeed seed = jmak::snapshotSeed(acc);
+      const double dt = t / nsteps;
+      for (int i = 0; i < nsteps; ++i) {
+        jmak::advanceMoments(acc, J, G, dt);
+      }
+      const double A_sim = jmak::extendedSurfaceAreaPerVoxel(seed, acc);
+      const double A_ref = (4.0 * kPi / 3.0) * J * G * G * t * t * t;
+      const bool ok = approxEqual(A_sim, A_ref, 1.0e-3, 1.0e-8);
+      std::printf("%-14.3f %-14.6e %-14.6e %-8s\n", t, A_sim, A_ref,
+                  ok ? "yes" : "NO");
+      char nm[128];
+      std::snprintf(nm, sizeof(nm), "  A_ext constant-JG t = %.1f s", t);
+      report(nm, ok);
+    }
+  }
+
+  // --- 7. Extended surface area sanity: zero at t = t_c ------------------
+  {
+    jmak::GlobalMoments acc{0.0, 0.0, 0.0, 0.0, 0.0};
+    jmak::advanceMoments(acc, 1.0e15, 1.0e-9, 100.0);
+    const auto seed = jmak::snapshotSeed(acc);
+    // Immediately after seed: no time has elapsed since seed.
+    const double A = jmak::extendedSurfaceAreaPerVoxel(seed, acc);
+    const bool ok = (A == 0.0);
+    std::printf("A_ext at t = t_c: %.6e  %s\n", A, ok ? "PASS" : "FAIL");
+    report("A_ext zero at seed time", ok);
+  }
+
   std::printf("\n%d probe(s) failed\n", failed);
   return failed == 0 ? 0 : 1;
 }

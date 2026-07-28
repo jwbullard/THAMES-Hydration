@@ -55,6 +55,24 @@ double extendedVolumePerVoxel(const GenerationMomentsAtSeed &seed,
   return (y > 0.0) ? y : 0.0;
 }
 
+double extendedSurfaceAreaPerVoxel(const GenerationMomentsAtSeed &seed,
+                                   const GlobalMoments &acc) {
+  // Derivation:
+  //   A_ext / V_voxel = 4*pi * integral J(tau) [r_acc(t) - r_acc(tau)]^2 dtau
+  // Expanding the square yields three moments; the constant 4*pi comes
+  // from the sphere surface area (independent of alpha).
+  const double g = acc.r_acc;
+  const double dM0 = acc.M0 - seed.M0_c;
+  const double dM1 = acc.M1 - seed.M1_c;
+  const double dM2 = acc.M2 - seed.M2_c;
+  const double bracket = g * g * dM0 - 2.0 * g * dM1 + dM2;
+  constexpr double fourPi = 4.0 * 3.14159265358979323846;
+  const double aOverV = fourPi * bracket;
+  // Floating-point roundoff can produce small negative values at
+  // t = t_c. Physically A_ext / V >= 0 always.
+  return (aOverV > 0.0) ? aOverV : 0.0;
+}
+
 double transformedFraction(double Y_over_V) {
   // X = 1 - exp(-Y/V), computed as -expm1(-Y/V) for numerical stability
   // when Y is small (naive 1-exp gets catastrophic cancellation).
