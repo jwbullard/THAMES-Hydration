@@ -160,6 +160,27 @@ public:
   */
   int drainNucleationInteger() override;
 
+  /**
+  @brief CNT nucleation rate J at supersaturation S.
+
+  Returns `cnt::nucleationRate(*nucleation_, v_m, T_K, S)` when a
+  nucleation block is configured, else 0. Consumed by
+  KineticController's JMAK-per-voxel machinery.
+  */
+  double getNucleationRate(double S) const override;
+
+  /**
+  @brief Linear growth velocity at supersaturation S.
+
+  Returns `sat::precipitationRate(...) * v_molar_DC` for S > 1
+  (precipitation regime). Returns 0.0 for S <= 1 (dissolution or
+  equilibrium; no growth on the precipitation branch). Uses the
+  precipitation block's rateConstant/B/n if present, else falls back
+  to the dissolution block by microscopic reversibility (the same
+  fallback as calculateKineticStep).
+  */
+  double getGrowthVelocity(double S) const override;
+
 }; // End of SaturatingRateModel class
 
 #endif // SRC_THAMESLIB_SATURATINGRATEMODEL_H_

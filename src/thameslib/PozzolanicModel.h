@@ -432,6 +432,25 @@ public:
   */
   int drainNucleationInteger() override;
 
+  /**
+  @brief CNT nucleation rate J at supersaturation S.
+  Delegates to `cnt::nucleationRate` when a nucleation block is configured.
+  */
+  double getNucleationRate(double S) const override;
+
+  /**
+  @brief Linear growth velocity at supersaturation S.
+
+  Returns the Pozzolanic-model precipitation rate at S > 1 multiplied
+  by the DC molar volume to convert mol/m^2/s -> m/s. Returns 0.0 for
+  S <= 1 (dissolution or equilibrium; no growth on the precipitation
+  branch). Uses the same rate expression as Standard-Eq-6 but with the
+  Pozzolanic-specific parameters — since Pozzolanic phases in practice
+  rarely nucleate (they dissolve as sources of reactive silica), this
+  override is present mostly for parity with Standard/SaturatingRate.
+  */
+  double getGrowthVelocity(double S) const override;
+
 }; // End of PozzolanicModel class
 
 #endif // SRC_THAMESLIB_POZZOLANICMODEL_H_

@@ -345,3 +345,32 @@ int SaturatingRateModel::drainNucleationInteger() {
   nucleationAccumulator_ -= static_cast<double>(n);
   return n;
 }
+
+double SaturatingRateModel::getNucleationRate(double S) const {
+  if (!nucleation_.has_value()) return 0.0;
+  const double v_m = chemSys_->getDCMolarVolume(DCId_);
+  return cnt::nucleationRate(*nucleation_, v_m, temperature_, S);
+}
+
+double SaturatingRateModel::getGrowthVelocity(double S) const {
+  // Only precipitation-side (S > 1) is a growth event; dissolution
+  // consumes mass rather than growing the phase, so returns 0.0
+  // for S <= 1.
+  if (S <= 1.0) return 0.0;
+  if (!dissolution_.has_value()) return 0.0;
+
+  // Fall back to dissolution params for precipitation if precipitation
+  // block is absent — same microscopic-reversibility default as
+  // calculateKineticStep.
+  const SaturatingRateParameters &pp =
+      precipitation_.has_value() ? *precipitation_ : *dissolution_;
+
+  // Surface-normal molar rate: mol / m^2 / s. sat::precipitationRate
+  // returns the magnitude (positive) at Omega > 1.
+  const double r = sat::precipitationRate(pp.rateConstant, pp.B, pp.n, S);
+
+  // Convert to linear velocity: m/s = (mol/m^2/s) * (m^3/mol).
+  // Uses the DC's physical molar volume from GEMS (m^3/mol).
+  const double v_m = chemSys_->getDCMolarVolume(DCId_);
+  return r * v_m;
+}

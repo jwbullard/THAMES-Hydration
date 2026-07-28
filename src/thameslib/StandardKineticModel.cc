@@ -493,3 +493,31 @@ int StandardKineticModel::drainNucleationInteger() {
   nucleationAccumulator_ -= static_cast<double>(n);
   return n;
 }
+
+double StandardKineticModel::getNucleationRate(double S) const {
+  if (!nucleation_.has_value()) return 0.0;
+  const double v_m = chemSys_->getDCMolarVolume(DCId_);
+  return cnt::nucleationRate(*nucleation_, v_m, temperature_, S);
+}
+
+double StandardKineticModel::getGrowthVelocity(double S) const {
+  // Only precipitation side is a growth event. Return 0 on the
+  // dissolution / equilibrium side.
+  //
+  // NOTE ON MODEL CHOICE. Standard's rate law (Han 2025 CEJ Eq. 6) is
+  // the power-law form r = k * (S^m - 1)^n at S > 1, which diverges
+  // for large S. Feeding that into JMAK as a growth velocity produces
+  // an unphysically large linear velocity at high supersaturation
+  // (this was the failure mode that motivated adding
+  // SaturatingRateModel — see docs/SATURATING_RATE.md). For CNT-with-
+  // JMAK use, users should prefer SaturatingRateModel or Pozzolanic
+  // whose rate laws saturate at k at high S. The Standard override
+  // is provided for completeness and parity, not as a recommended
+  // configuration.
+  if (S <= 1.0) return 0.0;
+
+  const double r = dissolutionRateConst_ *
+                   std::pow(std::pow(S, siexp_) - 1.0, dfexp_);
+  const double v_m = chemSys_->getDCMolarVolume(DCId_);
+  return r * v_m;
+}

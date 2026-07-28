@@ -144,6 +144,44 @@ public:
   virtual void accumulateNucleation(double /*dN*/) {}
 
   /**
+  @brief Volumetric nucleation rate J at supersaturation S.
+
+  Returns the CNT nucleation rate in events per m^3 of electrolyte per
+  second, evaluated at the current S using the phase's own nucleation
+  parameters. Used by the JMAK-per-voxel growth machinery in
+  KineticController to advance the per-generation moment accumulators.
+
+  Default returns 0.0 (no CNT). Concrete rate-law subclasses that hold
+  a NucleationParameters override to return `cnt::nucleationRate(...)`.
+  Returns 0.0 for S <= 1.
+
+  See namespace jmak in JMAKGrowth.h for how J feeds into the per-cycle
+  moment update.
+  */
+  virtual double getNucleationRate(double /*S*/) const { return 0.0; }
+
+  /**
+  @brief Surface-normal linear growth velocity at supersaturation S.
+
+  Used by the JMAK-per-voxel growth machinery in KineticController to
+  advance the per-generation extended-volume integrand. Returns m/s.
+
+  The default returns 0.0 (no growth). Concrete rate-law subclasses
+  (Standard, Pozzolanic, SaturatingRate) override to return
+  `r_surface_normal(S) * v_molar_DC`, where r is the surface-normal
+  precipitation rate from the phase's rate law in mol/m^2/s and
+  v_molar is the DC molar volume in m^3/mol. Returns 0.0 for S <= 1
+  (no growth on the precipitation side).
+
+  Rate laws that describe dissolution rather than precipitation may
+  return 0.0 (dissolution consumes mass, does not grow the phase).
+
+  See namespace jmak in JMAKGrowth.h for how this velocity feeds
+  into the per-cycle moment update.
+  */
+  virtual double getGrowthVelocity(double /*S*/) const { return 0.0; }
+
+  /**
   @brief Drain the integer part of the CNT accumulator (batched placement count).
   Default: 0 (no accumulator).
   */

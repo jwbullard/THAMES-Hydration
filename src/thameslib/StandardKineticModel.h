@@ -280,6 +280,22 @@ public:
   */
   int drainNucleationInteger() override;
 
+  /**
+  @brief CNT nucleation rate J at supersaturation S.
+  Delegates to `cnt::nucleationRate` when a nucleation block is configured.
+  */
+  double getNucleationRate(double S) const override;
+
+  /**
+  @brief Linear growth velocity at supersaturation S.
+
+  Returns the Standard-Eq-6 precipitation rate (dissolutionRateConst_
+  times the S-driving-force term) at S > 1, multiplied by the DC
+  molar volume to convert mol/m^2/s -> m/s. Returns 0.0 for S <= 1
+  (dissolution or equilibrium; no growth on the precipitation branch).
+  */
+  double getGrowthVelocity(double S) const override;
+
 }; // End of StandardKineticModel class
 
 #endif // SRC_THAMESLIB_STANDARDKINETICMODEL_H_

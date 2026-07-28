@@ -57,6 +57,7 @@ component
 #include <optional>
 
 #include "global.h"
+#include "JMAKParameters.h"
 #include "NucleationParameters.h"
 #include "SaturatingRateParameters.h"
 
@@ -98,6 +99,13 @@ struct KineticData {
                               ambient relative humidity */
   std::optional<NucleationParameters> nucleation;
       /**< CNT parameters for this phase; empty = CNT disabled */
+  std::optional<JMAKParameters> jmak;
+      /**< JMAK per-voxel growth parameters (Avrami exponent n +
+           morphology coefficient alpha). Only meaningful if
+           `nucleation` is also set; JMAK is a growth-side extension of
+           the CNT machinery and does not apply to non-nucleating
+           phases. Empty = classical "1 voxel per nucleation event"
+           placement path (pre-2026-07-28 behavior). */
   std::optional<SaturatingRateParameters> saturatingDissolution;
       /**< Bullard 2015 / Han 2025 Eq. 7 params for dissolution
            direction. Required for a SaturatingRate-type phase; unused

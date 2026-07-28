@@ -5,6 +5,8 @@
 */
 #include "KineticController.h"
 
+#include <algorithm>
+
 #include "SaturatingRateModel.h"
 
 using std::cout;
@@ -32,6 +34,15 @@ KineticController::KineticController() {
   specificSurfaceArea_.clear();
   refSpecificSurfaceArea_.clear();
   isKinetic_.clear();
+
+  // JMAK per-phase state — parallel to name_, scaledMass_, etc.
+  // Populated alongside them in parseKineticData.
+  jmakEnabled_.clear();
+  jmakParams_.clear();
+  jmakGlobals_.clear();
+  jmakGenerations_.clear();
+  jmakSeedAccumulator_.clear();
+  jmakVoxelsInLattice_.clear();
   // ICName_.clear();
   DCNum_ = 0;
   // DCName_.clear();
@@ -347,6 +358,22 @@ void KineticController::parseMicroPhases(const json::iterator it, int &numEntry,
     initScaledMass_.push_back(0.0);
     scaledMass_.push_back(0.0);
     scaledMassIni_.push_back(0.0);
+
+    // JMAK per-phase state — allocate parallel entries for every parsed
+    // phase. A phase is jmak-enabled iff kineticData.jmak was set AND
+    // kineticData.nucleation was set (JMAK is a growth extension of CNT
+    // — makes no sense without a nucleation source). See
+    // KineticController.h "JMAK per-voxel growth state" comment for the
+    // per-cycle semantics.
+    const bool jmakOn = kineticData.jmak.has_value() &&
+                        kineticData.nucleation.has_value();
+    jmakEnabled_.push_back(jmakOn);
+    jmakParams_.push_back(jmakOn ? *kineticData.jmak
+                                 : JMAKParameters{4.0, 4.0 * Pi / 3.0});
+    jmakGlobals_.push_back(jmak::GlobalMoments{0.0, 0.0, 0.0, 0.0, 0.0});
+    jmakGenerations_.push_back(std::vector<JMAKGeneration>{});
+    jmakSeedAccumulator_.push_back(0.0);
+    jmakVoxelsInLattice_.push_back(0);
   }
 
   return;
@@ -776,6 +803,216 @@ void KineticController::parseNucleationBlock(const json::iterator p,
               << " deg, A0=" << np.A0 << " /(m^3 s)" << endl;
     std::clog.flush();
   }
+
+  // ------ Optional JMAK sub-block ------
+  // If present, the phase uses per-voxel JMAK growth instead of the
+  // classical "1 voxel = 1 nucleation event" placement path. See
+  // docs/POST_ALPHA_TODOS.md "CNT growth model needs JMAK-per-voxel"
+  // for the physical rationale.
+  //
+  // Expected JSON (both fields optional; defaults apply if absent):
+  //   "jmak": {
+  //     "n":     {"value": 4.0, "range": [2.5, 4.0], "provenance": "..."},
+  //     "alpha": {"value": 4.18879, "range": [1.0, 10.0], "provenance": "..."}
+  //   }
+  //
+  // n = Avrami exponent (4 = 3D continuous nucleation; range [2.5, 4]
+  //     defensible for CNT-nucleated phases in a 1 um^3 voxel with
+  //     non-ideal habitus).
+  // alpha = morphology coefficient (4*pi/3 for 3D isotropic spheres).
+  {
+    json::iterator jmakIt = nucIt.value().find("jmak");
+    if (jmakIt != nucIt.value().end()) {
+      JMAKParameters jp;
+      // Defaults if a field is absent.
+      jp.n = 4.0;
+      jp.alpha = 4.0 * Pi / 3.0;
+
+      auto nField = jmakIt.value().find("n");
+      if (nField != jmakIt.value().end()) {
+        auto v = nField.value().find("value");
+        if (v == nField.value().end()) {
+          throw DataException("KineticController", "parseNucleationBlock",
+                              "jmak.n.value not found");
+        }
+        jp.n = v.value().get<double>();
+      }
+      auto alphaField = jmakIt.value().find("alpha");
+      if (alphaField != jmakIt.value().end()) {
+        auto v = alphaField.value().find("value");
+        if (v == alphaField.value().end()) {
+          throw DataException("KineticController", "parseNucleationBlock",
+                              "jmak.alpha.value not found");
+        }
+        jp.alpha = v.value().get<double>();
+      }
+
+      if (jp.n < 2.5 || jp.n > 4.0) {
+        throw DataException("KineticController", "parseNucleationBlock",
+                            "jmak.n must be in [2.5, 4.0]");
+      }
+      if (jp.alpha <= 0.0) {
+        throw DataException("KineticController", "parseNucleationBlock",
+                            "jmak.alpha must be positive");
+      }
+
+      kineticData.jmak = jp;
+
+      if (verbose_) {
+        std::clog << "--->Parsed jmak sub-block for " << kineticData.name
+                  << ": n=" << jp.n << ", alpha=" << jp.alpha << endl;
+        std::clog.flush();
+      }
+    }
+  }
+}
+
+void KineticController::updateJMAKPhase(int midx, double timestep, int cyc) {
+  // Precondition: caller has verified useNucleationKinetics_ AND
+  // jmakEnabled_[midx] AND phaseKineticModel_[midx]->hasNucleation().
+  //
+  // Per JMAK-enabled phase, per cycle:
+  //   1. Get S, J, G from the rate-law subclass.
+  //   2. jmak::advanceMoments updates M_0..M_3 and G_acc.
+  //   3. Seed new generations: expected new-seed voxels this cycle
+  //      = J * V_unseeded_electrolyte * dt_seconds. Accumulate
+  //      fractionally; when the accumulator crosses 1.0 create a new
+  //      Generation with floor(acc) voxels and a moment snapshot.
+  //   4. Iterate active generations, compute Y_g and X_g.
+  //   5. Total transformed = sum_g N_g * X_g. Delta against
+  //      jmakVoxelsInLattice_[midx] tells us how many new voxels to
+  //      place in the lattice this cycle.
+  //   6. Place via Lattice::nucleatePhaseRnd, update DCMoles_,
+  //      KineticModel::scaledMass_, ChemicalSystem::microPhaseMass_
+  //      using the same per-100g scaling as the classical CNT
+  //      placement block.
+  //   7. Prune generations that have reached X_g >= 0.999 to keep
+  //      the vector length bounded.
+
+  KineticModel *km = phaseKineticModel_[midx];
+  const int microPhId = km->getMicroPhaseId();
+  const int dcId = km->getDCId();
+
+  // ---- 1. Query rate law for S, J, G ----
+  const double S = chemSys_->getMicroPhaseSI(microPhId);
+  const double J = km->getNucleationRate(S);          // [1/(m^3 s)]
+  const double G = km->getGrowthVelocity(S);          // [m/s]
+  const double dt_seconds = timestep * 3600.0;
+
+  // ---- 2. Advance moments (idempotent when J = 0 or G = 0) ----
+  jmak::advanceMoments(jmakGlobals_[midx], J, G, dt_seconds);
+
+  // If nothing to do (both J = 0 AND no existing generations), skip the
+  // rest. J may be > 0 with no generations yet (build-up phase) or
+  // J = 0 with generations still growing (Ostwald tail).
+  if (J <= 0.0 && jmakGenerations_[midx].empty()) return;
+
+  const double V_voxel = lattice_->getVolumePerVoxel();          // [m^3]
+
+  // ---- 3. Seed new generation? ----
+  //
+  // "Unseeded" volume = current electrolyte volume, minus the volume
+  // already assigned to existing generations. In the JMAK model each
+  // seeded voxel is a whole voxel worth of "reserved" electrolyte
+  // (contains fractional-to-full Portlandite over time), so unseeded
+  // voxel count = (electrolyte voxels in lattice) - (voxels reserved
+  // by generations that are not yet fully transformed).
+  int reservedInFlight = 0;
+  for (const auto &g : jmakGenerations_[midx]) {
+    reservedInFlight += g.Nvoxels;
+  }
+  // Subtract voxels already placed in the lattice — those are no
+  // longer electrolyte, they're solid Portlandite. Reserving them
+  // twice would inflate the unseeded count.
+  reservedInFlight -= jmakVoxelsInLattice_[midx];
+  if (reservedInFlight < 0) reservedInFlight = 0;
+
+  const int nElectrolyte = lattice_->getCount(ELECTROLYTEID);
+  int nUnseededVoxels = nElectrolyte - reservedInFlight;
+  if (nUnseededVoxels < 0) nUnseededVoxels = 0;
+
+  const double V_unseeded = static_cast<double>(nUnseededVoxels) * V_voxel;
+  // Expected new-seed voxels this cycle (small-lambda Poisson approx).
+  const double expectedNewSeeds = J * V_unseeded * dt_seconds;
+  jmakSeedAccumulator_[midx] += expectedNewSeeds;
+
+  if (jmakSeedAccumulator_[midx] >= 1.0) {
+    const int nSeedInt =
+        static_cast<int>(std::floor(jmakSeedAccumulator_[midx]));
+    JMAKGeneration g;
+    g.Nvoxels = nSeedInt;
+    g.seed = jmak::snapshotSeed(jmakGlobals_[midx]);
+    jmakGenerations_[midx].push_back(g);
+    jmakSeedAccumulator_[midx] -= static_cast<double>(nSeedInt);
+  }
+
+  // ---- 4-5. Evaluate all generations; compute total transformed ----
+  double transformedVoxelsCumulative = 0.0;
+  for (auto &g : jmakGenerations_[midx]) {
+    const double Y_over_V = jmak::extendedVolumePerVoxel(
+        g.seed, jmakGlobals_[midx], jmakParams_[midx]);
+    const double X = jmak::transformedFraction(Y_over_V);
+    transformedVoxelsCumulative += static_cast<double>(g.Nvoxels) * X;
+  }
+  const int transformedIntTotal =
+      static_cast<int>(std::floor(transformedVoxelsCumulative));
+  const int deltaVoxels = transformedIntTotal - jmakVoxelsInLattice_[midx];
+
+  // ---- 6. Place delta voxels in the lattice ----
+  if (deltaVoxels > 0) {
+    const int nPlaced = lattice_->nucleatePhaseRnd(microPhId, deltaVoxels);
+    if (nPlaced > 0) {
+      // Same per-100g scaling as the classical CNT placement block.
+      // See KineticController.cc block comment above the classical
+      // CNT placement for the derivation.
+      const double molarMass = chemSys_->getDCMolarMass(dcId);
+      const double vMolar = chemSys_->getDCMolarVolume(dcId);
+      const double vfracPlaced =
+          static_cast<double>(nPlaced) /
+          static_cast<double>(lattice_->getNumSites());
+      const double microPhaseMassPlacedPerCC =
+          vfracPlaced * molarMass / vMolar / 1.0e6;          // g/cm^3
+      const double placedMass =
+          microPhaseMassPlacedPerCC * 100.0 /
+          lattice_->getInitSolidMass();                       // g/100g solid
+      const double moles = placedMass / molarMass;            // mol/100g solid
+
+      DCMoles_[dcId] += moles;
+      chemSys_->setDCLowerLimit(dcId, DCMoles_[dcId]);
+      chemSys_->setDCUpperLimit(dcId, DCMoles_[dcId]);
+
+      const double newScaledMass = km->getScaledMass() + placedMass;
+      km->setScaledMass(newScaledMass);
+      chemSys_->updateMicroPhaseMasses(microPhId, newScaledMass, 1);
+      scaledMassIni_[midx] = newScaledMass;
+
+      jmakVoxelsInLattice_[midx] += nPlaced;
+
+      if (verbose_) {
+        std::clog << "  JMAK: " << km->getName()
+                  << " cyc=" << cyc
+                  << " transformedTotal=" << transformedVoxelsCumulative
+                  << " voxelsPlacedThisCycle=" << nPlaced
+                  << " voxelsInLatticeCumul=" << jmakVoxelsInLattice_[midx]
+                  << " (+" << placedMass << " g/100g)" << endl;
+      }
+    }
+  }
+
+  // ---- 7. Prune completed generations ----
+  // Generations with X ~ 1 have contributed everything they can; drop
+  // them so the vector stays bounded (avoids O(cycles) growth over
+  // long runs). Threshold 0.999 is generous — we still keep some
+  // late-life generations to avoid a discontinuity from pruning.
+  auto &gens = jmakGenerations_[midx];
+  gens.erase(std::remove_if(gens.begin(), gens.end(),
+                            [&](const JMAKGeneration &g) {
+                              const double Y = jmak::extendedVolumePerVoxel(
+                                  g.seed, jmakGlobals_[midx],
+                                  jmakParams_[midx]);
+                              return jmak::transformedFraction(Y) >= 0.999;
+                            }),
+             gens.end());
 }
 
 void KineticController::parseSaturatingRateSubBlock(
@@ -1471,6 +1708,25 @@ void KineticController::calculateKineticStep(double time, const double timestep,
         //      stale kinetic-computed floor, upper because the pre-loop CNT-lock
         //      may have zeroed it and DCMoles > 0 would violate UpperLimit = 0.
         if (useNucleationKinetics_) {
+          // Two paths, selected per-phase by whether the config supplied
+          // a jmak sub-block alongside the nucleation block:
+          //
+          //   JMAK PATH   (jmak block present): updateJMAKPhase applies the
+          //     per-voxel Avrami-Poisson model — J·V·dt events distribute
+          //     into generations, each generation's transformed fraction
+          //     X_g evolves via the moment decomposition, and the lattice
+          //     is synced to floor(sum_g N_g * X_g). This is the correct
+          //     physical model at Portland-paste supersaturation regimes.
+          //     See docs/POST_ALPHA_TODOS.md.
+          //
+          //   CLASSICAL PATH (no jmak block, or jmak disabled): the
+          //     pre-2026-07-28 "1 voxel = 1 nucleation event" placement.
+          //     Preserved for backward compatibility with existing
+          //     configs and for phases where the JMAK per-voxel model
+          //     is not needed.
+          if (jmakEnabled_[midx]) {
+            updateJMAKPhase(midx, timestep, cyc);
+          } else {
           double dN =
               phaseKineticModel_[midx]->computeNucleationVoxels(timestep);
           if (dN > 0.0) {
@@ -1565,6 +1821,7 @@ void KineticController::calculateKineticStep(double time, const double timestep,
               // electrolyte is a smaller dt next cycle, not a queue.
             }
           }
+          }  // end classical-path else branch (JMAK is in the if branch above)
         }
       }
 

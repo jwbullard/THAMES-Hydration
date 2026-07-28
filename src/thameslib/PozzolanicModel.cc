@@ -681,3 +681,23 @@ int PozzolanicModel::drainNucleationInteger() {
   nucleationAccumulator_ -= static_cast<double>(n);
   return n;
 }
+
+double PozzolanicModel::getNucleationRate(double S) const {
+  if (!nucleation_.has_value()) return 0.0;
+  const double v_m = chemSys_->getDCMolarVolume(DCId_);
+  return cnt::nucleationRate(*nucleation_, v_m, temperature_, S);
+}
+
+double PozzolanicModel::getGrowthVelocity(double S) const {
+  // Only precipitation side is a growth event. Pozzolanic phases are
+  // typically dissolvers (silica sources), so this override sees
+  // little use in practice — added for parity with Standard and
+  // SaturatingRate. Same rate expression as Standard-Eq-6 with the
+  // Pozzolanic-specific dissolutionRateConst_/siexp_/dfexp_.
+  if (S <= 1.0) return 0.0;
+
+  const double r = dissolutionRateConst_ *
+                   std::pow(std::pow(S, siexp_) - 1.0, dfexp_);
+  const double v_m = chemSys_->getDCMolarVolume(DCId_);
+  return r * v_m;
+}

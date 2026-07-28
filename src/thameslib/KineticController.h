@@ -14,6 +14,8 @@ different kinetic models that govern the rate of hydration.
 #include "global.h"
 // #include "../Resources/include/nlohmann/json.hpp"
 #include "ChemicalSystem.h"
+#include "JMAKGrowth.h"
+#include "JMAKParameters.h"
 #include "KineticData.h"
 #include "KineticModel.h"
 #include "Lattice.h"
@@ -64,6 +66,81 @@ private:
   bool warning_;                   /**< Flag for warnining output */
   bool useNucleationKinetics_ = false;
       /**< CNT global switch — set by Controller after parseDoc */
+
+  // ---------- JMAK per-voxel growth state (2026-07-28) ------------------
+  //
+  // Per-phase JMAK bookkeeping. Populated per-phase during
+  // parseKineticData / makeModel and updated cycle-by-cycle inside
+  // calculateKineticStep. Only active for phases with BOTH a nucleation
+  // sub-block AND a jmak sub-block in the phase's kinetic_data JSON.
+  //
+  // Non-JMAK CNT phases (nucleation block but no jmak block) continue
+  // to use the pre-existing "1 voxel = 1 nucleation event" placement
+  // path via accumulateNucleation / drainNucleationInteger — the two
+  // paths coexist and are selected per-phase via jmakEnabled_[midx].
+  //
+  // See docs/POST_ALPHA_TODOS.md "CNT growth model needs JMAK-per-voxel"
+  // for the physical rationale and mathematical model. Free functions
+  // that do the per-cycle math live in JMAKGrowth.{h,cc}.
+
+  /**
+  @brief Per-phase flag: true if this phase uses JMAK growth (nucleation
+  block + jmak block both present in kinetic_data).
+  */
+  std::vector<bool> jmakEnabled_;
+
+  /**
+  @brief Per-phase JMAK parameters (Avrami n and morphology alpha).
+  */
+  std::vector<JMAKParameters> jmakParams_;
+
+  /**
+  @brief Per-phase JMAK global moment accumulator (M_0..M_3, G_acc).
+  Updated once per cycle in calculateKineticStep by adding J(t)·dt and
+  G(t)·dt contributions.
+  */
+  std::vector<jmak::GlobalMoments> jmakGlobals_;
+
+  /**
+  @brief Per-generation snapshot record.
+
+  When a new generation of voxels is seeded (Poisson-triggered by the
+  per-phase seed accumulator crossing 1.0), we record how many voxels
+  it contains plus the global-moment snapshot at that moment. From then
+  on, the generation's extended-volume-per-voxel is a difference-of-
+  moments computation against the current global moments (see
+  jmak::extendedVolumePerVoxel).
+  */
+  struct JMAKGeneration {
+    int Nvoxels;                             /**< voxel count in this generation */
+    jmak::GenerationMomentsAtSeed seed;      /**< moment snapshot at seed time */
+  };
+
+  /**
+  @brief Per-phase list of generations. Each generation carries an
+  independent JMAK growth trajectory driven by the same global moments.
+  */
+  std::vector<std::vector<JMAKGeneration>> jmakGenerations_;
+
+  /**
+  @brief Per-phase fractional-voxel seeding accumulator.
+
+  Each cycle we compute the expected number of newly-seeded voxels as
+  `J(t) * V_unseeded_electrolyte * dt`. This is usually less than 1 per
+  cycle, so we accumulate the fraction and only create a new generation
+  when the accumulator crosses 1.0.
+  */
+  std::vector<double> jmakSeedAccumulator_;
+
+  /**
+  @brief Per-phase count of voxels already placed in the lattice via the
+  JMAK path.
+
+  Lattice sync compares this to `floor(sum_g N_g * X_g)` each cycle and
+  places any positive delta via `nucleatePhaseRnd`. Kept as an integer
+  so the delta-based placement is clean.
+  */
+  std::vector<int> jmakVoxelsInLattice_;
 
   std::vector<double> DCMoles_;    /**< vector of all DC moles - after the dissolution
                                         corresponding to the current time step - to be
@@ -167,6 +244,9 @@ public:
     // Reset the CNT block so a per-phase parse of one phase does not leak
     // into the next phase's KineticData (which is reused across the parse loop).
     kineticData.nucleation.reset();
+    // Same reason: reset the JMAK block (2026-07-28). JMAK is a growth-
+    // side extension of CNT and inherits the same per-phase leak risk.
+    kineticData.jmak.reset();
     // Same reason: reset the SaturatingRate blocks. Otherwise a preceding
     // SaturatingRate phase's parameters would silently apply to a
     // Standard/Pozzolanic/ParrotKilloh phase parsed after it.
@@ -290,6 +370,29 @@ public:
   */
   void parseNucleationBlock(const json::iterator pp,
                             struct KineticData &kineticData);
+
+  /**
+  @brief Per-cycle JMAK update for one JMAK-enabled phase.
+
+  Advances the phase's global moment accumulator, seeds new generations
+  based on Poisson-triggered accumulator crossings, evaluates all
+  generations' transformed fractions X_g, and syncs the lattice to
+  match `floor(sum_g N_g * X_g)` — placing new voxels via
+  `Lattice::nucleatePhaseRnd` and updating DCMoles / microPhaseMass
+  through the same "correct per-100g scaling" path as the classical
+  CNT placement block does. See docs/POST_ALPHA_TODOS.md
+  "CNT growth model needs JMAK-per-voxel" for the mathematical model.
+
+  Called from the CNT dispatch inside `calculateKineticStep` when
+  `jmakEnabled_[midx]` is true, in place of the classical
+  computeNucleationVoxels/accumulateNucleation/drainNucleationInteger
+  path.
+
+  @param midx        kinetic-model index (per-phase array offset)
+  @param timestep    cycle timestep [hours]
+  @param cyc         cycle number (for logging)
+  */
+  void updateJMAKPhase(int midx, double timestep, int cyc);
 
   /**
   @brief Get the scaled mass of the phase in the kinetic model.
