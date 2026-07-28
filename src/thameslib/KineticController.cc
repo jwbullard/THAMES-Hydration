@@ -2223,6 +2223,47 @@ double KineticController::computeKineticsBasedMaxTimestep(
   return minTimestep;
 }
 
+double KineticController::computeJMAKMaxTimestep(double dtFraction) const {
+  // See KineticController.h for the derivation. Consumes the per-phase
+  // snapshot cached in updateJMAKPhase during the previous cycle:
+  //   jmakGrowthVelocity_[i]         [m/s]
+  //   jmakMaxActualAreaPerVoxel_[i]  [m^2/voxel]
+  // Characteristic time tau = V_voxel / (G * A_max), so dt_cap =
+  // dtFraction * tau. Return min across JMAK-enabled phases. Skip
+  // phases with zero G or zero A (no active generations yet).
+
+  const double largeTimestep = 1.0e6;
+  double minDt = largeTimestep;
+
+  if (!useNucleationKinetics_) return largeTimestep;
+
+  const double vVoxel = lattice_->getVolumePerVoxel();
+  if (vVoxel <= 0.0) return largeTimestep;
+  if (dtFraction <= 0.0) return largeTimestep;
+
+  for (int i = 0; i < pKMsize_; ++i) {
+    if (i >= static_cast<int>(jmakEnabled_.size())) break;
+    if (!jmakEnabled_[i]) continue;
+    const double G = jmakGrowthVelocity_[i];
+    const double aMax = jmakMaxActualAreaPerVoxel_[i];
+    if (G <= 0.0 || aMax <= 0.0) continue;
+    const double tauSeconds = vVoxel / (G * aMax);
+    const double dtHours = dtFraction * tauSeconds / 3600.0;
+    if (dtHours < minDt) {
+      minDt = dtHours;
+      if (verbose_) {
+        std::clog << "  JMAK cap: phase "
+                  << phaseKineticModel_[i]->getName()
+                  << " G=" << G << " m/s"
+                  << " A_max/vox=" << aMax << " m^2"
+                  << " tau=" << tauSeconds << " s"
+                  << " -> dt_cap=" << dtHours << " h" << endl;
+      }
+    }
+  }
+  return minDt;
+}
+
 double KineticController::computeNucleationBasedMaxTimestep(
     double dtProposedHours, double capFraction) const {
   // The CNT rate J is fixed within a cycle (uses S from the previous

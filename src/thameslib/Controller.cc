@@ -28,6 +28,9 @@ Controller::Controller(Lattice *msh, KineticController *kc, ChemicalSystem *cs,
   // CNT kinetics defaults — opt-in via simparams.json.
   useNucleationKinetics_ = false;
   nucleationCapFraction_ = 0.02;
+  // JMAK dt cap default — 20% of characteristic time per cycle. Read
+  // from simparams.json key `jmakDtFraction` if present.
+  jmakDtFraction_ = 0.2;
 
   // Initialize adaptive time stepping with unified parameters.
   // The kinetics-based timestep constraint (computeKineticsBasedMaxTimestep)
@@ -767,6 +770,25 @@ void Controller::doCycle(double elemTimeInterval) {
                       << endl;
             timestep = cntMax;
           }
+          // Apply JMAK per-voxel characteristic-time cap on top; large
+          // sentinel when no JMAK phase has active generations. Ensures
+          // JMAK's sigmoidal X(t) is resolved instead of collapsing to a
+          // one-cycle saturation at high S.
+          double jmakMax =
+              kineticController_->computeJMAKMaxTimestep(jmakDtFraction_);
+          if (jmakMax < timestep && jmakMax > stepTimeTHR_) {
+            std::clog << "    JMAK constraint (post-failure): reducing "
+                      << "timestep from " << timestep << " to " << jmakMax
+                      << " h" << endl;
+            timestep = jmakMax;
+          } else if (jmakMax <= stepTimeTHR_ && jmakMax < 1.0e5) {
+            // JMAK wants sub-floor dt; clamp to floor and log so the
+            // downstream cycle can proceed but the situation is auditable.
+            std::clog << "    JMAK cap wants dt=" << jmakMax
+                      << " h below floor " << stepTimeTHR_
+                      << " (post-failure); clamping to floor" << endl;
+            timestep = stepTimeTHR_;
+          }
 
           // Calculate new current time based on adaptive timestep
           currTime = lastGoodTime_ + timestep;
@@ -845,6 +867,21 @@ void Controller::doCycle(double elemTimeInterval) {
             std::clog << "    CNT constraint: reducing timestep from "
                       << timestep << " to " << cntMaxTimestep << " h" << std::endl;
             timestep = cntMaxTimestep;
+          }
+          // Apply JMAK per-voxel characteristic-time cap on top.
+          double jmakMaxTimestep =
+              kineticController_->computeJMAKMaxTimestep(jmakDtFraction_);
+          if (jmakMaxTimestep < timestep && jmakMaxTimestep > stepTimeTHR_) {
+            std::clog << "    JMAK constraint: reducing timestep from "
+                      << timestep << " to " << jmakMaxTimestep << " h"
+                      << std::endl;
+            timestep = jmakMaxTimestep;
+          } else if (jmakMaxTimestep <= stepTimeTHR_ &&
+                     jmakMaxTimestep < 1.0e5) {
+            std::clog << "    JMAK cap wants dt=" << jmakMaxTimestep
+                      << " h below floor " << stepTimeTHR_
+                      << "; clamping to floor" << std::endl;
+            timestep = stepTimeTHR_;
           }
 
           // Ensure we don't overshoot final simulation time.
@@ -2753,6 +2790,13 @@ void Controller::parseDoc(const string &docName) {
       nucleationCapFraction_ = ncfIt.value().get<double>();
       std::clog << "Controller::parseDoc: nucleationCapFraction = "
                 << nucleationCapFraction_ << endl;
+    }
+
+    auto jmakFrIt = data.find("jmakDtFraction");
+    if (jmakFrIt != data.end()) {
+      jmakDtFraction_ = jmakFrIt.value().get<double>();
+      std::clog << "Controller::parseDoc: jmakDtFraction = "
+                << jmakDtFraction_ << endl;
     }
 
     // Read suppressed phases list (top-level key in simparams.json).

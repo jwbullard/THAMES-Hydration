@@ -801,6 +801,40 @@ public:
                                             double capFraction) const;
 
   /**
+  @brief JMAK-driven adaptive-dt cap.
+
+  For each JMAK-enabled phase, computes a characteristic time based on
+  the current growth velocity and the largest single-voxel actual
+  (unimpinged) surface area from the previous cycle's
+  `updateJMAKPhase`:
+
+      tau_JMAK   =  V_voxel / (G * A_actual_max_per_voxel)   [s]
+      dt_cap_h   =  dtFraction * tau_JMAK / 3600             [h]
+
+  This keeps the per-cycle transformed-fraction increment
+  (dX ~ G * A_ext/V * (1-X) * dt) below approximately
+  `dtFraction` so JMAK's sigmoidal saturation is resolved rather
+  than collapsed into a single-cycle jump — the pathology that let
+  Session-52's Portlandite 4b run's SI runaway persist even after
+  JMAK was enabled.
+
+  Uses the snapshot cached inside updateJMAKPhase (jmakGrowthVelocity_,
+  jmakMaxActualAreaPerVoxel_) from the *previous* cycle. Same
+  cache-then-cap idiom as computeKineticsBasedMaxTimestep uses
+  scaledMass_ from the previous cycle. Returns the min across all
+  JMAK-enabled phases with active generations. Large sentinel
+  (1e6 h) is returned when no phase has non-zero surface area (no
+  active generations yet).
+
+  @param dtFraction fraction of tau_JMAK to allow per cycle; default 0.2
+                    keeps dX per cycle bounded to ~20%. 1.0 disables
+                    the cap (dt would consume the full characteristic
+                    time in one cycle).
+  @return maximum dt in hours; 1e6 sentinel if no constraint applies
+  */
+  double computeJMAKMaxTimestep(double dtFraction = 0.2) const;
+
+  /**
   @brief Enable/disable Classical Nucleation Theory placement at cycle time.
 
   When false, the CNT placement block in calculateKineticStep is a no-op

@@ -238,6 +238,20 @@ private:
   */
   double nucleationCapFraction_;
 
+  /**
+  @brief Fraction of the JMAK characteristic time allowed per cycle.
+
+  For each JMAK-enabled phase, the per-cycle dX increment is capped by
+  dt = jmakDtFraction_ * tau_JMAK, where tau_JMAK = V_voxel /
+  (G * A_actual_max_per_voxel). Enforced via
+  KineticController::computeJMAKMaxTimestep. Default 0.2 (per-cycle dX
+  bounded to ~20%). Read from simparams.json top-level key
+  `jmakDtFraction`. Only meaningful when `useNucleationKinetics` is
+  true AND at least one phase has a jmak sub-block in its
+  kinetic_data.
+  */
+  double jmakDtFraction_;
+
 public:
   /**
   @brief The constructor.
