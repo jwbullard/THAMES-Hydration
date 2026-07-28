@@ -19,3 +19,11 @@ clang++ -std=c++17 -O2 -Wall \
     -o test_saturating_rate \
     test_saturating_rate.cc ../thameslib/SaturatingRate.cc
 ./test_saturating_rate
+
+echo ""
+echo "=== test_jmak_growth ==="
+clang++ -std=c++17 -O2 -Wall \
+    -I../thameslib \
+    -o test_jmak_growth \
+    test_jmak_growth.cc ../thameslib/JMAKGrowth.cc
+./test_jmak_growth
