@@ -873,7 +873,7 @@ void KineticController::updateJMAKPhase(int midx, double timestep, int cyc) {
   //
   // Per JMAK-enabled phase, per cycle:
   //   1. Get S, J, G from the rate-law subclass.
-  //   2. jmak::advanceMoments updates M_0..M_3 and G_acc.
+  //   2. jmak::advanceMoments updates M_0..M_3 and r_acc.
   //   3. Seed new generations: expected new-seed voxels this cycle
   //      = J * V_unseeded_electrolyte * dt_seconds. Accumulate
   //      fractionally; when the accumulator crosses 1.0 create a new

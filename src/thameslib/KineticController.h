@@ -95,7 +95,7 @@ private:
   std::vector<JMAKParameters> jmakParams_;
 
   /**
-  @brief Per-phase JMAK global moment accumulator (M_0..M_3, G_acc).
+  @brief Per-phase JMAK global moment accumulator (M_0..M_3, r_acc).
   Updated once per cycle in calculateKineticStep by adding J(t)·dt and
   G(t)·dt contributions.
   */

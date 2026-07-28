@@ -30,20 +30,20 @@ fraction (impingement rescales the extended volume via 1 - exp).
 
 ## Moment decomposition (integer n = 4)
 
-Expand `[G_acc(t) - G_acc(tau)]^3` and separate the tau-dependent piece
+Expand `[r_acc(t) - r_acc(tau)]^3` and separate the tau-dependent piece
 from the t-dependent piece. Define global moment accumulators:
 
-    M_k(t)  =  integral_{0}^{t} J(tau) * G_acc(tau)^k dtau,  k = 0, 1, 2, 3
+    M_k(t)  =  integral_{0}^{t} J(tau) * r_acc(tau)^k dtau,  k = 0, 1, 2, 3
 
 Then, per-generation:
 
-    Y_c(t) / V_voxel  =  alpha * [ G_acc(t)^3 * (M_0(t) - M_0(t_c))
-                                 - 3 * G_acc(t)^2 * (M_1(t) - M_1(t_c))
-                                 + 3 * G_acc(t) * (M_2(t) - M_2(t_c))
+    Y_c(t) / V_voxel  =  alpha * [ r_acc(t)^3 * (M_0(t) - M_0(t_c))
+                                 - 3 * r_acc(t)^2 * (M_1(t) - M_1(t_c))
+                                 + 3 * r_acc(t) * (M_2(t) - M_2(t_c))
                                  - (M_3(t) - M_3(t_c)) ]
 
 Each generation stores M_k at its seed time (4 scalars). The global
-accumulator holds current M_k and G_acc (5 scalars per phase).
+accumulator holds current M_k and r_acc (5 scalars per phase).
 Per-cycle work is O(1) per generation per phase, which is the point of the
 whole decomposition.
 
@@ -81,18 +81,30 @@ nucleation rate J and growth velocity G. Generations snapshot the current
 `M_k` at seed time to compute their per-generation extended volume.
 
 Units:
-  G_acc [m]                      -- cumulative linear growth radius
+  r_acc [m]                      -- time-integrated growth rate; equals
+                                    the radius that a hypothetical
+                                    nucleus born at t=0 would have
+                                    reached by time t. A nucleus born at
+                                    tau has radius r_acc(t) - r_acc(tau)
+                                    at time t (JMAK's r(tau, t)).
   M_k   [ (1/(m^3 s)) * m^k * s ] = [ m^(k-3) * m^0 ]
                                  -- physical meaning of M_k is
                                     "number-density weighted k-th
                                      moment of growth radius"
+
+Naming note: JMAK/Kolmogorov convention reserves the symbol G for
+the growth rate (m/s), not for anything time-integrated. The
+integrated quantity is a radius (m), and we call it r_acc here so
+the distinction is unambiguous in the code.
 */
 struct GlobalMoments {
-  double G_acc;  /**< integral_0^t G(s) ds     [m] */
+  double r_acc;  /**< integral_0^t G(s) ds     [m]    (integrated growth
+                      rate; radius of a hypothetical nucleus born at
+                      t=0 by time t) */
   double M0;     /**< integral_0^t J(tau) dtau [1/m^3]           */
-  double M1;     /**< integral_0^t J G_acc dtau                  */
-  double M2;     /**< integral_0^t J G_acc^2 dtau                */
-  double M3;     /**< integral_0^t J G_acc^3 dtau                */
+  double M1;     /**< integral_0^t J r_acc dtau                  */
+  double M2;     /**< integral_0^t J r_acc^2 dtau                */
+  double M3;     /**< integral_0^t J r_acc^3 dtau                */
 };
 
 /**
@@ -111,10 +123,10 @@ struct GenerationMomentsAtSeed {
 /**
 @brief Advance the global moments by one cycle at current (J, G).
 
-    G_acc(t + dt)  =  G_acc(t) + G * dt
-    M_k(t + dt)    =  M_k(t) + J * G_acc(t+dt)^k * dt
+    r_acc(t + dt)  =  r_acc(t) + G * dt
+    M_k(t + dt)    =  M_k(t) + J * r_acc(t+dt)^k * dt
 
-Using G_acc after the increment (midpoint of the interval would be
+Using r_acc after the increment (midpoint of the interval would be
 more accurate but negligibly so for the timesteps THAMES uses; the
 end-of-interval convention is cleanest and matches the discrete-cycle
 semantics elsewhere in KineticController).
@@ -137,9 +149,9 @@ GenerationMomentsAtSeed snapshotSeed(const GlobalMoments &acc);
 /**
 @brief Per-voxel extended volume for one generation at the current time.
 
-    Y_c / V_voxel  =  alpha * [ G_acc^3 (M0 - M0_c)
-                              - 3 G_acc^2 (M1 - M1_c)
-                              + 3 G_acc (M2 - M2_c)
+    Y_c / V_voxel  =  alpha * [ r_acc^3 (M0 - M0_c)
+                              - 3 r_acc^2 (M1 - M1_c)
+                              + 3 r_acc (M2 - M2_c)
                               - (M3 - M3_c) ]
 
 Returns 0.0 if the generation has no accumulated extended volume yet

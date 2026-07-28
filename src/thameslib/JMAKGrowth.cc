@@ -13,16 +13,16 @@ derivation, and unit conventions.
 namespace jmak {
 
 void advanceMoments(GlobalMoments &acc, double J, double G, double dt) {
-  // End-of-interval convention: G_acc advances first, then M_k use the
-  // updated G_acc. See file header for rationale (equivalent to
+  // End-of-interval convention: r_acc advances first, then M_k use the
+  // updated r_acc. See file header for rationale (equivalent to
   // right-endpoint numerical integration; midpoint would be marginally
   // more accurate but the discrepancy is second-order in dt).
-  acc.G_acc += G * dt;
+  acc.r_acc += G * dt;
   const double Jdt = J * dt;
   acc.M0 += Jdt;
-  acc.M1 += Jdt * acc.G_acc;
-  acc.M2 += Jdt * acc.G_acc * acc.G_acc;
-  acc.M3 += Jdt * acc.G_acc * acc.G_acc * acc.G_acc;
+  acc.M1 += Jdt * acc.r_acc;
+  acc.M2 += Jdt * acc.r_acc * acc.r_acc;
+  acc.M3 += Jdt * acc.r_acc * acc.r_acc * acc.r_acc;
 }
 
 GenerationMomentsAtSeed snapshotSeed(const GlobalMoments &acc) {
@@ -40,7 +40,7 @@ double extendedVolumePerVoxel(const GenerationMomentsAtSeed &seed,
   // Difference-of-moments form (see file header). Requires n = 4 in the
   // continuous-nucleation convention (cubic growth kernel). alpha is
   // the morphology coefficient (4*pi/3 for 3D isotropic spheres).
-  const double g = acc.G_acc;
+  const double g = acc.r_acc;
   const double dM0 = acc.M0 - seed.M0_c;
   const double dM1 = acc.M1 - seed.M1_c;
   const double dM2 = acc.M2 - seed.M2_c;
