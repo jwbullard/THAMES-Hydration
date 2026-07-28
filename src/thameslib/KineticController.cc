@@ -1581,9 +1581,46 @@ void KineticController::calculateKineticStep(double time, const double timestep,
           //      << "   DCMoles_cs = " << chemSys_->getDCMoles(DCId)
           //     << endl;
 
-          phaseKineticModel_[midx]->calculateKineticStep(
-              timestep, scaledMass, massDissolved, cyc, totalDOR, doTweak,
-              doNotModif);
+          // Stage-4 SR-outer suppression for JMAK-enabled phases in the
+          // precipitation regime (S > 1).
+          //
+          // JMAK owns intra-voxel growth via k * A_actual (Stage 2), so
+          // running the outer SR rate law on the lattice-face surface
+          // area would double-count Ca consumption:
+          //   - JMAK path (updateJMAKPhase later this iteration):
+          //     consumes Ca continuously via k * Sum_g N_g * A_ext * (1-X).
+          //   - SR outer path (calculateKineticStep just below): would
+        //     consume additional Ca via k * lattice_face_area on the
+        //     same voxels JMAK is already growing.
+        //
+        // Physical picture: while any generation still has X < 1, the
+        // voxel's outer face is a mixture of portlandite crystallites
+        // and electrolyte — the outer-face SR rate is not the right
+        // model. JMAK handles growth end-to-end.
+        //
+        // Dissolution (S < 1) still uses SR outer normally: JMAK
+        // does not model dissolution (all its rates use G > 0).
+          bool skipOuterForJMAK = false;
+          if (useNucleationKinetics_ && jmakEnabled_[midx]) {
+            const int mpid = phaseKineticModel_[midx]->getMicroPhaseId();
+            const double sat = chemSys_->getMicroPhaseSI(mpid);
+            if (sat > 1.0) {
+              skipOuterForJMAK = true;
+              massDissolved = 0.0;
+              if (verbose_) {
+                std::clog << "  JMAK/Stage4: skipping SR outer for "
+                          << phaseKineticModel_[midx]->getName()
+                          << " (S=" << sat
+                          << ", JMAK owns precipitation)" << endl;
+              }
+            }
+          }
+
+          if (!skipOuterForJMAK) {
+            phaseKineticModel_[midx]->calculateKineticStep(
+                timestep, scaledMass, massDissolved, cyc, totalDOR, doTweak,
+                doNotModif);
+          }
 
           /// @note may want to change the condition of next block
           /// because it is possible for the scaled mass of a kinetic phase to
