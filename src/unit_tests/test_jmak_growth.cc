@@ -14,10 +14,10 @@ Verification targets:
      several times spanning the induction, growth, and saturation
      regimes.
 
-  2. Zero-radius sanity: at t = t_c (cohort just seeded), Y = 0 and
+  2. Zero-radius sanity: at t = t_c (generation just seeded), Y = 0 and
      X = 0 (no time to grow).
 
-  3. Cohort accumulation sanity: two cohorts with the same seed time
+  3. Generation accumulation sanity: two generations with the same seed time
      but different N_c produce transformed volumes proportional to N_c.
 
   4. Growth-velocity converter sanity: r=0 or v_molar<=0 return 0;
@@ -61,13 +61,13 @@ bool approxEqual(double a, double b, double rtol = 1.0e-4,
 }
 
 // Simulate constant-J, constant-G by stepping advanceMoments many times.
-// Returns X(t_final) for a single cohort seeded at t = 0.
+// Returns X(t_final) for a single generation seeded at t = 0.
 double simulateConstantJG(double J, double G, double t_final, int nsteps,
                           double V_voxel, const JMAKParameters &jp) {
   jmak::GlobalMoments acc{0.0, 0.0, 0.0, 0.0, 0.0};
   const double dt = t_final / nsteps;
   // Seed at t = 0.
-  const jmak::CohortMomentsAtSeed seed = jmak::snapshotSeed(acc);
+  const jmak::GenerationMomentsAtSeed seed = jmak::snapshotSeed(acc);
   for (int i = 0; i < nsteps; ++i) {
     jmak::advanceMoments(acc, J, G, dt);
   }
@@ -119,7 +119,7 @@ int main() {
     jmak::advanceMoments(acc, 1.0e15, 1.0e-9, 1.0);
     // Seed AFTER advancing so any Y is genuinely from t > t_c.
     const auto seed = jmak::snapshotSeed(acc);
-    // At t = t_c, the cohort has had zero time to accumulate anything.
+    // At t = t_c, the generation has had zero time to accumulate anything.
     const double Y_over_V = jmak::extendedVolumePerVoxel(seed, acc, jp);
     const bool ok = (Y_over_V == 0.0);
     std::printf("zero-radius sanity (Y=0 at t = t_c):  Y/V = %.6e  %s\n",
@@ -127,9 +127,9 @@ int main() {
     report("zero-radius sanity", ok);
   }
 
-  // --- 3. Cohort scaling sanity -----------------------------------------
+  // --- 3. Generation scaling sanity -----------------------------------------
   {
-    // Two identical cohorts should have identical X_c. The AGGREGATE
+    // Two identical generations should have identical X_c. The AGGREGATE
     // Portlandite volume for N_c voxels is just N_c * V_voxel * X_c;
     // we verify by comparing N_c=1 vs N_c=1000 cases scale linearly.
     const double J = 1.0e15;
@@ -149,10 +149,10 @@ int main() {
     const double V_from_1 = 1 * V_voxel * X;
     const double V_from_1000 = 1000 * V_voxel * X;
     const bool ok = approxEqual(V_from_1000, 1000.0 * V_from_1, 1e-12);
-    std::printf("cohort scaling (N_c linearity):  X = %.6e, "
+    std::printf("generation scaling (N_c linearity):  X = %.6e, "
                 "V(1000)/V(1) = %.6e (expect 1000)  %s\n",
                 X, V_from_1000 / V_from_1, ok ? "PASS" : "FAIL");
-    report("cohort scaling linearity", ok);
+    report("generation scaling linearity", ok);
   }
 
   // --- 4. Growth-velocity converter -------------------------------------
@@ -177,7 +177,7 @@ int main() {
   // --- 5. Time-varying J (step-change) ----------------------------------
   {
     // Two-stage profile: J = J1 for [0, t_switch], J = J2 for [t_switch, t_final].
-    // G constant throughout. Cohort seeded at t = 0.
+    // G constant throughout. Generation seeded at t = 0.
     // Direct closed form for stepwise J with constant G:
     //   Y/V = alpha * G^3 * [ J1 * ((t_final^4 - (t_final - t_switch)^4) / 4)
     //                       + J2 * ((t_final - t_switch)^4 / 4) ]

@@ -4,11 +4,11 @@
 
 Pure-math free functions for the JMAK model applied at the lattice-voxel
 scale, plus the moment-decomposition bookkeeping that makes the
-per-cohort update O(1) per cohort per cycle regardless of the length of
+per-generation update O(1) per generation per cycle regardless of the length of
 the nucleation history. Same design pattern as `NucleationRate.{h,cc}`
 does for CNT — no state, no `this`, no external dependencies beyond
 `<cmath>` and `PhysicalConstants.h`. Callers are `KineticController`
-(cohort storage + drain), the concrete kinetic models (growth-velocity
+(generation storage + drain), the concrete kinetic models (growth-velocity
 provider), and the standalone unit test.
 
 ## Physical model
@@ -35,16 +35,16 @@ from the t-dependent piece. Define global moment accumulators:
 
     M_k(t)  =  integral_{0}^{t} J(tau) * G_acc(tau)^k dtau,  k = 0, 1, 2, 3
 
-Then, per-cohort:
+Then, per-generation:
 
     Y_c(t) / V_voxel  =  alpha * [ G_acc(t)^3 * (M_0(t) - M_0(t_c))
                                  - 3 * G_acc(t)^2 * (M_1(t) - M_1(t_c))
                                  + 3 * G_acc(t) * (M_2(t) - M_2(t_c))
                                  - (M_3(t) - M_3(t_c)) ]
 
-Each cohort stores M_k at its seed time (4 scalars). The global
+Each generation stores M_k at its seed time (4 scalars). The global
 accumulator holds current M_k and G_acc (5 scalars per phase).
-Per-cycle work is O(1) per cohort per phase, which is the point of the
+Per-cycle work is O(1) per generation per phase, which is the point of the
 whole decomposition.
 
 ## Growth velocity from surface-normal rate
@@ -77,8 +77,8 @@ namespace jmak {
 @brief Global moment accumulator for one nucleating phase.
 
 Advanced each cycle by adding contributions from the current
-nucleation rate J and growth velocity G. Cohorts snapshot the current
-`M_k` at seed time to compute their per-cohort extended volume.
+nucleation rate J and growth velocity G. Generations snapshot the current
+`M_k` at seed time to compute their per-generation extended volume.
 
 Units:
   G_acc [m]                      -- cumulative linear growth radius
@@ -96,12 +96,12 @@ struct GlobalMoments {
 };
 
 /**
-@brief Cohort snapshot of the global moments at a cohort's seed time.
+@brief Generation snapshot of the global moments at a generation's seed time.
 
-Only stored ONCE per cohort at creation; the difference against the
-current global moments gives the per-cohort extended volume.
+Only stored ONCE per generation at creation; the difference against the
+current global moments gives the per-generation extended volume.
 */
-struct CohortMomentsAtSeed {
+struct GenerationMomentsAtSeed {
   double M0_c;
   double M1_c;
   double M2_c;
@@ -127,31 +127,31 @@ semantics elsewhere in KineticController).
 void advanceMoments(GlobalMoments &acc, double J, double G, double dt);
 
 /**
-@brief Snapshot the global moments as a cohort's seed-time state.
+@brief Snapshot the global moments as a generation's seed-time state.
 
-Called once at cohort creation. `CohortMomentsAtSeed` values are
+Called once at generation creation. `GenerationMomentsAtSeed` values are
 immutable thereafter.
 */
-CohortMomentsAtSeed snapshotSeed(const GlobalMoments &acc);
+GenerationMomentsAtSeed snapshotSeed(const GlobalMoments &acc);
 
 /**
-@brief Per-voxel extended volume for one cohort at the current time.
+@brief Per-voxel extended volume for one generation at the current time.
 
     Y_c / V_voxel  =  alpha * [ G_acc^3 (M0 - M0_c)
                               - 3 G_acc^2 (M1 - M1_c)
                               + 3 G_acc (M2 - M2_c)
                               - (M3 - M3_c) ]
 
-Returns 0.0 if the cohort has no accumulated extended volume yet
+Returns 0.0 if the generation has no accumulated extended volume yet
 (e.g., zero elapsed time since seed).
 
-@param seed   moments at cohort creation
+@param seed   moments at generation creation
 @param acc    current global moments
 @param jp     JMAK parameters (alpha coefficient; n unused here — this
               function assumes n = 4 via the moment decomposition)
 @return Y_c / V_voxel, dimensionless (extended volume per voxel volume)
 */
-double extendedVolumePerVoxel(const CohortMomentsAtSeed &seed,
+double extendedVolumePerVoxel(const GenerationMomentsAtSeed &seed,
                               const GlobalMoments &acc,
                               const JMAKParameters &jp);
 

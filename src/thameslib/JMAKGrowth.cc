@@ -25,8 +25,8 @@ void advanceMoments(GlobalMoments &acc, double J, double G, double dt) {
   acc.M3 += Jdt * acc.G_acc * acc.G_acc * acc.G_acc;
 }
 
-CohortMomentsAtSeed snapshotSeed(const GlobalMoments &acc) {
-  CohortMomentsAtSeed s;
+GenerationMomentsAtSeed snapshotSeed(const GlobalMoments &acc) {
+  GenerationMomentsAtSeed s;
   s.M0_c = acc.M0;
   s.M1_c = acc.M1;
   s.M2_c = acc.M2;
@@ -34,7 +34,7 @@ CohortMomentsAtSeed snapshotSeed(const GlobalMoments &acc) {
   return s;
 }
 
-double extendedVolumePerVoxel(const CohortMomentsAtSeed &seed,
+double extendedVolumePerVoxel(const GenerationMomentsAtSeed &seed,
                               const GlobalMoments &acc,
                               const JMAKParameters &jp) {
   // Difference-of-moments form (see file header). Requires n = 4 in the
