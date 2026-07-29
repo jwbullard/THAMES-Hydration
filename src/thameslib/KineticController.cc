@@ -6,6 +6,7 @@
 #include "KineticController.h"
 
 #include <algorithm>
+#include <limits>
 
 #include "SaturatingRateModel.h"
 
@@ -1006,8 +1007,15 @@ void KineticController::updateJMAKPhase(int midx, double timestep, int cyc) {
   jmakActualSurfaceAreaTotal_[midx] = totalActualAreaPhysical;
   jmakMaxActualAreaPerVoxel_[midx] = maxActualAreaPerVoxel;
 
+  // Clamp double -> int cast to INT_MAX-1 to avoid undefined behavior when
+  // J is astronomical (e.g., θ ≈ 1° heterogeneous CNT at high S). The
+  // lattice cannot hold more voxels than getNumSites() anyway, so
+  // requesting more just wastes a bit of accumulator.
+  constexpr double kIntMaxSafe =
+      static_cast<double>(std::numeric_limits<int>::max() - 1);
+  const double transformedFloor = std::floor(transformedVoxelsCumulative);
   const int transformedIntTotal =
-      static_cast<int>(std::floor(transformedVoxelsCumulative));
+      static_cast<int>(std::min(transformedFloor, kIntMaxSafe));
   const int deltaVoxels = transformedIntTotal - jmakVoxelsInLattice_[midx];
 
   if (verbose_) {

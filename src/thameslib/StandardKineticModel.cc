@@ -5,7 +5,9 @@
 */
 #include "StandardKineticModel.h"
 
+#include <algorithm>
 #include <cmath>
+#include <limits>
 
 #include "NucleationRate.h"
 
@@ -489,7 +491,13 @@ void StandardKineticModel::accumulateNucleation(double dN) {
 
 int StandardKineticModel::drainNucleationInteger() {
   if (nucleationAccumulator_ < 1.0) return 0;
-  int n = static_cast<int>(std::floor(nucleationAccumulator_));
+  // Clamp double->int cast to INT_MAX-1 to avoid undefined behavior when
+  // J is extreme. See SaturatingRateModel::drainNucleationInteger.
+  constexpr double kIntMaxSafe =
+      static_cast<double>(std::numeric_limits<int>::max() - 1);
+  const double drained = std::min(std::floor(nucleationAccumulator_),
+                                  kIntMaxSafe);
+  int n = static_cast<int>(drained);
   nucleationAccumulator_ -= static_cast<double>(n);
   return n;
 }
