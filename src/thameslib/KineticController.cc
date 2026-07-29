@@ -351,35 +351,45 @@ void KineticController::parseMicroPhases(const json::iterator it, int &numEntry,
       kineticData.temperature = temperature_;
       kineticData.reftemperature = refT_;
       makeModel(kineticData);
+
+      // JMAK per-phase state — MUST be pushed only for kinetic phases so the
+      // parallel arrays stay index-aligned with phaseKineticModel_, which
+      // the runtime loop uses as its `midx` cursor. Prior to 2026-07-29
+      // these were pushed unconditionally (once per microstructure phase),
+      // which put them out of alignment for any config where non-kinetic
+      // phases (Void, Electrolyte, thermodynamic products) appeared in
+      // the phase list — hence `jmakEnabled_[midx=0]` returned Void's F
+      // instead of the first kinetic phase's T, silently disabling JMAK
+      // for every phase that intended to use it. Discovered via
+      // HON carbonation validation where Calcite parsed jmakOn=T but
+      // updateJMAKPhase never fired.
+      const bool jmakOn = kineticData.jmak.has_value() &&
+                          kineticData.nucleation.has_value();
+      jmakEnabled_.push_back(jmakOn);
+      jmakParams_.push_back(jmakOn ? *kineticData.jmak
+                                   : JMAKParameters{4.0, 4.0 * Pi / 3.0});
+      jmakGlobals_.push_back(jmak::GlobalMoments{0.0, 0.0, 0.0, 0.0, 0.0});
+      jmakGenerations_.push_back(std::vector<JMAKGeneration>{});
+      jmakSeedAccumulator_.push_back(0.0);
+      jmakVoxelsInLattice_.push_back(0);
+      jmakActualSurfaceAreaTotal_.push_back(0.0);
+      jmakGrowthVelocity_.push_back(0.0);
+      jmakMaxActualAreaPerVoxel_.push_back(0.0);
     }
 
-    /// Some items should be added to vectors whether kinetically controlled or
-    /// not
+    /// name_, microPhaseId_, initScaledMass_, scaledMass_, scaledMassIni_
+    /// are pushed for EVERY microstructure phase (kinetic or not) and are
+    /// used by calcPhaseMasses etc. which iterate by microstructure index.
+    /// These vectors intentionally have a different alignment from
+    /// phaseKineticModel_ and the jmak_ vectors above; the runtime loop
+    /// at calculateKineticStep re-writes indices 0..pKMsize_-1 of
+    /// scaledMassIni_ at the top of each cycle to align it with midx.
 
     name_.push_back(kineticData.name);
     microPhaseId_.push_back(kineticData.microPhaseId);
     initScaledMass_.push_back(0.0);
     scaledMass_.push_back(0.0);
     scaledMassIni_.push_back(0.0);
-
-    // JMAK per-phase state — allocate parallel entries for every parsed
-    // phase. A phase is jmak-enabled iff kineticData.jmak was set AND
-    // kineticData.nucleation was set (JMAK is a growth extension of CNT
-    // — makes no sense without a nucleation source). See
-    // KineticController.h "JMAK per-voxel growth state" comment for the
-    // per-cycle semantics.
-    const bool jmakOn = kineticData.jmak.has_value() &&
-                        kineticData.nucleation.has_value();
-    jmakEnabled_.push_back(jmakOn);
-    jmakParams_.push_back(jmakOn ? *kineticData.jmak
-                                 : JMAKParameters{4.0, 4.0 * Pi / 3.0});
-    jmakGlobals_.push_back(jmak::GlobalMoments{0.0, 0.0, 0.0, 0.0, 0.0});
-    jmakGenerations_.push_back(std::vector<JMAKGeneration>{});
-    jmakSeedAccumulator_.push_back(0.0);
-    jmakVoxelsInLattice_.push_back(0);
-    jmakActualSurfaceAreaTotal_.push_back(0.0);
-    jmakGrowthVelocity_.push_back(0.0);
-    jmakMaxActualAreaPerVoxel_.push_back(0.0);
   }
 
   return;
