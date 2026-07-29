@@ -1667,21 +1667,23 @@ public:
     } else {
       std::clog << "WARNING: Could not find DCIdLookup_ match to " << dcname
                 << std::endl;
-      // std::clog << "WARNING: Here are the ones I know about:" << std::endl;
-      // std::clog.flush();
-      // p = DCIdLookup_.begin();
-      // while (p != DCIdLookup_.end()) {
-      //     std::clog << "WARNING:     " << p->first << " ("
-      //          << p->second << ")" << std::endl;
-      //     std::clog.flush();
-      //     p++;
-      // }
-      // std::clog << "WARNING:" << std::endl;
-      // std::clog.flush();
       std::clog << "exit the program" << std::endl;
       exit(1);
       return (numDCs_ + 9999);
     }
+  }
+
+  /**
+  @brief Return the DC id for a name, or -1 if not present.
+
+  Same as getDCId but does not exit the program on a missing name. Use
+  when the caller has a graceful fallback (e.g., some ICs may lack a
+  mapped aqueous representative in a particular thermodynamic database).
+  */
+  int getDCIdOrMinusOne(const std::string &dcname) const {
+    std::map<std::string, int>::const_iterator p = DCIdLookup_.find(dcname);
+    if (p != DCIdLookup_.end()) return p->second;
+    return -1;
   }
 
   /**

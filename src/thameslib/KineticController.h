@@ -427,6 +427,61 @@ public:
   void updateJMAKPhase(int midx, double timestep, int cyc);
 
   /**
+  @brief Compute the mass-availability cap scale for a precipitation.
+
+  Dry-run companion to `commitSolidICTransfer`: returns the fraction of
+  a requested precipitation that the aqueous pool can support without
+  driving any representative aqueous DC below zero. Returns 1.0 for
+  dissolution (`deltaSolid <= 0`, aqueous only gains mass) and for
+  precipitation that the pool can fully cover; returns [0, 1) when the
+  precipitation must be capped.
+
+  Callers use this to shrink their voxel count BEFORE calling
+  `nucleatePhaseRnd`, then call `commitSolidICTransfer` after actual
+  placement to record the aqueous update.
+
+  @param solidDCId  DC index of the solid phase whose amount changed
+  @param deltaSolid requested change in solid moles
+                    (+ precipitation, - dissolution)
+  @return scale in [0, 1]; multiply requested solid delta by this
+  */
+  double solidICAvailabilityScale(int solidDCId, double deltaSolid) const;
+
+  /**
+  @brief Commit the aqueous DC transfer corresponding to a solid change.
+
+  Enforces mass conservation for kinetic-path solid changes
+  (precipitation via JMAK/classical CNT, dissolution via SR/PK/Standard).
+  Prior to this helper, the placement/dissolution paths only wrote to
+  `DCMoles_[solidDCId]` and its DC bounds; the IC content transferred
+  in/out of the aqueous phase was never credited/debited, so GEMS
+  silently reconciled by adjusting its internal bulk composition. That
+  reconciliation is invisible from a mass-accounting standpoint but
+  breaks mass conservation over the run (see HEN carbonation validation:
+  ~270 mol of "phantom Ca" appeared in Calcite while only 1.35 mol of
+  Ca existed in the initial system).
+
+  Sign convention:
+  - `deltaSolid > 0` (precipitation): IC content moves FROM aqueous
+    TO solid. Aqueous representative DCs are decremented.
+  - `deltaSolid < 0` (dissolution): IC content moves FROM solid TO
+    aqueous. Aqueous representative DCs are incremented.
+
+  Caller is responsible for ensuring `deltaSolid` is feasible (use
+  `solidICAvailabilityScale` first for precipitations). This method
+  does NOT re-cap; it commits whatever it is given.
+
+  IC-to-aqueous-DC mapping mirrors `ChemicalSystem::checkICMoles`
+  (Ca → Ca+2, C → HCO3-, S → SO4-2, ...). H and O are not mapped —
+  they come from water; charge compensation via H+/OH- handles them.
+  Charge accumulated during the IC transfer is compensated at the end.
+
+  @param solidDCId  DC index of the solid phase whose amount changed
+  @param deltaSolid actual change in solid moles committed by the caller
+  */
+  void commitSolidICTransfer(int solidDCId, double deltaSolid);
+
+  /**
   @brief Get the scaled mass of the phase in the kinetic model.
 
   The scaled mass of a phase is its mass percent on a total solids basis.

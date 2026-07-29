@@ -1032,23 +1032,64 @@ void KineticController::updateJMAKPhase(int midx, double timestep, int cyc) {
   }
 
   // ---- 6. Place delta voxels in the lattice ----
+  //
+  // Mass-conservation guard: cap deltaVoxels by whatever the aqueous
+  // pool can actually supply for this Calcite/Portlandite/... formation.
+  // The classical DCMoles_[dcId] += moles path used to run without
+  // any aqueous debit, so GEMS silently reconciled by inflating its
+  // internal bulk composition (200x phantom Ca surfaced on HEN
+  // carbonation validation, 2026-07-29). We now:
+  //   1. Compute the requested moles for deltaVoxels.
+  //   2. Ask solidICAvailabilityScale for the fraction of that request
+  //      the aqueous representative DCs can support (Ca+2 for Ca,
+  //      HCO3- for C, etc. — same map as ChemicalSystem::checkICMoles).
+  //   3. Shrink deltaVoxels by that scale.
+  //   4. Place the (possibly smaller) count; commit the aqueous debit
+  //      for the actual moles via commitSolidICTransfer.
   if (deltaVoxels > 0) {
-    const int nPlaced = lattice_->nucleatePhaseRnd(microPhId, deltaVoxels);
+    // Precompute per-100g scaling once so cap and post-placement paths
+    // share it. See classical CNT placement block for the derivation.
+    const double molarMass = chemSys_->getDCMolarMass(dcId);
+    const double vMolar = chemSys_->getDCMolarVolume(dcId);
+    const double perVoxelVFrac =
+        1.0 / static_cast<double>(lattice_->getNumSites());
+    const double perVoxelMassPerCC =
+        perVoxelVFrac * molarMass / vMolar / 1.0e6;           // g/cm^3
+    const double perVoxelPlacedMass =
+        perVoxelMassPerCC * 100.0 /
+        lattice_->getInitSolidMass();                          // g/100g
+    const double perVoxelMoles = perVoxelPlacedMass / molarMass;
+
+    const double requestedMoles =
+        perVoxelMoles * static_cast<double>(deltaVoxels);
+    const double availScale =
+        solidICAvailabilityScale(dcId, requestedMoles);
+    int cappedDeltaVoxels = deltaVoxels;
+    if (availScale < 1.0) {
+      cappedDeltaVoxels = static_cast<int>(
+          std::floor(static_cast<double>(deltaVoxels) * availScale));
+      if (cappedDeltaVoxels < 0) cappedDeltaVoxels = 0;
+      if (cappedDeltaVoxels != deltaVoxels) {
+        std::clog << "  JMAK/mass-cap: " << km->getName()
+                  << " cyc=" << cyc
+                  << " requested=" << deltaVoxels
+                  << " availableScale=" << availScale
+                  << " capped=" << cappedDeltaVoxels << endl;
+      }
+    }
+    if (cappedDeltaVoxels <= 0) return;
+
+    const int nPlaced =
+        lattice_->nucleatePhaseRnd(microPhId, cappedDeltaVoxels);
     if (nPlaced > 0) {
-      // Same per-100g scaling as the classical CNT placement block.
-      // See KineticController.cc block comment above the classical
-      // CNT placement for the derivation.
-      const double molarMass = chemSys_->getDCMolarMass(dcId);
-      const double vMolar = chemSys_->getDCMolarVolume(dcId);
-      const double vfracPlaced =
-          static_cast<double>(nPlaced) /
-          static_cast<double>(lattice_->getNumSites());
-      const double microPhaseMassPlacedPerCC =
-          vfracPlaced * molarMass / vMolar / 1.0e6;          // g/cm^3
       const double placedMass =
-          microPhaseMassPlacedPerCC * 100.0 /
-          lattice_->getInitSolidMass();                       // g/100g solid
-      const double moles = placedMass / molarMass;            // mol/100g solid
+          perVoxelPlacedMass * static_cast<double>(nPlaced);   // g/100g solid
+      const double moles =
+          perVoxelMoles * static_cast<double>(nPlaced);        // mol/100g solid
+
+      // Commit aqueous debit BEFORE updating solid DC state so both
+      // ends of the transfer are visible in a single logical step.
+      commitSolidICTransfer(dcId, moles);
 
       DCMoles_[dcId] += moles;
       chemSys_->setDCLowerLimit(dcId, DCMoles_[dcId]);
@@ -1086,6 +1127,111 @@ void KineticController::updateJMAKPhase(int midx, double timestep, int cyc) {
                               return jmak::transformedFraction(Y) >= 0.999;
                             }),
              gens.end());
+}
+
+namespace {
+// IC-to-aqueous-DC map — must stay in sync with
+// ChemicalSystem::checkICMoles. Empty return means "no aqueous
+// representative in this database"; caller falls back to charge
+// compensation via H+/OH-. H and O are unmapped (they come from
+// water/OH-/H+); charge compensation handles them.
+inline std::string icNameToAqDCName(const std::string &icName) {
+  if (icName == "Al")  return "Al+3";
+  if (icName == "C")   return "HCO3-";
+  if (icName == "Ca")  return "Ca+2";
+  if (icName == "Cl")  return "Cl-";
+  if (icName == "Fe")  return "Fe+2";
+  if (icName == "K")   return "K+";
+  if (icName == "Mg")  return "Mg+2";
+  if (icName == "Na")  return "Na+";
+  if (icName == "Nit") return "N2@";
+  if (icName == "S")   return "SO4-2";
+  if (icName == "Si")  return "SiO2@";
+  return "";
+}
+}  // namespace
+
+double KineticController::solidICAvailabilityScale(int solidDCId,
+                                                   double deltaSolid) const {
+  // Dissolution or no-op: aqueous only gains mass, so the request is
+  // always fully feasible.
+  if (deltaSolid <= 0.0) return 1.0;
+
+  const int numICs = chemSys_->getNumICs();
+  double capScale = 1.0;
+
+  for (int i = 0; i < numICs; ++i) {
+    const std::string icName = chemSys_->getICName(i);
+    const std::string dcName = icNameToAqDCName(icName);
+    if (dcName.empty()) continue;
+    const double solidStoich = chemSys_->getDCStoich(solidDCId, i);
+    if (solidStoich <= 0.0) continue;
+    const int aqDCId = chemSys_->getDCIdOrMinusOne(dcName);
+    if (aqDCId < 0) continue;
+    const double aqStoich = chemSys_->getDCStoich(aqDCId, i);
+    if (aqStoich <= 0.0) continue;
+
+    // Aqueous DC moles that would be removed at full deltaSolid:
+    //   removed = deltaSolid * solidStoich / aqStoich
+    // Cap so that removed <= aqCurrent.
+    const double aqCurrent = chemSys_->getDCMoles(aqDCId);
+    const double requiredAqRemoval =
+        deltaSolid * solidStoich / aqStoich;
+    if (requiredAqRemoval > aqCurrent && requiredAqRemoval > 0.0) {
+      const double thisScale =
+          (aqCurrent > 0.0) ? aqCurrent / requiredAqRemoval : 0.0;
+      if (thisScale < capScale) capScale = thisScale;
+    }
+  }
+
+  if (capScale < 0.0) capScale = 0.0;
+  return capScale;
+}
+
+void KineticController::commitSolidICTransfer(int solidDCId,
+                                              double deltaSolid) {
+  // See KineticController.h for the design rationale. This helper
+  // exists to plug the mass-conservation hole in the kinetic path:
+  // solid DC changes were previously landing in DCMoles_[solid] +
+  // DC bounds only, with no corresponding aqueous DC update, letting
+  // GEMS silently reconcile by inflating/deflating its internal bulk
+  // composition.
+
+  if (std::fabs(deltaSolid) < 1.0e-30) return;
+
+  const int numICs = chemSys_->getNumICs();
+
+  // Apply aqueous DC changes, accumulating charge for compensation.
+  // Sign: aqueous DC change = -(deltaSolid * solidStoich / aqStoich).
+  // Positive deltaSolid → subtract from aqueous. Negative → add.
+  double chargeAccum = 0.0;  // net charge change to aqueous
+  for (int i = 0; i < numICs; ++i) {
+    const std::string icName = chemSys_->getICName(i);
+    const std::string dcName = icNameToAqDCName(icName);
+    if (dcName.empty()) continue;
+    const double solidStoich = chemSys_->getDCStoich(solidDCId, i);
+    if (solidStoich <= 0.0) continue;
+    const int aqDCId = chemSys_->getDCIdOrMinusOne(dcName);
+    if (aqDCId < 0) continue;
+    const double aqStoich = chemSys_->getDCStoich(aqDCId, i);
+    if (aqStoich <= 0.0) continue;
+    const double aqDelta = -deltaSolid * solidStoich / aqStoich;
+    DCMoles_[aqDCId] += aqDelta;
+    chargeAccum += aqDelta * chemSys_->getDCCharge(aqDCId);
+  }
+
+  // Charge compensation via H+ or OH-.
+  // chargeAccum > 0 means aqueous became more positive → add OH- (-1).
+  // chargeAccum < 0 means aqueous became more negative → add H+ (+1).
+  if (std::fabs(chargeAccum) > 1.0e-30) {
+    if (chargeAccum > 0.0) {
+      const int ohId = chemSys_->getDCIdOrMinusOne("OH-");
+      if (ohId >= 0) DCMoles_[ohId] += chargeAccum;  // |charge OH-| = 1
+    } else {
+      const int hId = chemSys_->getDCIdOrMinusOne("H+");
+      if (hId >= 0) DCMoles_[hId] += -chargeAccum;   // |charge H+| = 1
+    }
+  }
 }
 
 void KineticController::parseSaturatingRateSubBlock(
@@ -1738,7 +1884,69 @@ void KineticController::calculateKineticStep(double time, const double timestep,
           if (scaledMass > 0) {
             numDCMolesDissolved = (massDissolved - totMassImpurity) /
                                   chemSys_->getDCMolarMass(DCId);
+
+            // Sign of numDCMolesDissolved:
+            //   > 0: dissolution (SI < 1 branch). Solid loses moles;
+            //        aqueous should gain the corresponding IC content.
+            //   < 0: precipitation (SI > 1 branch in Standard/SR).
+            //        Solid gains moles; aqueous should lose IC content.
+            //
+            // Delta to solid = -numDCMolesDissolved (matches
+            // commitSolidICTransfer sign convention: positive =
+            // precipitation).
+            //
+            // Mass-conservation guard for precipitation via this path
+            // (Portlandite growing back from supersaturated solution,
+            // etc.). Uncapped, Standard would fund unphysical solid
+            // growth from phantom Ca — same failure mode the CNT/JMAK
+            // path had. Cap by aqueous availability and rescale
+            // massDissolved + impurities to match. Impurities were
+            // already added above using the uncapped massDissolved;
+            // we unwind and reapply so the state stays consistent.
+            const double deltaSolid = -numDCMolesDissolved;
+            if (deltaSolid > 0.0) {
+              const double avail =
+                  solidICAvailabilityScale(DCId, deltaSolid);
+              if (avail < 1.0) {
+                std::clog << "  Standard/mass-cap: "
+                          << phaseKineticModel_[midx]->getName()
+                          << " cyc=" << cyc
+                          << " requested_precip=" << deltaSolid
+                          << " availableScale=" << avail << endl;
+
+                // Unwind impurity release, rescale, reapply.
+                DCMoles_[impurityDCID_[0]] -= impurity_K2O_[midx];
+                DCMoles_[impurityDCID_[1]] -= impurity_Na2O_[midx];
+                DCMoles_[impurityDCID_[2]] -= impurity_Per_[midx];
+                DCMoles_[impurityDCID_[3]] -= impurity_SO3_[midx];
+                impurity_K2O_[midx] *= avail;
+                impurity_Na2O_[midx] *= avail;
+                impurity_Per_[midx] *= avail;
+                impurity_SO3_[midx] *= avail;
+                DCMoles_[impurityDCID_[0]] += impurity_K2O_[midx];
+                DCMoles_[impurityDCID_[1]] += impurity_Na2O_[midx];
+                DCMoles_[impurityDCID_[2]] += impurity_Per_[midx];
+                DCMoles_[impurityDCID_[3]] += impurity_SO3_[midx];
+
+                // Rescale mass/moles bookkeeping.
+                massDissolved *= avail;
+                totMassImpurity *= avail;
+                numDCMolesDissolved *= avail;
+                scaledMass = scaledMassIni_[midx] - massDissolved;
+
+                // Sync kinetic model + microphase state to capped mass.
+                phaseKineticModel_[midx]->setScaledMass(scaledMass);
+                chemSys_->updateMicroPhaseMasses(phaseDissolvedId[midx],
+                                                 scaledMass, 0);
+              }
+            }
             keepNumDCMoles = DCMoles_[DCId] - numDCMolesDissolved;
+
+            // Commit the aqueous transfer for the (possibly capped)
+            // solid change. See KineticController.h for design rationale.
+            if (std::fabs(numDCMolesDissolved) > 0.0) {
+              commitSolidICTransfer(DCId, -numDCMolesDissolved);
+            }
 
             if (keepNumDCMoles < 0) {
               std::clog
@@ -1779,6 +1987,22 @@ void KineticController::calculateKineticStep(double time, const double timestep,
 
           chemSys_->setDCLowerLimit(DCId, keepNumDCMoles);
           chemSys_->setDCUpperLimit(DCId, keepNumDCMoles);
+
+          // Explicitly update the solid DCMoles_ to match keepNumDCMoles.
+          // Prior to this, only the DC bounds were set here and the actual
+          // DCMoles_[DCId] was left at its old (pre-dissolution) value —
+          // GEMS was expected to update it during its solve. But GEMS's
+          // internal bulk composition is derived (in AIA/SIA modes) from
+          // the DCMoles_ passed in at GEM_from_MT, so leaving the stale
+          // solid value there double-counted the transferred IC content:
+          // the solid still "held" the mass while the aqueous DC
+          // (updated by commitSolidICTransfer above) had ALREADY received
+          // it. Result: bIC[Ca] was inflated by exactly the amount of
+          // Portlandite dissolved (or Cal precipitated) every cycle,
+          // producing a small but cumulative phantom-Ca gap. Fix: keep
+          // solid DCMoles_ in sync with the bound so bIC computed from
+          // Sum(DC*stoich) reflects the true post-dissolution state.
+          DCMoles_[DCId] = keepNumDCMoles;
 
           if (verbose_) {
             std::clog
@@ -1845,7 +2069,36 @@ void KineticController::calculateKineticStep(double time, const double timestep,
             if (nWant > 0) {
               int microPhId = phaseKineticModel_[midx]->getMicroPhaseId();
               int dcId = phaseKineticModel_[midx]->getDCId();
-              int nPlaced = lattice_->nucleatePhaseRnd(microPhId, nWant);
+              // Mass-availability cap (see updateJMAKPhase block for
+              // rationale). Cap nWant by what the aqueous pool can
+              // supply BEFORE calling nucleatePhaseRnd, so we don't
+              // over-place and then have to unwind.
+              const double perVoxelMoles =
+                  chemSys_->getDCMolarMass(dcId) /
+                  chemSys_->getDCMolarVolume(dcId) / 1.0e6 /
+                  static_cast<double>(lattice_->getNumSites()) *
+                  100.0 / lattice_->getInitSolidMass() /
+                  chemSys_->getDCMolarMass(dcId);
+              const double requestedMoles =
+                  perVoxelMoles * static_cast<double>(nWant);
+              const double availScale =
+                  solidICAvailabilityScale(dcId, requestedMoles);
+              if (availScale < 1.0) {
+                const int cappedNWant = static_cast<int>(std::floor(
+                    static_cast<double>(nWant) * availScale));
+                if (cappedNWant != nWant) {
+                  std::clog << "  CNT/mass-cap: "
+                            << phaseKineticModel_[midx]->getName()
+                            << " cyc=" << cyc
+                            << " requested=" << nWant
+                            << " availableScale=" << availScale
+                            << " capped=" << cappedNWant << endl;
+                }
+                nWant = (cappedNWant > 0) ? cappedNWant : 0;
+              }
+              int nPlaced = (nWant > 0)
+                  ? lattice_->nucleatePhaseRnd(microPhId, nWant)
+                  : 0;
               if (nPlaced > 0) {
                 // Convert nPlaced voxels to normalized-per-100g state.
                 //
@@ -1878,6 +2131,11 @@ void KineticController::calculateKineticStep(double time, const double timestep,
                     microPhaseMassPlacedPerCC * 100.0 /
                     lattice_->getInitSolidMass();             // g per 100g solid
                 double moles = placedMass / molarMass;        // mol per 100g solid
+
+                // Commit aqueous debit for the actual moles placed
+                // (mass conservation — see solidICAvailabilityScale
+                // pre-cap above and helper docs).
+                commitSolidICTransfer(dcId, moles);
 
                 DCMoles_[dcId] += moles;
                 // Lock the newly-placed nuclei against GEMS redissolving
