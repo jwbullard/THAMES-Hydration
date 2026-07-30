@@ -60,6 +60,7 @@ component
 #include "JMAKParameters.h"
 #include "NucleationParameters.h"
 #include "SaturatingRateParameters.h"
+#include "TransportParameters.h"
 
 struct KineticData {
   std::string name;  /**< Name of the microstructure phase */
@@ -114,5 +115,13 @@ struct KineticData {
       /**< Same for precipitation direction. Optional; if absent,
            SaturatingRateModel falls back to the dissolution values by
            microscopic reversibility with a one-time log line. */
+  std::optional<TransportParameters> transport;
+      /**< Shell-diffusion parameters (Phase 2 of transport-kinetics
+           plan). Populated by parseTransportBlock from an optional
+           `transport` sub-block in the phase's `kinetic_data`. Empty
+           = no shell correction (rate model uses the prior no-shell
+           formula). Consumed by Phase 3 in the concrete kinetic
+           models (Standard, SaturatingRate, Pozzolanic) to compute
+           the series-resistance effective rate. */
 };
 #endif // SRC_THAMESLIB_KINETICDATA_H_

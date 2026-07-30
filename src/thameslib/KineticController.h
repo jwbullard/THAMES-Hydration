@@ -284,6 +284,9 @@ public:
     // Standard/Pozzolanic/ParrotKilloh phase parsed after it.
     kineticData.saturatingDissolution.reset();
     kineticData.saturatingPrecipitation.reset();
+    // Same reason: reset the transport block so shell parameters from
+    // one phase don't leak into another (Phase 2 of transport plan).
+    kineticData.transport.reset();
   }
 
   /**
@@ -402,6 +405,25 @@ public:
   */
   void parseNucleationBlock(const json::iterator pp,
                             struct KineticData &kineticData);
+
+  /**
+  @brief Parse the optional `transport` sub-block for shell-diffusion
+         kinetics (Phase 2 of the mass-transport plan).
+
+  Independent of `nucleation` — a phase can have shell-diffusion
+  without CNT nucleation and vice versa. Populates
+  `kineticData.transport` with (dEff, normalRadius, numShellBins,
+  maxWalkSteps, stoich, limitingDCName). Absent block leaves the
+  optional empty and disables shell correction for this phase; the
+  rate model then uses its no-shell path (backward-compat with every
+  existing config). Called from parseKineticDataForStandard /
+  -Pozzolanic / -SaturatingRate.
+
+  @param pp is the iterator into the phase's `kinetic_data` JSON block
+  @param kineticData is the KineticData struct being populated
+  */
+  void parseTransportBlock(const json::iterator pp,
+                           struct KineticData &kineticData);
 
   /**
   @brief Per-cycle JMAK update for one JMAK-enabled phase.

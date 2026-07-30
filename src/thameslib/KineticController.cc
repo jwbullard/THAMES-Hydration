@@ -599,6 +599,11 @@ void KineticController::parseKineticDataForStandard(
   // Optional CNT nucleation block; leaves kineticData.nucleation empty if absent.
   parseNucleationBlock(p, kineticData);
 
+  // Optional shell-diffusion transport block (Phase 2 of transport-
+  // kinetics plan). Independent of nucleation. Leaves
+  // kineticData.transport empty if absent (rate model uses no-shell path).
+  parseTransportBlock(p, kineticData);
+
   return;
 }
 
@@ -757,6 +762,11 @@ void KineticController::parseKineticDataForPozzolanic(
   // Optional CNT nucleation block; leaves kineticData.nucleation empty if absent.
   parseNucleationBlock(p, kineticData);
 
+  // Optional shell-diffusion transport block (Phase 2 of transport-
+  // kinetics plan). Independent of nucleation. Leaves
+  // kineticData.transport empty if absent (rate model uses no-shell path).
+  parseTransportBlock(p, kineticData);
+
   return;
 }
 
@@ -881,6 +891,114 @@ void KineticController::parseNucleationBlock(const json::iterator p,
         std::clog.flush();
       }
     }
+  }
+}
+
+void KineticController::parseTransportBlock(const json::iterator p,
+                                            struct KineticData &kineticData) {
+  // Phase 2 of the transport-kinetics plan. Parses an optional
+  // `transport` sub-block inside a phase's `kinetic_data`. Called from
+  // parseKineticDataForStandard / -Pozzolanic / -SaturatingRate after
+  // parseNucleationBlock. Independent of nucleation (a phase can have
+  // shell-diffusion without CNT and vice-versa).
+  //
+  // Absence of the block leaves kineticData.transport empty, which
+  // disables the shell correction for this phase — rate model uses
+  // its no-shell path (backward compat with every existing config).
+  //
+  // Expected JSON (dEff and limitingDC required; other fields optional
+  // with defaults from TransportParameters.h):
+  //   "transport": {
+  //     "D_eff":         {"value": 1e-13, "range": [...], "provenance": "..."},
+  //     "normalRadius":  {"value": 2.5,   "range": [...], "provenance": "..."},
+  //     "numShellBins":  {"value": 5,     "range": [...], "provenance": "..."},
+  //     "maxWalkSteps":  {"value": 50,    "range": [...], "provenance": "..."},
+  //     "stoich":        {"value": 1.0,   "range": [...], "provenance": "..."},
+  //     "limitingDC":    "Ca+2"
+  //   }
+  json::iterator xpIt = p.value().find("transport");
+  if (xpIt == p.value().end()) {
+    return;  // Absent block = shell correction disabled for this phase
+  }
+
+  TransportParameters tp;
+  auto readOptionalValue = [&](const std::string &key, double dflt) -> double {
+    auto it = xpIt.value().find(key);
+    if (it == xpIt.value().end()) return dflt;
+    auto v = it.value().find("value");
+    if (v == it.value().end()) {
+      throw DataException("KineticController", "parseTransportBlock",
+                          "transport." + key + ".value not found");
+    }
+    return v.value().get<double>();
+  };
+
+  // dEff is required (the whole point of the block).
+  auto dEffField = xpIt.value().find("D_eff");
+  if (dEffField == xpIt.value().end()) {
+    throw DataException("KineticController", "parseTransportBlock",
+                        "transport.D_eff not found");
+  }
+  {
+    auto v = dEffField.value().find("value");
+    if (v == dEffField.value().end()) {
+      throw DataException("KineticController", "parseTransportBlock",
+                          "transport.D_eff.value not found");
+    }
+    tp.dEff = v.value().get<double>();
+  }
+  if (tp.dEff <= 0.0) {
+    throw DataException("KineticController", "parseTransportBlock",
+                        "transport.D_eff must be positive");
+  }
+
+  // limitingDC is required (which species diffuses through the shell).
+  auto ldcField = xpIt.value().find("limitingDC");
+  if (ldcField == xpIt.value().end()) {
+    throw DataException("KineticController", "parseTransportBlock",
+                        "transport.limitingDC not found");
+  }
+  tp.limitingDCName = ldcField.value().get<std::string>();
+  if (tp.limitingDCName.empty()) {
+    throw DataException("KineticController", "parseTransportBlock",
+                        "transport.limitingDC must be non-empty");
+  }
+
+  // Optional numerics with defaults.
+  tp.normalRadiusVoxels = readOptionalValue("normalRadius", 2.5);
+  tp.numShellBins =
+      static_cast<int>(readOptionalValue("numShellBins", 5.0));
+  tp.maxWalkSteps =
+      static_cast<int>(readOptionalValue("maxWalkSteps", 50.0));
+  tp.stoich = readOptionalValue("stoich", 1.0);
+
+  if (tp.normalRadiusVoxels <= 0.0) {
+    throw DataException("KineticController", "parseTransportBlock",
+                        "transport.normalRadius must be positive");
+  }
+  if (tp.numShellBins < 1) {
+    throw DataException("KineticController", "parseTransportBlock",
+                        "transport.numShellBins must be >= 1");
+  }
+  if (tp.maxWalkSteps < 1) {
+    throw DataException("KineticController", "parseTransportBlock",
+                        "transport.maxWalkSteps must be >= 1");
+  }
+  if (tp.stoich <= 0.0) {
+    throw DataException("KineticController", "parseTransportBlock",
+                        "transport.stoich must be positive");
+  }
+
+  kineticData.transport = tp;
+
+  if (verbose_) {
+    std::clog << "--->Parsed transport sub-block for "
+              << kineticData.name
+              << ": D_eff=" << tp.dEff
+              << " m^2/s, limitingDC=" << tp.limitingDCName
+              << ", normalRadius=" << tp.normalRadiusVoxels
+              << " vox, numShellBins=" << tp.numShellBins << endl;
+    std::clog.flush();
   }
 }
 
@@ -1327,6 +1445,11 @@ void KineticController::parseKineticDataForSaturatingRate(
 
   // Optional CNT nucleation block; leaves kineticData.nucleation empty if absent.
   parseNucleationBlock(p, kineticData);
+
+  // Optional shell-diffusion transport block (Phase 2 of transport-
+  // kinetics plan). Independent of nucleation. Leaves
+  // kineticData.transport empty if absent (rate model uses no-shell path).
+  parseTransportBlock(p, kineticData);
 }
 
 void KineticController::calcPhaseMasses(void) {
