@@ -33,6 +33,8 @@ overrides; details in `docs/CNT_ARCHITECTURE.md`.
 #include "KineticModel.h"
 #include "Lattice.h"
 #include "NucleationParameters.h"
+#include "TransportCorrection.h"
+#include "TransportParameters.h"
 
 /**
 @class StandardKineticModel
@@ -65,6 +67,18 @@ protected:
       /**< CNT parameters for this phase; empty = CNT disabled */
   double nucleationAccumulator_ = 0.0;
       /**< fractional-voxel accumulator drained when it crosses 1.0 */
+
+  std::optional<TransportParameters> transport_;
+      /**< Shell-diffusion parameters (Phase 3 of transport-kinetics
+           plan). Empty = no shell correction; rate law uses the
+           uncorrected `k · A · f(Ω)` form. Populated from
+           kineticData.transport by parseTransportBlock. */
+  int limitingDCId_ = -1;
+      /**< DC id of the limiting species named in
+           transport_->limitingDCName. Resolved once at construction
+           via chemSys_->getDCIdOrMinusOne. -1 if the name doesn't
+           exist in the current database — in which case the shell
+           correction stays disabled even if transport_ is set. */
 
 public:
   /**

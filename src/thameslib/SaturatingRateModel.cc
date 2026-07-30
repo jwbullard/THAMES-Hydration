@@ -70,6 +70,22 @@ SaturatingRateModel::SaturatingRateModel(ChemicalSystem *cs, Lattice *lattice,
   // CNT block if configured for this phase.
   nucleation_ = kineticData.nucleation;
 
+  // Copy in transport parameters if present (Phase 3 of transport-
+  // kinetics plan). See StandardKineticModel.cc for the resolution
+  // semantics of limitingDCId_.
+  transport_ = kineticData.transport;
+  limitingDCId_ = -1;
+  if (transport_.has_value() && !transport_->limitingDCName.empty()) {
+    limitingDCId_ = chemSys_->getDCIdOrMinusOne(transport_->limitingDCName);
+    if (limitingDCId_ < 0) {
+      std::clog << "  WARNING: SaturatingRateModel[" << name_
+                << "] transport block names limitingDC='"
+                << transport_->limitingDCName
+                << "' which is not in the current DC database. "
+                   "Shell correction disabled for this phase." << endl;
+    }
+  }
+
   surfaceAreaMultiplier_ = kineticData.surfaceAreaMultiplier;
   dissolvedUnits_ = kineticData.dissolvedUnits;
 
@@ -134,6 +150,38 @@ void SaturatingRateModel::calculateKineticStep(const double timestep,
                    "microPhaseId_/mPhName/SI : "
                 << std::setw(3) << std::right << microPhaseId_ << " / "
                 << std::setw(15) << std::left << name_ << " / " << S << endl;
+
+    // Phase 3 shell correction: apply the series-resistance closure
+    // when a transport block is present. See StandardKineticModel.cc
+    // for the derivation and guard rationale.
+    if (transport_.has_value() && limitingDCId_ >= 0) {
+      const double waterMass = chemSys_->getDCMoles("H2O@") *
+                               chemSys_->getDCMolarMass("H2O@") * 0.001;
+      if (waterMass > 0.0 && S > 0.0 && std::fabs(S - 1.0) > 1e-12) {
+        const double C_bulk =
+            chemSys_->getDCMoles(limitingDCId_) / waterMass;
+        const double stoich = (transport_->stoich > 0.0) ?
+                              transport_->stoich : 1.0;
+        const double C_eq = C_bulk / std::pow(S, 1.0 / stoich);
+        if (C_bulk > 0.0 && C_eq > 0.0 && dissolution_.has_value()) {
+          const auto stats = lattice_->computeShellStats(
+              microPhaseId_, transport_->normalRadiusVoxels,
+              transport_->maxWalkSteps, transport_->numShellBins);
+          const double shellCorr = xport::shellCorrectionFactor(
+              dissolution_->rateConstant, C_eq, stats, *transport_);
+          if (shellCorr > 0.0 && shellCorr <= 1.0) {
+            if (verbose_) {
+              std::clog << "  SaturatingRateModel/shell: " << name_
+                        << " C_bulk=" << C_bulk << " C_eq=" << C_eq
+                        << " SI=" << S << " shellCorr=" << shellCorr
+                        << " (area " << area << " -> "
+                        << area * shellCorr << ")" << endl;
+            }
+            area *= shellCorr;
+          }
+        }
+      }
+    }
 
     // Sign convention (matches StandardKineticModel):
     //   dissolution  -> positive dissrate  (solid mass decreases)

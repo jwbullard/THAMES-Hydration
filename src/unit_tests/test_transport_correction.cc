@@ -140,6 +140,88 @@ void testGeneralSolverNonlinear() {
              "flux balance holds at returned C_surf");
 }
 
+void testShellCorrectionFactor() {
+  std::printf("\n--- shellCorrectionFactor bin-weighted ---\n");
+
+  TransportParameters params;
+  params.dEff = 1.0;  // pick a unit dEff for hand-math
+
+  // Case 1: empty stats → factor = 1 (no correction).
+  {
+    xport::ShellStats empty;
+    empty.numSitesReached = 0;
+    empty.bins.emplace_back();
+    empty.bins.back().siteFraction = 0.0;
+    const double f = xport::shellCorrectionFactor(1.0, 10.0, empty, params);
+    expectNear(f, 1.0, 1e-12, "empty stats → factor = 1");
+  }
+
+  // Case 2: single-bin monodisperse δ = 0 (no shell yet).
+  //   All sites directly touching electrolyte → factor = 1.
+  {
+    xport::ShellStats s;
+    s.numSitesReached = 100;
+    xport::ShellBin bin;
+    bin.deltaRep = 0.0;
+    bin.siteFraction = 1.0;
+    bin.dominantShellPhaseId = -1;
+    s.bins.push_back(bin);
+    const double f = xport::shellCorrectionFactor(1.0, 10.0, s, params);
+    expectNear(f, 1.0, 1e-12, "δ=0 bin → factor = 1");
+  }
+
+  // Case 3: single-bin monodisperse δ > 0.
+  //   Da = k · δ / (D · C_eq). With k=1, δ=1, D=1, C_eq=10 → Da = 0.1.
+  //   Factor = 1 / (1 + 0.1) = 0.9090909...
+  {
+    xport::ShellStats s;
+    s.numSitesReached = 100;
+    xport::ShellBin bin;
+    bin.deltaRep = 1.0;
+    bin.siteFraction = 1.0;
+    bin.dominantShellPhaseId = 42;
+    s.bins.push_back(bin);
+    const double f = xport::shellCorrectionFactor(1.0, 10.0, s, params);
+    expectNear(f, 1.0 / 1.1, 1e-12,
+               "single-bin Da=0.1 → factor = 1/1.1");
+  }
+
+  // Case 4: bimodal 50/50 with δ_thin = 0.1, δ_thick = 10.
+  //   Da_thin = 1 · 0.1 / (1 · 10) = 0.01 → f_thin = 1/1.01 ≈ 0.990099
+  //   Da_thick = 1 · 10  / (1 · 10) = 1.0  → f_thick = 1/2   = 0.5
+  //   Weighted avg = 0.5 · 0.990099 + 0.5 · 0.5 = 0.7450495
+  {
+    xport::ShellStats s;
+    s.numSitesReached = 200;
+    xport::ShellBin thin;
+    thin.deltaRep = 0.1;
+    thin.siteFraction = 0.5;
+    thin.dominantShellPhaseId = 1;
+    xport::ShellBin thick;
+    thick.deltaRep = 10.0;
+    thick.siteFraction = 0.5;
+    thick.dominantShellPhaseId = 2;
+    s.bins.push_back(thin);
+    s.bins.push_back(thick);
+    const double f = xport::shellCorrectionFactor(1.0, 10.0, s, params);
+    const double expected = 0.5 * (1.0 / 1.01) + 0.5 * (1.0 / 2.0);
+    expectNear(f, expected, 1e-12,
+               "bimodal weighted correction matches hand-math");
+  }
+
+  // Case 5: guard — C_eq = 0 → factor = 1 (no correction, defensive).
+  {
+    xport::ShellStats s;
+    s.numSitesReached = 100;
+    xport::ShellBin bin;
+    bin.deltaRep = 1.0;
+    bin.siteFraction = 1.0;
+    s.bins.push_back(bin);
+    const double f = xport::shellCorrectionFactor(1.0, 0.0, s, params);
+    expectNear(f, 1.0, 1e-12, "C_eq = 0 → factor = 1 (guard)");
+  }
+}
+
 void testGeneralSolverEdgeCases() {
   std::printf("\n--- general solver edge cases ---\n");
   // Equilibrium: C_bulk = C_eq → no flux, C_surf = C_bulk.
@@ -169,6 +251,7 @@ int main() {
   testGeneralSolverLinearAgreement();
   testGeneralSolverNonlinear();
   testGeneralSolverEdgeCases();
+  testShellCorrectionFactor();
 
   std::printf("\n%d probe(s) failed\n", gFailed);
   return gFailed == 0 ? 0 : 1;

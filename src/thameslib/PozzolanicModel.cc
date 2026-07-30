@@ -133,6 +133,22 @@ PozzolanicModel::PozzolanicModel(ChemicalSystem *cs, Lattice *lattice,
   // Copy in CNT parameters if present in the input JSON (empty otherwise).
   nucleation_ = kineticData.nucleation;
 
+  // Copy transport parameters if present (Phase 3 of transport-
+  // kinetics plan). See StandardKineticModel.cc for the resolution
+  // semantics of limitingDCId_.
+  transport_ = kineticData.transport;
+  limitingDCId_ = -1;
+  if (transport_.has_value() && !transport_->limitingDCName.empty()) {
+    limitingDCId_ = chemSys_->getDCIdOrMinusOne(transport_->limitingDCName);
+    if (limitingDCId_ < 0) {
+      std::clog << "  WARNING: PozzolanicModel[" << name_
+                << "] transport block names limitingDC='"
+                << transport_->limitingDCName
+                << "' which is not in the current DC database. "
+                   "Shell correction disabled for this phase." << endl;
+    }
+  }
+
   double critporediam = lattice_->getLargestSaturatedPore(); // in nm
   critporediam *= 1.0e-9;                                    // in m
   rh_ = exp(-6.23527e-7 / critporediam / temperature_);
@@ -297,6 +313,41 @@ void PozzolanicModel::calculateKineticStep(const double timestep,
 
     // double saturationIndex = solut_->getSI(GEMPhaseId_);
     double saturationIndex = chemSys_->getMicroPhaseSI(microPhaseId_);
+
+    // Phase 3 shell correction: apply the series-resistance closure
+    // when a transport block is present. See StandardKineticModel.cc
+    // for the derivation and guard rationale.
+    if (transport_.has_value() && limitingDCId_ >= 0) {
+      const double waterMass = chemSys_->getDCMoles("H2O@") *
+                               chemSys_->getDCMolarMass("H2O@") * 0.001;
+      if (waterMass > 0.0 && saturationIndex > 0.0 &&
+          std::fabs(saturationIndex - 1.0) > 1e-12) {
+        const double C_bulk =
+            chemSys_->getDCMoles(limitingDCId_) / waterMass;
+        const double stoich = (transport_->stoich > 0.0) ?
+                              transport_->stoich : 1.0;
+        const double C_eq = C_bulk / std::pow(saturationIndex,
+                                              1.0 / stoich);
+        if (C_bulk > 0.0 && C_eq > 0.0) {
+          const auto stats = lattice_->computeShellStats(
+              microPhaseId_, transport_->normalRadiusVoxels,
+              transport_->maxWalkSteps, transport_->numShellBins);
+          const double shellCorr = xport::shellCorrectionFactor(
+              baserateconst, C_eq, stats, *transport_);
+          if (shellCorr > 0.0 && shellCorr <= 1.0) {
+            if (verbose_) {
+              std::clog << "  PozzolanicModel/shell: " << name_
+                        << " C_bulk=" << C_bulk << " C_eq=" << C_eq
+                        << " SI=" << saturationIndex
+                        << " shellCorr=" << shellCorr
+                        << " (area " << area << " -> "
+                        << area * shellCorr << ")" << endl;
+            }
+            area *= shellCorr;
+          }
+        }
+      }
+    }
 
     if (!doTweak)
       std::clog << "      PozzolanicModel::calculateKineticStep      - "

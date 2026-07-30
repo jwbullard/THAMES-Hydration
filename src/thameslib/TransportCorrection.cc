@@ -44,6 +44,41 @@ double pickDEff(int /*shellPhaseId*/, const TransportParameters &params) {
   return params.dEff;
 }
 
+double shellCorrectionFactor(double k, double C_eq,
+                             const ShellStats &stats,
+                             const TransportParameters &params) {
+  // No shell = no correction.
+  if (stats.bins.empty()) return 1.0;
+  if (stats.numSitesReached <= 0) return 1.0;
+  if (C_eq <= 0.0) return 1.0;
+  if (k <= 0.0) return 1.0;
+
+  double factor = 0.0;
+  double weightSum = 0.0;
+  for (const ShellBin &bin : stats.bins) {
+    if (bin.siteFraction <= 0.0) continue;
+    if (bin.deltaRep <= 0.0) {
+      // Zero-shell bin — sites are directly against electrolyte.
+      // No diffusion resistance; Da_bin = 0; factor contribution = siteFraction.
+      factor += bin.siteFraction;
+      weightSum += bin.siteFraction;
+      continue;
+    }
+    const double dEff = pickDEff(bin.dominantShellPhaseId, params);
+    if (dEff <= 0.0) continue;
+    // Da_bin = k * δ_bin / (D_eff * C_eq)
+    // See TransportCorrection.h for the derivation. For linear
+    // f(Ω) = 1 - Ω this collapses to 1 / (1 + Da_bin).
+    const double Da = k * bin.deltaRep / (dEff * C_eq);
+    factor += bin.siteFraction / (1.0 + Da);
+    weightSum += bin.siteFraction;
+  }
+  // Normalize by the actual weight sum (bins with degenerate D_eff
+  // were skipped and shouldn't inflate the result).
+  if (weightSum <= 0.0) return 1.0;
+  return factor / weightSum;
+}
+
 double solveSurfaceConcentration(double k, double C_eq, double dEff,
                                  double delta, double C_bulk,
                                  double (*f_driving)(double omega)) {

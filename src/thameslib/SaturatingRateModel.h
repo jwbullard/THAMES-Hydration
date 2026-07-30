@@ -46,6 +46,8 @@ for the CNT integration architecture.
 #include "KineticModel.h"
 #include "Lattice.h"
 #include "NucleationParameters.h"
+#include "TransportCorrection.h"
+#include "TransportParameters.h"
 #include "SaturatingRateParameters.h"
 #include "global.h"
 
@@ -84,6 +86,14 @@ protected:
       /**< CNT parameters for this phase; empty = CNT disabled */
   double nucleationAccumulator_ = 0.0;
       /**< Fractional-voxel accumulator drained when it crosses 1.0 */
+
+  std::optional<TransportParameters> transport_;
+      /**< Shell-diffusion parameters (Phase 3 of transport-kinetics
+           plan). Empty = no shell correction; rate law uses the
+           uncorrected saturating form. */
+  int limitingDCId_ = -1;
+      /**< DC id of the limiting species. See StandardKineticModel.h
+           for the resolution/fallback semantics. */
 
   bool precipitationFallbackLogged_ = false;
       /**< First-time-only latch: logs one line when the model falls

@@ -34,6 +34,8 @@ Cosmochimica Acta, 54 (1990) 955–969.
 #include "KineticModel.h"
 #include "Lattice.h"
 #include "NucleationParameters.h"
+#include "TransportCorrection.h"
+#include "TransportParameters.h"
 #include "global.h"
 
 /**
@@ -80,6 +82,13 @@ protected:
       /**< CNT parameters for this phase; empty = CNT disabled */
   double nucleationAccumulator_ = 0.0;
       /**< fractional-voxel accumulator drained when it crosses 1.0 */
+
+  std::optional<TransportParameters> transport_;
+      /**< Shell-diffusion parameters (Phase 3 of transport-kinetics
+           plan). Empty = no shell correction. */
+  int limitingDCId_ = -1;
+      /**< DC id of the limiting species; see StandardKineticModel.h
+           for semantics. */
 
 public:
   /**

@@ -109,6 +109,48 @@ reactant) get different values.
 */
 double pickDEff(int shellPhaseId, const TransportParameters &params);
 
+/**
+@brief Compute the bin-weighted series-resistance rate correction
+       factor for a phase with a shell.
+
+Consumes the K-bin ShellStats produced by
+Lattice::computeShellStats. For each bin with representative
+thickness δ_bin and dominant shell composition c_bin, computes the
+per-bin Damköhler number
+
+    Da_bin = k * δ_bin / (D_eff(c_bin) * C_eq)
+
+and the per-bin correction factor 1 / (1 + Da_bin). Weights by
+bin.siteFraction and sums.
+
+Returned factor multiplies the caller's kinetic-only rate to give
+the shell-corrected rate:
+
+    r_effective = r_kinetic_at_bulk_omega * factor
+
+For the linear driving-force f(Ω) = 1 - Ω this is EXACT (equivalent
+to solving the steady-state flux balance per bin and summing).
+For nonlinear f (Standard's (1-Ω^p)^q, SR's saturating form), it
+is a first-order approximation that is exact near equilibrium and
+degrades gracefully far from equilibrium. Future refinement will
+use Brent's method per bin for exact nonlinear behavior; the API
+of this function is the same in both cases so callers won't change.
+
+Guards: returns 1.0 (no correction) if ShellStats is empty, if any
+bin has degenerate δ_bin ≤ 0 or C_eq ≤ 0, or if D_eff comes back
+non-positive from pickDEff.
+
+@param k        kinetic rate constant [mol/m^2/s]
+@param C_eq     equilibrium concentration of the limiting DC
+                [mol/m^3, or any consistent unit]
+@param stats    per-phase K-bin ShellStats
+@param params   the phase's transport parameters (for pickDEff)
+@return correction factor in (0, 1]
+*/
+double shellCorrectionFactor(double k, double C_eq,
+                             const ShellStats &stats,
+                             const TransportParameters &params);
+
 }  // namespace xport
 
 #endif  // SRC_THAMESLIB_TRANSPORTCORRECTION_H_

@@ -117,6 +117,25 @@ StandardKineticModel::StandardKineticModel(ChemicalSystem *cs, Lattice *lattice,
   // configured for this phase.
   nucleation_ = kineticData.nucleation;
 
+  // Copy in transport parameters if present (Phase 3 of transport-
+  // kinetics plan). std::optional propagates the empty state
+  // naturally when transport is not configured for this phase.
+  // Resolve the limiting-DC name to a DC id once here; if the
+  // database doesn't have that DC name, disable the shell correction
+  // for this phase by leaving limitingDCId_ at -1.
+  transport_ = kineticData.transport;
+  limitingDCId_ = -1;
+  if (transport_.has_value() && !transport_->limitingDCName.empty()) {
+    limitingDCId_ = chemSys_->getDCIdOrMinusOne(transport_->limitingDCName);
+    if (limitingDCId_ < 0) {
+      std::clog << "  WARNING: StandardKineticModel[" << name_
+                << "] transport block names limitingDC='"
+                << transport_->limitingDCName
+                << "' which is not in the current DC database. "
+                   "Shell correction disabled for this phase." << endl;
+    }
+  }
+
   double critporediam = lattice_->getLargestSaturatedPore(); // in nm
   critporediam *= 1.0e-9;                                    // in m
   rh_ = exp(-6.23527e-7 / critporediam / temperature_);
@@ -219,6 +238,57 @@ void StandardKineticModel::calculateKineticStep(const double timestep,
     /// @todo Generalize to multiple phases in a component (how?)
 
     double saturationIndex = chemSys_->getMicroPhaseSI(microPhaseId_);
+
+    // Phase 3 shell correction: if this phase has a transport block
+    // and the limiting DC resolved to a valid id, apply the series-
+    // resistance (kinetic + Fickian diffusion) closure via a scalar
+    // multiplier on `area`. For the linear driving-force f(Ω) = 1-Ω
+    // this is EXACT (equivalent to solving the steady-state flux
+    // balance per shell-thickness bin and summing). For Standard's
+    // (1-Ω^p)^q with p or q ≠ 1 it is a first-order approximation
+    // that is exact near equilibrium; nonlinear-exact Newton solve
+    // is available in xport::solveSurfaceConcentration for future use.
+    //
+    // Guards: no correction applied when the transport block is
+    // absent, the limiting DC isn't in the database, water mass is
+    // zero (init edge case), the phase is at equilibrium (SI==1),
+    // or the phase's ShellStats came back empty (no dissolution
+    // sites yet).
+    if (transport_.has_value() && limitingDCId_ >= 0) {
+      const double waterMass = chemSys_->getDCMoles("H2O@") *
+                               chemSys_->getDCMolarMass("H2O@") * 0.001;
+      if (waterMass > 0.0 && saturationIndex > 0.0 &&
+          std::fabs(saturationIndex - 1.0) > 1e-12) {
+        const double C_bulk =
+            chemSys_->getDCMoles(limitingDCId_) / waterMass;
+        // C_eq derived from bulk state: SI = (C/C_eq)^stoich (dilute
+        // activity ≈ concentration). See TransportParameters::stoich
+        // docs for the physical meaning.
+        const double stoich = (transport_->stoich > 0.0) ?
+                              transport_->stoich : 1.0;
+        const double C_eq = C_bulk / std::pow(saturationIndex,
+                                              1.0 / stoich);
+        if (C_bulk > 0.0 && C_eq > 0.0) {
+          const auto stats = lattice_->computeShellStats(
+              microPhaseId_, transport_->normalRadiusVoxels,
+              transport_->maxWalkSteps, transport_->numShellBins);
+          const double shellCorr = xport::shellCorrectionFactor(
+              dissolutionRateConst_, C_eq, stats, *transport_);
+          if (shellCorr > 0.0 && shellCorr <= 1.0) {
+            if (verbose_) {
+              std::clog << "  StandardKineticModel/shell: "
+                        << name_ << " C_bulk=" << C_bulk
+                        << " C_eq=" << C_eq
+                        << " SI=" << saturationIndex
+                        << " shellCorr=" << shellCorr
+                        << " (area " << area << " -> "
+                        << area * shellCorr << ")" << endl;
+            }
+            area *= shellCorr;
+          }
+        }
+      }
+    }
 
     if (!doTweak)
       std::clog << "      StandardKineticModel::calculateKineticStep - "
