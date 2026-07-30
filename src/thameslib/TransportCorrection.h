@@ -57,13 +57,40 @@ Assumes the kinetic law is f(Ω) = 1 - Ω (dissolution) or f(Ω) = Ω - 1
 
     k · (1 - C_surf / C_eq)  =  dEff · (C_surf - C_bulk) / delta
 
-which is the closed form for the linear regime. For nonlinear rate
-laws (Standard's (1-Ω^p)^q, SR's saturating form), Phase 3 will add
-an overload that takes a driving-force functor and does Newton
-iteration. Phase 2 exposes the linear form so the API is stable.
+which is the closed form for the linear regime.
 */
 double solveSurfaceConcentrationLinear(double k, double C_eq, double dEff,
                                        double delta, double C_bulk);
+
+/**
+@brief Solve the steady-state flux-balance equation for arbitrary
+       driving-force f(Ω) via Brent's root-finder.
+
+Solves for C_surf that satisfies
+
+    k · f(C_surf / C_eq)  =  dEff · (C_surf - C_bulk) / delta
+
+The caller supplies a driving-force functor. For dissolution, f is
+positive at Ω < 1 and zero at Ω = 1 (Standard's (1-Ω^p)^q, SR's
+saturating form). For precipitation the sign convention is caller's
+choice — the function only cares that the flux balance holds.
+
+Brent bracketing:
+  - Dissolution (C_bulk < C_eq): C_surf is bracketed by [C_bulk, C_eq].
+  - Precipitation (C_bulk > C_eq): bracket is [C_eq, C_bulk].
+  - Equilibrium (C_bulk == C_eq): C_surf = C_bulk = C_eq; return early.
+
+Converges to relative tolerance 1e-8 within ~30 iterations for typical
+kinetic laws. Returns C_bulk (no-op fallback) if the bracket is
+degenerate or the function values don't have opposite signs at the
+endpoints (shouldn't happen for well-behaved f but be defensive).
+
+Cost: ~5-10 f() evaluations per call for typical shell parameters.
+Suitable for K bins × N phases per cycle without dominating wall time.
+*/
+double solveSurfaceConcentration(double k, double C_eq, double dEff,
+                                 double delta, double C_bulk,
+                                 double (*f_driving)(double omega));
 
 /**
 @brief Pick D_eff for a specific shell composition.

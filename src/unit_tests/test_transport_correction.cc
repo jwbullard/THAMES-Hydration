@@ -97,6 +97,65 @@ void testPickDEffStub() {
              "even for unmapped shell id -1");
 }
 
+// --- solveSurfaceConcentration (general Newton/Brent solver) ---
+
+// Linear driving force f(Ω) = 1 - Ω (dissolution regime).
+double fLinear(double omega) { return 1.0 - omega; }
+
+// Standard's driving force with p = 2, q = 3 (nonlinear test case).
+double fStandardP2Q3(double omega) {
+  const double base = 1.0 - std::pow(omega, 2.0);
+  if (base <= 0.0) return 0.0;
+  return std::pow(base, 3.0);
+}
+
+void testGeneralSolverLinearAgreement() {
+  std::printf("\n--- general solver vs closed form (linear) ---\n");
+  const double k = 1.0, C_eq = 10.0, D = 2.0, delta = 1.0, C_bulk = 3.0;
+  const double C_linear =
+      xport::solveSurfaceConcentrationLinear(k, C_eq, D, delta, C_bulk);
+  const double C_general =
+      xport::solveSurfaceConcentration(k, C_eq, D, delta, C_bulk, fLinear);
+  expectNear(C_general, C_linear, 1e-8,
+             "general solver matches closed form for linear f");
+  expectNear(C_general, 10.0 / 3.0, 1e-8,
+             "general solver hits algebraic answer");
+}
+
+void testGeneralSolverNonlinear() {
+  std::printf("\n--- general solver with p=2, q=3 kinetic law ---\n");
+  const double k = 1e-4, C_eq = 20.0, D = 1e-6, delta = 1e-4,
+               C_bulk = 5.0;
+  const double C_surf = xport::solveSurfaceConcentration(
+      k, C_eq, D, delta, C_bulk, fStandardP2Q3);
+  // Sanity: C_surf must be strictly between C_bulk and C_eq
+  // (dissolution regime, monotonic driving force).
+  expect(C_surf > C_bulk && C_surf < C_eq,
+         "C_surf strictly bracketed by (C_bulk, C_eq)");
+  // Verify the residual is near zero at the returned root.
+  const double omega = C_surf / C_eq;
+  const double r_kin = k * fStandardP2Q3(omega);
+  const double r_diff = D * (C_surf - C_bulk) / delta;
+  expectNear(r_kin, r_diff, 1e-10,
+             "flux balance holds at returned C_surf");
+}
+
+void testGeneralSolverEdgeCases() {
+  std::printf("\n--- general solver edge cases ---\n");
+  // Equilibrium: C_bulk = C_eq → no flux, C_surf = C_bulk.
+  const double C_eq = xport::solveSurfaceConcentration(
+      1.0, 10.0, 1e-6, 1e-6, 10.0, fLinear);
+  expectNear(C_eq, 10.0, 1e-12, "C_bulk = C_eq → C_surf = C_bulk");
+  // delta = 0 → no-shell fallback returns C_bulk.
+  const double Cz = xport::solveSurfaceConcentration(
+      1.0, 10.0, 1e-6, 0.0, 5.0, fLinear);
+  expectNear(Cz, 5.0, 1e-12, "δ = 0 → C_surf = C_bulk");
+  // Null functor → fallback returns C_bulk.
+  const double Cn = xport::solveSurfaceConcentration(
+      1.0, 10.0, 1e-6, 1e-6, 5.0, nullptr);
+  expectNear(Cn, 5.0, 1e-12, "null functor → C_surf = C_bulk");
+}
+
 }  // namespace
 
 int main() {
@@ -107,6 +166,9 @@ int main() {
   testSolveLinearAsymptotes();
   testSolveLinearClosedForm();
   testPickDEffStub();
+  testGeneralSolverLinearAgreement();
+  testGeneralSolverNonlinear();
+  testGeneralSolverEdgeCases();
 
   std::printf("\n%d probe(s) failed\n", gFailed);
   return gFailed == 0 ? 0 : 1;
