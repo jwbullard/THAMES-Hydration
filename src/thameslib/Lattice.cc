@@ -1179,6 +1179,199 @@ bool Lattice::hasPorousSolidNeighbor(const int siteID,
   return (false);
 }
 
+// ---------------------------------------------------------------------
+// Shell-thickness computation for mass-transport kinetics (Phase 1).
+// See Lattice.h header block for the algorithm outline. Pure
+// instrumentation — no rate law consumes the output yet.
+// ---------------------------------------------------------------------
+
+xport::Vec3 Lattice::estimateOutwardNormal(int siteId,
+                                           double normalRadiusVoxels) const {
+  // Porosity-weighted centroid inside a ball of radius r around siteId.
+  // Uses microPhasePorosityInt_[phaseId] (electrolyte = 100000 → weight 1,
+  // void = 0, porous solids ∈ (0, 100000)). The centroid vector from
+  // the surface site to the porosity centre-of-mass approximates the
+  // outward normal (points from reactant surface toward the fluid).
+  //
+  // Periodic BC handling: to avoid modular-arithmetic wraparound in the
+  // centroid computation, we track offsets in the "unwrapped" frame
+  // relative to the centre site (dx, dy, dz ∈ [-r, +r]) rather than
+  // absolute coordinates. Wrapping happens only when we look up which
+  // voxel occupies that offset.
+  const Site &center = site_[siteId];
+  const int cx = center.getX();
+  const int cy = center.getY();
+  const int cz = center.getZ();
+  const int rInt = static_cast<int>(std::ceil(normalRadiusVoxels));
+  const double r2 = normalRadiusVoxels * normalRadiusVoxels;
+
+  double sumW = 0.0;
+  double sumWx = 0.0, sumWy = 0.0, sumWz = 0.0;
+
+  for (int dz = -rInt; dz <= rInt; ++dz) {
+    for (int dy = -rInt; dy <= rInt; ++dy) {
+      for (int dx = -rInt; dx <= rInt; ++dx) {
+        const double d2 =
+            static_cast<double>(dx * dx + dy * dy + dz * dz);
+        if (d2 > r2) continue;
+
+        // Wrap into lattice coords for site lookup only.
+        int xw = (cx + dx) % xdim_;
+        int yw = (cy + dy) % ydim_;
+        int zw = (cz + dz) % zdim_;
+        if (xw < 0) xw += xdim_;
+        if (yw < 0) yw += ydim_;
+        if (zw < 0) zw += zdim_;
+        const int nbId = xw + yw * xdim_ + zw * xdim_ * ydim_;
+
+        const int phId = site_[nbId].getMicroPhaseId();
+        const double w =
+            (phId >= 0 &&
+             phId < static_cast<int>(microPhasePorosityInt_.size()))
+                ? static_cast<double>(microPhasePorosityInt_[phId])
+                : 0.0;
+        if (w <= 0.0) continue;
+
+        sumW += w;
+        sumWx += w * static_cast<double>(dx);
+        sumWy += w * static_cast<double>(dy);
+        sumWz += w * static_cast<double>(dz);
+      }
+    }
+  }
+
+  xport::Vec3 out;
+  if (sumW <= 0.0) return out;  // degenerate: no porosity in ball
+  const double mx = sumWx / sumW;
+  const double my = sumWy / sumW;
+  const double mz = sumWz / sumW;
+  const double mag = std::sqrt(mx * mx + my * my + mz * mz);
+  if (mag <= 0.0) return out;  // centroid at the site itself
+  out.x = mx / mag;
+  out.y = my / mag;
+  out.z = mz / mag;
+  return out;
+}
+
+xport::ShellHit Lattice::walkToElectrolyte(int startSiteId,
+                                           const xport::Vec3 &normal,
+                                           int maxSteps,
+                                           int reactantPhaseId) const {
+  xport::ShellHit hit;
+
+  // Degenerate normal (all zeros) — can't walk.
+  const double mag2 =
+      normal.x * normal.x + normal.y * normal.y + normal.z * normal.z;
+  if (mag2 <= 0.0) return hit;
+
+  // Snap normal to the nearest face direction each step. Face
+  // directions match Site::nb() index order:
+  //   0 (-x)  1 (+x)  2 (-y)  3 (+y)  4 (-z)  5 (+z)
+  auto pickFaceDir = [&](double vx, double vy, double vz) -> int {
+    double best = -1.0;
+    int bestIdx = -1;
+    const double signs[6][3] = {
+        {-1, 0, 0}, {1, 0, 0}, {0, -1, 0},
+        {0, 1, 0},  {0, 0, -1}, {0, 0, 1}};
+    for (int i = 0; i < 6; ++i) {
+      const double dot =
+          vx * signs[i][0] + vy * signs[i][1] + vz * signs[i][2];
+      if (dot > best) {
+        best = dot;
+        bestIdx = i;
+      }
+    }
+    return bestIdx;
+  };
+
+  int currentSite = startSiteId;
+  for (int step = 0; step < maxSteps; ++step) {
+    const int faceIdx =
+        pickFaceDir(normal.x, normal.y, normal.z);
+    if (faceIdx < 0) break;
+    const Site *nb = site_[currentSite].nb(faceIdx);
+    if (nb == nullptr) break;
+    const int phId = nb->getMicroPhaseId();
+    if (phId == ELECTROLYTEID) {
+      hit.reachedElectrolyte = true;
+      return hit;
+    }
+    // Non-electrolyte: count as shell voxel and continue.
+    // Includes voxels of the same reactant phase (walking into another
+    // grain of the same phase means the shell is zero-thickness in
+    // that direction, but from the current site's perspective we've
+    // still traversed a solid voxel).
+    hit.deltaVoxels += 1;
+    hit.shellPhaseIds.push_back(phId);
+    currentSite = nb->getId();
+  }
+  return hit;
+}
+
+xport::ShellStats Lattice::computeShellStats(int phaseId,
+                                             double normalRadiusVoxels,
+                                             int maxWalkSteps,
+                                             int numBins) const {
+  // Guard: unknown phase → empty stats.
+  if (phaseId < 0 || phaseId >= numMicroPhases_) {
+    return xport::aggregateShellDistribution({}, {}, numBins);
+  }
+
+  // Non-const call: getDissolutionSites is not marked const in
+  // Interface. Cast to non-const to reach it; we don't mutate.
+  auto &iface = const_cast<Interface &>(interface_[phaseId]);
+  std::vector<Isite> sites;
+  try {
+    sites = iface.getDissolutionSites();
+  } catch (...) {
+    return xport::aggregateShellDistribution({}, {}, numBins);
+  }
+
+  std::vector<double> deltasMeters;
+  std::vector<int> dominantShellIds;
+  deltasMeters.reserve(sites.size());
+  dominantShellIds.reserve(sites.size());
+
+  for (size_t i = 0; i < sites.size(); ++i) {
+    const int siteId = sites[i].getId();
+    const xport::Vec3 nrm =
+        estimateOutwardNormal(siteId, normalRadiusVoxels);
+    const xport::ShellHit hit =
+        walkToElectrolyte(siteId, nrm, maxWalkSteps, phaseId);
+
+    if (!hit.reachedElectrolyte) {
+      deltasMeters.push_back(
+          std::numeric_limits<double>::infinity());
+      dominantShellIds.push_back(-1);
+      continue;
+    }
+    const double deltaM =
+        static_cast<double>(hit.deltaVoxels) * resolution_;
+    deltasMeters.push_back(deltaM);
+
+    // Dominant shell composition = mode of the phases traversed.
+    int dominant = -1;
+    if (!hit.shellPhaseIds.empty()) {
+      // Small histogram inline (walk typically < 50 entries).
+      int bestCount = 0;
+      for (int candidate : hit.shellPhaseIds) {
+        int count = 0;
+        for (int p : hit.shellPhaseIds) {
+          if (p == candidate) ++count;
+        }
+        if (count > bestCount) {
+          bestCount = count;
+          dominant = candidate;
+        }
+      }
+    }
+    dominantShellIds.push_back(dominant);
+  }
+
+  return xport::aggregateShellDistribution(deltasMeters, dominantShellIds,
+                                           numBins);
+}
+
 vector<int> Lattice::growPhase(vector<int> growPhaseIDVect,
                                vector<int> numSiteGrowVect,
                                vector<string> growPhNameVect, int &numadded_G,

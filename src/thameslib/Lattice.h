@@ -18,6 +18,7 @@ exists, hydrates, and possibly deteriorates.
 #include "Isite.h"
 #include "RanGen.h"
 #include "Site.h"
+#include "TransportStats.h"
 #include "global.h"
 #include "utils.h"
 // #include "../version.h"
@@ -759,6 +760,106 @@ public:
   @return true if at least one neighbor is a porous solid
   */
   bool hasPorousSolidNeighbor(const int siteID, const int neighborRange);
+
+  // ---------------------------------------------------------------------
+  // Shell-thickness computation for mass-transport kinetics (Phase 1 of
+  // transport-kinetics plan). See docs/transport_kinetics_brainstorm.md
+  // and the plan file for the physics rationale. Pure instrumentation
+  // here — no rate law consumes the output yet.
+  //
+  // Algorithm per surface site:
+  //   1. Estimate the outward normal via the porosity-weighted centroid
+  //      of all voxels within a ball of radius r (Bullard method). The
+  //      centroid vector from the site to the porosity-mass-centre
+  //      approximates the direction toward the electrolyte through the
+  //      product shell.
+  //   2. Walk outward one voxel at a time in that direction, snapping
+  //      to the nearest face-neighbor at each step. Count product-phase
+  //      voxels traversed before reaching an electrolyte voxel; that
+  //      count times the voxel resolution IS the local shell thickness.
+  //   3. Aggregate per-phase into a K-bin equal-frequency histogram
+  //      (xport::aggregateShellDistribution).
+  //
+  // Empty-neighborhood and infinite-shell cases are handled: sites that
+  // fail to reach electrolyte within maxSteps are reported as δ = ∞ and
+  // dropped from the harmonic aggregate.
+  // ---------------------------------------------------------------------
+
+  /**
+  @brief Estimate the outward normal at a surface site via the
+         porosity-weighted centroid of a spherical neighborhood.
+
+  For each site j in the ball of radius `normalRadiusVoxels` around
+  `siteId` (including j = siteId), weight the site's fractional
+  coordinate by its intrinsic porosity contribution (electrolyte = 1,
+  void = 0, porous solids ∈ (0, 1), dense solids = 0). The centroid
+  minus the surface-site position gives an approximate outward
+  normal in lattice coordinates. Result is normalized to unit length.
+
+  Returns a zero vector when the neighborhood contains no porosity
+  (fully-dense-trapped voxel — should never happen for sites in
+  `dissolutionSites_` per wmc filtering, but defensive fallback).
+
+  Cost: O(r^3) per call; caller should sample sparsely if r is large.
+
+  @param siteId              the surface site
+  @param normalRadiusVoxels  ball radius in voxel units, e.g. 2.5
+  @return unit-length outward-normal estimate
+  */
+  xport::Vec3 estimateOutwardNormal(int siteId,
+                                    double normalRadiusVoxels) const;
+
+  /**
+  @brief Walk outward from a surface site in the given direction,
+         counting product-phase voxels until reaching electrolyte.
+
+  Each step snaps the normal direction to the nearest of the six
+  face-neighbor directions to advance one voxel. Terminates on the
+  first electrolyte voxel encountered, or after `maxSteps` product
+  voxels (in which case `reachedElectrolyte` is false and the shell
+  is treated as effectively infinite by the aggregator).
+
+  `reactantPhaseId` is the phase whose surface we started from —
+  voxels of that phase encountered during the walk are also counted
+  as product (since we're walking away from the reactant grain), but
+  the same reactant phase encountered means we jumped to another
+  grain of the same phase and the shell has zero thickness at that
+  step.
+
+  @param startSiteId       surface site to walk from
+  @param normal            direction estimate (need not be unit length)
+  @param maxSteps          walk cap (typical 50; beyond that shell is ∞)
+  @param reactantPhaseId   the dissolving phase
+  @return ShellHit with delta count, reached flag, and per-step phase ids
+  */
+  xport::ShellHit walkToElectrolyte(int startSiteId,
+                                    const xport::Vec3 &normal,
+                                    int maxSteps,
+                                    int reactantPhaseId) const;
+
+  /**
+  @brief Compute the per-phase shell-thickness distribution as a K-bin
+         histogram.
+
+  Iterates the phase's dissolution sites via
+  `interface_[phaseId].getDissolutionSites()`, runs the normal +
+  walk pipeline for each, aggregates via
+  `xport::aggregateShellDistribution` into K equal-frequency bins.
+  Physical δ is stored in meters (walk count × `resolution_`).
+
+  Returns an empty-bin ShellStats if the phase has no dissolution
+  sites this cycle.
+
+  @param phaseId             the dissolving phase
+  @param normalRadiusVoxels  ball radius for normal estimate
+  @param maxWalkSteps        walk cap for shell traversal
+  @param numBins             K (>= 1); 1 collapses to a single scalar
+  @return per-phase shell stats
+  */
+  xport::ShellStats computeShellStats(int phaseId,
+                                      double normalRadiusVoxels,
+                                      int maxWalkSteps,
+                                      int numBins) const;
 
   /**
   @brief Add (grow i.e. switch from electrolyte) the prescribed number of

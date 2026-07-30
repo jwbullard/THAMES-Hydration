@@ -1498,6 +1498,40 @@ void KineticController::calculateKineticStep(double time, const double timestep,
   phaseDissolvedId.resize(pKMsize_, 0);
   double numDCMolesDissolved, scaledMass, massDissolved;
 
+  // Phase 1 diagnostic: log per-phase shell-thickness histogram for
+  // every kinetic phase this cycle. Verbose-gated because the walker
+  // is O(dissolutionSites × normalRadius^3) and can add several
+  // seconds per cycle on a 200³ paste. No rate law consumes the
+  // output yet — this is pure instrumentation to verify the walker
+  // produces sensible δ trajectories on real hydration configs
+  // (Alite δ starts at 0, rises smoothly as C-S-H nucleates, etc).
+  // Defaults (2.5 voxel normal radius, 50 walk steps, K=5 bins) are
+  // hard-coded here; when Phase 2 lands they'll be pulled from the
+  // per-phase `transport` JSON block instead.
+  if (verbose_) {
+    const double normalRadius = 2.5;
+    const int maxWalkSteps = 50;
+    const int numBins = 5;
+    for (int midx = 0; midx < pKMsize_; ++midx) {
+      if (phaseKineticModel_[midx] == nullptr) continue;
+      const int mpid = phaseKineticModel_[midx]->getMicroPhaseId();
+      const auto stats = lattice_->computeShellStats(
+          mpid, normalRadius, maxWalkSteps, numBins);
+      std::clog << "  ShellStats [" << phaseKineticModel_[midx]->getName()
+                << "] cyc=" << cyc
+                << " sitesReached=" << stats.numSitesReached
+                << "/" << stats.numSitesTotal
+                << " δ_harm=" << stats.deltaHarmonicRaw
+                << " m δ_arith=" << stats.deltaArithmeticRaw << " m";
+      for (size_t b = 0; b < stats.bins.size(); ++b) {
+        std::clog << " | bin" << b << " δ=" << stats.bins[b].deltaRep
+                  << " frac=" << stats.bins[b].siteFraction
+                  << " shellPid=" << stats.bins[b].dominantShellPhaseId;
+      }
+      std::clog << endl;
+    }
+  }
+
   double hyd_time = hydTimeIni_ + timestep;
 
   chemSys_->initDCLowerLimit(0); // check !

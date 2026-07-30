@@ -27,3 +27,11 @@ clang++ -std=c++17 -O2 -Wall \
     -o test_jmak_growth \
     test_jmak_growth.cc ../thameslib/JMAKGrowth.cc
 ./test_jmak_growth
+
+echo ""
+echo "=== test_transport_stats ==="
+clang++ -std=c++17 -O2 -Wall \
+    -I../thameslib \
+    -o test_transport_stats \
+    test_transport_stats.cc ../thameslib/TransportStats.cc
+./test_transport_stats
