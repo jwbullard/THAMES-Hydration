@@ -30,6 +30,21 @@ Design notes:
 #ifndef THAMES_BUILD_DATE
 #  define THAMES_BUILD_DATE "unknown"
 #endif
+#ifndef THAMES_COMPILER_ID
+#  define THAMES_COMPILER_ID "unknown"
+#endif
+#ifndef THAMES_COMPILER_VERSION
+#  define THAMES_COMPILER_VERSION "unknown"
+#endif
+#ifndef THAMES_CXX_FLAGS
+#  define THAMES_CXX_FLAGS "unknown"
+#endif
+#ifndef THAMES_CMAKE_VERSION
+#  define THAMES_CMAKE_VERSION "unknown"
+#endif
+#ifndef THAMES_BUILD_TYPE
+#  define THAMES_BUILD_TYPE "unknown"
+#endif
 
 #include <chrono>
 #include <cstdio>
@@ -63,6 +78,15 @@ struct Metadata {
   std::string thames_backend_git_hash = THAMES_GIT_HASH;
   std::string thames_backend_build_date = THAMES_BUILD_DATE;
 
+  // Build tooling — added schema_version 2. Diagnostic-only; used when a
+  // cross-host numerical divergence investigation needs to rule the
+  // compiler / optimization / flag set in or out.
+  std::string build_compiler_id = THAMES_COMPILER_ID;
+  std::string build_compiler_version = THAMES_COMPILER_VERSION;
+  std::string build_cxx_flags = THAMES_CXX_FLAGS;
+  std::string build_cmake_version = THAMES_CMAKE_VERSION;
+  std::string build_type = THAMES_BUILD_TYPE;
+
   // UI identity (from simparams.json ui_context block; empty when standalone).
   std::string thames_ui_version;
   std::string python_version;
@@ -93,6 +117,11 @@ struct Metadata {
 
 Metadata g;
 bool g_initialized = false;
+bool g_finalized = false;   // set true by first finalize call; subsequent
+                            // calls become no-ops so specific diagnostic
+                            // reasons (from catch blocks in thames.cc)
+                            // aren't overwritten by generic fallback
+                            // reasons (from deleteDynAllocMem).
 
 std::string iso8601UtcNow() {
   const auto now = std::chrono::system_clock::now();
@@ -136,24 +165,39 @@ void capturePlatformFallback(Metadata &m) {
 #endif
 }
 
+// Trim trailing whitespace + CR from a string. Windows-authored input.in
+// files reach us as CRLF; getline() on POSIX keeps the trailing \r, which
+// would otherwise turn "thames-dat.lst" into "thames-dat.lst\r" — a
+// filename that doesn't exist.
+std::string rstrip(std::string s) {
+  while (!s.empty() && (s.back() == '\r' || s.back() == '\n' ||
+                        s.back() == ' ' || s.back() == '\t')) {
+    s.pop_back();
+  }
+  return s;
+}
+
 // Extract the first quoted filename from the GEMS input list. The file
 // format is:
-//   <flag-int>
-//   "thames-dch.dat"
-//   "thames-ipm.dat"
-//   "thames-dbr.dat"
-// Matches the parse thames.cc does inline in prepOutputFolder.
+//   -t "thames-dch.dat" "thames-ipm.dat" "thames-dbr.dat"
+// (all on one line, or one entry per line). Matches the parse thames.cc
+// does inline in prepOutputFolder.
 std::string extractDchName(const std::string &gemInputList) {
-  std::ifstream in(gemInputList);
+  const std::string path = rstrip(gemInputList);
+  std::ifstream in(path);
   if (!in.is_open()) return "";
   std::string buff;
-  in >> buff;   // discard flag
+  in >> buff;   // discard flag ("-t" or similar)
   buff.clear();
-  in >> buff;   // dch filename with quotes
+  in >> buff;   // dch filename, possibly quoted
   if (!buff.empty() && (buff.front() == '"' || buff.front() == '\'')) {
-    buff = buff.substr(1, buff.size() - 2);
+    // Strip both surrounding quotes if present.
+    buff = buff.substr(1);
+    if (!buff.empty() && (buff.back() == '"' || buff.back() == '\'')) {
+      buff.pop_back();
+    }
   }
-  return buff;
+  return rstrip(buff);
 }
 
 // Compute SHA-256 hex + size of a file. Returns empty hash on failure.
@@ -240,12 +284,19 @@ void writeSidecar() {
   }
 
   ofs << "{\n"
-      << "  \"schema_version\": 1,\n"
+      << "  \"schema_version\": 2,\n"
       << "  \"operation_name\": \"" << jsonEscape(g.operation_name) << "\",\n"
       << "  \"thames_backend\": {\n"
       << "    \"version\": \"" << jsonEscape(g.thames_backend_version) << "\",\n"
       << "    \"git_hash\": \"" << jsonEscape(g.thames_backend_git_hash) << "\",\n"
       << "    \"build_date\": \"" << jsonEscape(g.thames_backend_build_date) << "\"\n"
+      << "  },\n"
+      << "  \"build\": {\n"
+      << "    \"compiler_id\": \"" << jsonEscape(g.build_compiler_id) << "\",\n"
+      << "    \"compiler_version\": \"" << jsonEscape(g.build_compiler_version) << "\",\n"
+      << "    \"cxx_flags\": \"" << jsonEscape(g.build_cxx_flags) << "\",\n"
+      << "    \"cmake_version\": \"" << jsonEscape(g.build_cmake_version) << "\",\n"
+      << "    \"build_type\": \"" << jsonEscape(g.build_type) << "\"\n"
       << "  },\n"
       << "  \"thames_ui\": {\n"
       << "    \"version\": \"" << jsonEscape(g.thames_ui_version) << "\",\n"
@@ -289,13 +340,21 @@ void writeSidecar() {
 void initialize(const std::string &outputFolder,
                 const std::string &gemInputList,
                 const std::string &simParamsPath) {
-  g.output_folder = outputFolder;
+  // Strip trailing CR/whitespace from every argument. thames.cc gets
+  // gemInputList and simParamsPath via getline(cin, ...) which keeps the
+  // trailing \r on Windows-authored input.in files (CRLF line endings).
+  // Without this, opening any of these paths on POSIX fails silently.
+  const std::string outputFolderClean = rstrip(outputFolder);
+  const std::string gemInputListClean = rstrip(gemInputList);
+  const std::string simParamsPathClean = rstrip(simParamsPath);
+
+  g.output_folder = outputFolderClean;
 
   // Safety net for the elastic-only path, which bypasses prepOutputFolder
   // and would otherwise silently fail to write the sidecar if OutputFolder
   // doesn't already exist. mkdir-p semantics: no-op if it already exists.
   std::error_code ec;
-  fs::create_directories(outputFolder, ec);
+  fs::create_directories(outputFolderClean, ec);
 
   // Runtime platform / hostname capture. UI values overwrite in
   // readUiContext below if simparams supplies them.
@@ -304,10 +363,10 @@ void initialize(const std::string &outputFolder,
   g.hostname_from_ui = false;
 
   // UI context (may overwrite platform_* and hostname).
-  readUiContext(simParamsPath, g);
+  readUiContext(simParamsPathClean, g);
 
   // DCH fingerprint.
-  g.dch_path = extractDchName(gemInputList);
+  g.dch_path = extractDchName(gemInputListClean);
   if (!g.dch_path.empty()) {
     hashDchFile(g.dch_path, g.dch_sha256, g.dch_size_bytes);
   }
@@ -338,10 +397,20 @@ void finalize(int exitCode,
               const std::string &exitReason,
               const std::string &diagnostics) {
   if (!g_initialized) return;
+  if (g_finalized) {
+    // Preserve the first (most specific) finalize reason. A common pattern:
+    // Controller::doCycle calls finalize with the true termination cause,
+    // then deleteDynAllocMem calls finalize again with a generic fallback
+    // reason. First-call-wins keeps the specific one.
+    std::clog << "\nRunMetadata: ignoring redundant finalize (already "
+              << "finalized as \"" << g.exit_reason << "\")" << std::endl;
+    return;
+  }
   g.exit_code = exitCode;
   g.exit_reason = exitReason.empty() ? "unknown" : exitReason;
   g.diagnostics = diagnostics;
   g.run_finished_utc = iso8601UtcNow();
+  g_finalized = true;
   writeSidecar();
   std::clog << "\nRunMetadata finalized: " << g.exit_reason
             << " (exit_code=" << g.exit_code << ")" << std::endl;

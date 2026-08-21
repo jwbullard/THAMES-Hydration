@@ -23,4 +23,12 @@ src/version.h.in; the generated file (src/version.h) is gitignored.
 #define THAMES_GIT_HASH       "@THAMES_GIT_HASH@"
 #define THAMES_BUILD_DATE     "@THAMES_BUILD_DATE@"
 
+// Compiler + build-tool identity — pinpoints numerical divergence when two
+// hosts at the same commit produce different results. Diagnostic-only.
+#define THAMES_COMPILER_ID       "@CMAKE_CXX_COMPILER_ID@"
+#define THAMES_COMPILER_VERSION  "@CMAKE_CXX_COMPILER_VERSION@"
+#define THAMES_CXX_FLAGS         "@CMAKE_CXX_FLAGS@"
+#define THAMES_CMAKE_VERSION     "@CMAKE_VERSION@"
+#define THAMES_BUILD_TYPE        "@THAMES_BUILD_TYPE_STR@"
+
 #endif

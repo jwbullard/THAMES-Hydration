@@ -184,6 +184,14 @@ int main(int argc, char **argv) {
   const string simParamName(buff);
   std::clog << "   - simParamName        :  " << simParamName << endl;
 
+  // Stamp provenance BEFORE any constructor that can fail. This ensures
+  // early-crash diagnostics (e.g. parseMicroPhases failing on a stale
+  // glass-phase name — Bug A in docs/NIST-diagnostic.md) still leave a
+  // Result/run_metadata.json with build identity + DCH fingerprint + UI
+  // context. runmeta::initialize creates the OutputFolder if needed and
+  // is safe to call before prepOutputFolder.
+  runmeta::initialize(OutputFolder, gemInputName, simParamName);
+
   //
   // Create the ChemicalSystem object
   //
@@ -194,15 +202,23 @@ int main(int argc, char **argv) {
   } catch (bad_alloc &ba) {
     std::clog << "Bad memory allocation in ChemicalSystem constructor: "
               << ba.what() << endl;
+    runmeta::finalize(1, "ChemicalSystem constructor: bad_alloc", ba.what());
     errorProgram = true;
   } catch (FileException fex) {
     fex.printException();
+    runmeta::finalize(1, "ChemicalSystem constructor: FileException",
+                      "See thames.log for details");
     errorProgram = true;
   } catch (GEMException gex) {
     gex.printException();
+    runmeta::finalize(1, "ChemicalSystem constructor: GEMException",
+                      "See thames.log for details");
     errorProgram = true;
   } catch (DataException dex) {
     dex.printException();
+    runmeta::finalize(1, "ChemicalSystem constructor: DataException",
+                      "See thames.log for details (typically a microstructure "
+                      "phase not found in GEMS data)");
     errorProgram = true;
   }
   if (errorProgram) {
@@ -621,11 +637,9 @@ int main(int argc, char **argv) {
   prepOutputFolder(OutputFolder, jobRoot, gemInputName, statFileName,
                    initMicName, simParamName);
 
-  // Stamp this run with build identity + platform + DCH fingerprint so every
-  // downstream CSV / sidecar can be traced back to what produced it. Writes
-  // <OutputFolder>/run_metadata.json with exit_status="in_progress"; the
-  // Controller updates it at end-of-run via runmeta::finalize.
-  runmeta::initialize(OutputFolder, gemInputName, simParamName);
+  // runmeta::initialize was already called earlier (before ChemicalSystem
+  // construction) so early crashes leave a diagnostic sidecar. See the
+  // call site near line 193.
 
   //
   // Create the Controller object to direct flow of the program
@@ -711,6 +725,18 @@ void deleteDynAllocMem(ChemicalSystem *ChemSys, Lattice *Mic, RanGen *RNG,
                        KineticController *KController, Controller *Ctrl,
                        clock_t st_time, time_t lt, bool errorProgram,
                        const string &OutputFolder) {
+
+  // Fallback finalize for any error path that hasn't already stamped a
+  // specific reason. runmeta::finalize is idempotent (first call wins), so
+  // catch blocks in main() that supplied a specific reason (e.g.
+  // "ChemicalSystem constructor: DataException") take precedence over this
+  // generic fallback. If Controller reached completion cleanly, it already
+  // called finalize with the true termination cause; this call becomes a
+  // no-op there too.
+  if (errorProgram && runmeta::isInitialized()) {
+    runmeta::finalize(1, "Backend died before completion",
+                      "No specific error reason recorded; see thames.log");
+  }
 
   string buff = "";
   int resCallSystem;
