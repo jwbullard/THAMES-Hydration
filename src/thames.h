@@ -117,6 +117,7 @@ Department of Commerce, April, 2000.
 #include "thameslib/KineticController.h"
 #include "thameslib/Lattice.h"
 #include "thameslib/RanGen.h"
+#include "thameslib/RunMetadata.h"
 #include "thameslib/Site.h"
 #include "thameslib/StrainEnergy.h"
 #include "thameslib/ThermalStrain.h"

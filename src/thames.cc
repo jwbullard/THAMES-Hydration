@@ -360,6 +360,15 @@ int main(int argc, char **argv) {
     std::clog << "Microstructure dimensions: " << Mic->getXDim() << " x "
               << Mic->getYDim() << " x " << Mic->getZDim() << endl;
 
+    // Stamp this elastic-only run with the same provenance the hydration
+    // path gets. The ELASTIC_CALC branch is a self-contained early return
+    // that bypasses prepOutputFolder + the runmeta::initialize call further
+    // down, so it needs its own initialize/finalize pair. If elastic runs
+    // after hydration into the same OutputFolder, this overwrites the
+    // hydration sidecar with the elastic run's identity — deliberate:
+    // whichever run last touched the folder is the authoritative producer.
+    runmeta::initialize(OutputFolder, gemInputName, simParamName);
+
     // Create the AppliedStrain FE solver with actual microstructure dimensions
     int nx = Mic->getXDim();
     int ny = Mic->getYDim();
@@ -445,6 +454,7 @@ int main(int argc, char **argv) {
               << endl;
     std::ofstream elasticOut(elasticResultsFile);
     if (elasticOut.is_open()) {
+      elasticOut << runmeta::csvCommentLine() << endl;
       elasticOut << "Property,Value,Units" << endl;
       elasticOut << "Microstructure," << initMicName << "," << endl;
       elasticOut << "X_Dimension," << nx << ",voxels" << endl;
@@ -480,6 +490,7 @@ int main(int argc, char **argv) {
                   << endl;
       } else {
         double resInMicrometers = (1.0e6 * Mic->getResolution());
+        elasticOut << runmeta::csvCommentLine() << endl;
         elasticOut << "Property,Value,Units" << endl;
         elasticOut << "Microstructure," << initMicName << "," << endl;
         elasticOut << "X_Dimension," << nx << ",voxels" << endl;
@@ -554,6 +565,10 @@ int main(int argc, char **argv) {
 
     // Clean up and exit
     std::clog << endl << "Elastic calculation complete." << endl;
+    runmeta::finalize(errorProgram ? 1 : 0,
+                      errorProgram ? "Elastic calculation failed"
+                                    : "Elastic calculation complete",
+                      "");
     deleteDynAllocMem(ChemSys, Mic, RNG, ThermalStrainSolver,
                       AppliedStrainSolver, KController, Ctrl, starttime, lt,
                       errorProgram, OutputFolder);
@@ -605,6 +620,12 @@ int main(int argc, char **argv) {
 
   prepOutputFolder(OutputFolder, jobRoot, gemInputName, statFileName,
                    initMicName, simParamName);
+
+  // Stamp this run with build identity + platform + DCH fingerprint so every
+  // downstream CSV / sidecar can be traced back to what produced it. Writes
+  // <OutputFolder>/run_metadata.json with exit_status="in_progress"; the
+  // Controller updates it at end-of-run via runmeta::finalize.
+  runmeta::initialize(OutputFolder, gemInputName, simParamName);
 
   //
   // Create the Controller object to direct flow of the program

@@ -5,6 +5,38 @@ project (THAMES_HYDRATION)
 set (THAMES_HYDRATION_VERSION 5.2)
 set (THAMES_HYDRATION_VERSION_MAJOR 5)
 set (THAMES_HYDRATION_VERSION_MINOR 2)
+set (THAMES_HYDRATION_VERSION_PATCH 0)
+set (THAMES_HYDRATION_VERSION_STRING "${THAMES_HYDRATION_VERSION_MAJOR}.${THAMES_HYDRATION_VERSION_MINOR}.${THAMES_HYDRATION_VERSION_PATCH}")
+
+# Capture the current git commit hash so every output file can be traced back
+# to the exact build that produced it. Falls back to "unknown" for tarball
+# builds without a .git directory (see release-workflow note in
+# docs/NIST-diagnostic.md for the tag-time bake-in policy).
+execute_process(
+  COMMAND git rev-parse --short=8 HEAD
+  WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
+  OUTPUT_VARIABLE THAMES_GIT_HASH
+  OUTPUT_STRIP_TRAILING_WHITESPACE
+  ERROR_QUIET
+  RESULT_VARIABLE _git_result
+)
+if (NOT _git_result EQUAL 0 OR "${THAMES_GIT_HASH}" STREQUAL "")
+  set (THAMES_GIT_HASH "unknown")
+endif ()
+message (STATUS "THAMES_GIT_HASH: ${THAMES_GIT_HASH}")
+
+# UTC build timestamp, ISO 8601.
+string (TIMESTAMP THAMES_BUILD_DATE "%Y-%m-%dT%H:%M:%SZ" UTC)
+message (STATUS "THAMES_BUILD_DATE: ${THAMES_BUILD_DATE}")
+
+# Generate version.h in the source tree from version.h.in so existing
+# #include "../version.h" call sites keep working. The generated file is
+# gitignored.
+configure_file(
+  ${CMAKE_CURRENT_SOURCE_DIR}/src/version.h.in
+  ${CMAKE_CURRENT_SOURCE_DIR}/src/version.h
+  @ONLY
+)
 
 # configure a header file to pass some CMake settings to source code
 

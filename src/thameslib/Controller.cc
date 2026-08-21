@@ -4,6 +4,7 @@
 */
 
 #include "Controller.h"
+#include "RunMetadata.h"
 
 using std::cout;
 using std::endl;
@@ -163,6 +164,7 @@ Controller::Controller(Lattice *msh, KineticController *kc, ChemicalSystem *cs,
                           "Could not append");
     }
     char cc;
+    outfs << runmeta::csvCommentLine() << endl;
     outfs << "Time(h)";
     for (int i = 0; i < numDCs_; i++) {
       cc = chemSys_->getDCClassCode(i);
@@ -180,6 +182,7 @@ Controller::Controller(Lattice *msh, KineticController *kc, ChemicalSystem *cs,
                           "Could not append");
     }
 
+    outfs << runmeta::csvCommentLine() << endl;
     outfs << "Time(h)";
     for (int i = 0; i < numDCs_; i++) {
       cc = chemSys_->getDCClassCode(i);
@@ -197,6 +200,7 @@ Controller::Controller(Lattice *msh, KineticController *kc, ChemicalSystem *cs,
                           "Could not append");
     }
 
+    outfs << runmeta::csvCommentLine() << endl;
     outfs << "Time(h)";
     for (int i = 0; i < numGEMPhases_; i++) {
       outfs << "," << chemSys_->getGEMPhaseName(i) << "(m3/100g)";
@@ -212,6 +216,7 @@ Controller::Controller(Lattice *msh, KineticController *kc, ChemicalSystem *cs,
                           "Could not append");
     }
 
+    outfs << runmeta::csvCommentLine() << endl;
     outfs << "Time(h)";
     // JWB: Start with micro phase id 1 to avoid the Void phase
     for (int i = 1; i < numMicroPhases_; i++) {
@@ -231,6 +236,7 @@ Controller::Controller(Lattice *msh, KineticController *kc, ChemicalSystem *cs,
                           "Could not append");
     }
 
+    outfs << runmeta::csvCommentLine() << endl;
     outfs << "Time(h)";
     // JWB: Start with micro phase id 1 to avoid the Void phase
     for (int i = 1; i < chemSys_->getNumMicroPhases(); i++) {
@@ -249,6 +255,7 @@ Controller::Controller(Lattice *msh, KineticController *kc, ChemicalSystem *cs,
       throw FileException("Controller", "calculateState", outfilename,
                           "Could not append");
     }
+    outfs << runmeta::csvCommentLine() << endl;
     outfs << "Time(h)";
     for (int i = 0; i < chemSys_->getNumICs(); i++) {
       outfs << "," << chemSys_->getICName(i);
@@ -262,6 +269,7 @@ Controller::Controller(Lattice *msh, KineticController *kc, ChemicalSystem *cs,
       throw FileException("Controller", "calculateState", outfilename,
                           "Could not append");
     }
+    outfs << runmeta::csvCommentLine() << endl;
     outfs << "Time(h),Ca/Si Ratio" << endl;
     outfs.close();
 
@@ -272,6 +280,7 @@ Controller::Controller(Lattice *msh, KineticController *kc, ChemicalSystem *cs,
                           "Could not append");
     }
 
+    outfs << runmeta::csvCommentLine() << endl;
     outfs << "Time(h)";
     for (int i = 0; i < chemSys_->getNumMicroPhases(); i++) {
       outfs << "," << chemSys_->getMicroPhaseName(i);
@@ -285,6 +294,7 @@ Controller::Controller(Lattice *msh, KineticController *kc, ChemicalSystem *cs,
       throw FileException("Controller", "Controller", outfilename,
                           "Could not append");
     }
+    outfs << runmeta::csvCommentLine() << endl;
     outfs << "Time(h),pH" << endl;
     outfs.close();
 
@@ -294,6 +304,7 @@ Controller::Controller(Lattice *msh, KineticController *kc, ChemicalSystem *cs,
       throw FileException("Controller", "Controller", outfilename,
                           "Could not append");
     }
+    outfs << runmeta::csvCommentLine() << endl;
     outfs << "Time(h),Enthalpy(J/100g)" << endl;
     outfs.close();
 
@@ -303,6 +314,7 @@ Controller::Controller(Lattice *msh, KineticController *kc, ChemicalSystem *cs,
       throw FileException("Controller", "Controller", outfilename,
                           "Could not append");
     }
+    outfs << runmeta::csvCommentLine() << endl;
     outfs << "Time(h),DOR";
     outfs << endl;
     outfs.close();
@@ -313,6 +325,7 @@ Controller::Controller(Lattice *msh, KineticController *kc, ChemicalSystem *cs,
       throw FileException("Controller", "Controller", outfilename,
                           "Could not append");
     }
+    outfs << runmeta::csvCommentLine() << endl;
     outfs << "Time(h),DOR,GelVol,VoidElectrolyteVol,GelSpaceRatioSim,"
              "GelSpaceRatioCalc";
     outfs << endl;
@@ -324,6 +337,7 @@ Controller::Controller(Lattice *msh, KineticController *kc, ChemicalSystem *cs,
       throw FileException("Controller", "Controller", outfilename,
                           "Could not append");
     }
+    outfs << runmeta::csvCommentLine() << endl;
     outfs << "Time(h)";
     for (int i = 0; i < numMicroPhases_; i++) {
       if ((i >= FIRST_SOLID) && (!chemSys_->isCementComponent(i))) {
@@ -742,8 +756,8 @@ void Controller::doCycle(double elemTimeInterval) {
             diagStream << "Simulation stopped at " << lastGoodTime_
                        << " hours after " << totalCycles
                        << " cycles. " << adaptiveTimeController_->getStatusString();
-            writeExitStatus(1, "GEMS solver exceeded maximum consecutive failures",
-                            diagStream.str());
+            runmeta::finalize(1, "GEMS solver exceeded maximum consecutive failures",
+                              diagStream.str());
             break;
           }
 
@@ -912,7 +926,7 @@ void Controller::doCycle(double elemTimeInterval) {
             diagStream << "Simulation completed " << lastGoodTime_ << " hours in "
                        << totalCycles << " cycles. "
                        << adaptiveTimeController_->getStatusString();
-            writeExitStatus(0, "Simulation completed successfully", diagStream.str());
+            runmeta::finalize(0, "Simulation completed successfully", diagStream.str());
             break;
           }
 
@@ -2493,6 +2507,7 @@ void Controller::writeTxtOutputFiles_onlyICsDCs(double time) {
       throw FileException("Controller", "writeTxtOutputFiles_onlyICsDCs",
                           outfilenameIC, "Could not append");
     }
+    outfs << runmeta::csvCommentLine() << endl;
     outfs << "Time(h)";
     for (i = 0; i < numICs_; i++) {
       outfs << "," << chemSys_->getICName(i);
@@ -2505,6 +2520,7 @@ void Controller::writeTxtOutputFiles_onlyICsDCs(double time) {
       throw FileException("Controller", "writeTxtOutputFiles_onlyICsDCs",
                           outfilenameDC, "Could not append");
     }
+    outfs << runmeta::csvCommentLine() << endl;
     outfs << "Time(h)";
     for (i = 0; i < numDCs_; i++) {
       outfs << "," << chemSys_->getDCName(i);
@@ -3186,44 +3202,6 @@ string Controller::getTimeString(const double curtime) {
   return timeString;
 }
 
-void Controller::writeExitStatus(int exit_code, const std::string &exit_reason,
-                                  const std::string &diagnostics) {
-  //
-  // Write exit status to JSON file for UI consumption.
-  // The file is written to the Result directory alongside other output files.
-  //
-  std::string filename = "Result/exit_status.json";
-  std::ofstream ofs(filename.c_str());
-
-  if (!ofs) {
-    std::clog << "WARNING: Could not write exit_status.json" << std::endl;
-    return;
-  }
-
-  // Get current timestamp
-  time_t now = time(nullptr);
-  char timestamp[64];
-  strftime(timestamp, sizeof(timestamp), "%c", localtime(&now));
-
-  // Write JSON format
-  ofs << "{" << std::endl;
-  ofs << "  \"exit_code\": " << exit_code << "," << std::endl;
-  ofs << "  \"exit_reason\": \"" << exit_reason << "\"," << std::endl;
-  ofs << "  \"success\": " << (exit_code == 0 ? "true" : "false") << ","
-      << std::endl;
-  ofs << "  \"timestamp\": \"" << timestamp << "\"";
-
-  if (!diagnostics.empty()) {
-    ofs << "," << std::endl;
-    ofs << "  \"diagnostics\": \"" << diagnostics << "\"" << std::endl;
-  } else {
-    ofs << std::endl;
-  }
-
-  ofs << "}" << std::endl;
-  ofs.close();
-
-  std::clog << "Exit status written to " << filename << ": "
-            << (exit_code == 0 ? "SUCCESS" : "FAILURE") << " - " << exit_reason
-            << std::endl;
-}
+// writeExitStatus() removed 2026-08-21: replaced by runmeta::finalize() which
+// consolidates exit info with all other run provenance in run_metadata.json.
+// See docs/NIST-diagnostic.md for the design decision (Item 6b: replace).

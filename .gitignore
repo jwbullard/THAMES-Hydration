@@ -44,6 +44,7 @@ doc/InputGuide/*.synctex.gz
 # ignore files that will be created upon complilation
 src/Doxyfile
 src/Doxyfile$
+src/version.h
 src/thameslib/myconfig.h
 # src/vcctl2thames/vcctl2thames.h
 src/GEMS3K-standalone/Resources
