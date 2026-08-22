@@ -10,6 +10,47 @@ using std::cout;
 using std::endl;
 using std::string;
 
+namespace fs = std::filesystem;
+
+//
+// Portable file operations. The old code shelled out to `cp -f`, `mv -f`,
+// and `mkdir -p`, which fail on Windows cmd.exe (no such commands). These
+// helpers do the same job through std::filesystem and rethrow any error as
+// a FileException so the surrounding error path is unchanged.
+//
+// copyFileInto and moveFileInto interpret the second argument as a
+// destination *directory* (which is what the old `cp -f src outDir/.` idiom
+// did) and preserve the source filename inside it.
+//
+
+static void copyFileInto(const string &src, const string &destDir,
+                         const string &funcName) {
+  try {
+    fs::path dst = fs::path(destDir) / fs::path(src).filename();
+    fs::copy_file(src, dst, fs::copy_options::overwrite_existing);
+  } catch (const fs::filesystem_error &e) {
+    throw FileException("thames", funcName, src, e.what());
+  }
+}
+
+static void moveFileInto(const string &src, const string &destDir,
+                         const string &funcName) {
+  try {
+    fs::path dst = fs::path(destDir) / fs::path(src).filename();
+    fs::rename(src, dst);
+  } catch (const fs::filesystem_error &e) {
+    throw FileException("thames", funcName, src, e.what());
+  }
+}
+
+static void ensureDir(const string &dir, const string &funcName) {
+  try {
+    fs::create_directories(dir);
+  } catch (const fs::filesystem_error &e) {
+    throw FileException("thames", funcName, dir, e.what());
+  }
+}
+
 /**
 @brief The main block for running THAMES.
 
@@ -738,9 +779,6 @@ void deleteDynAllocMem(ChemicalSystem *ChemSys, Lattice *Mic, RanGen *RNG,
                       "No specific error reason recorded; see thames.log");
   }
 
-  string buff = "";
-  int resCallSystem;
-
   if (Ctrl) {
     delete Ctrl;
   }
@@ -771,25 +809,15 @@ void deleteDynAllocMem(ChemicalSystem *ChemSys, Lattice *Mic, RanGen *RNG,
   string name = "ipmlog.txt";
   ifstream f(name.c_str());
   if (f.good()) {
-    buff = "mv -f ipmlog.txt " + OutputFolder + "/.";
-    resCallSystem = system(buff.c_str());
-    if (resCallSystem == -1) {
-      throw FileException("thames", "deleteDynAllocMem", buff, "FAILED");
-    }
-    // std::clog << buff << endl;
     f.close();
+    moveFileInto(name, OutputFolder, "deleteDynAllocMem");
   }
 
   name = "IPM_dump.txt";
   f.open(name.c_str());
   if (f.good()) {
-    buff = "mv -f IPM_dump.txt " + OutputFolder + "/.";
-    resCallSystem = system(buff.c_str());
-    if (resCallSystem == -1) {
-      throw FileException("thames", "deleteDynAllocMem", buff, "FAILED");
-    }
-    // std::clog << buff << endl;
     f.close();
+    moveFileInto(name, OutputFolder, "deleteDynAllocMem");
   }
 
   std::clog << endl
@@ -904,13 +932,8 @@ void prepOutputFolder(const string &OutputFolder, string &jobRoot,
                       const string &gemInputName, string &statFileName,
                       const string &initMicName, const string &simParamName) {
 
-  int resCallSystem;
+  ensureDir(OutputFolder, "prepOutputFolder");
 
-  string buff = "mkdir -p " + OutputFolder;
-  resCallSystem = system(buff.c_str());
-  if (resCallSystem == -1) {
-    throw FileException("thames", "prepOutputFolder", buff, "FAILED");
-  }
   jobRoot = OutputFolder + "/" + jobRoot;
   std::clog << "   - jobRoot           :  " << jobRoot << endl;
   std::clog.flush();
@@ -930,11 +953,7 @@ void prepOutputFolder(const string &OutputFolder, string &jobRoot,
   if (buff1[0] == '"' || buff1[0] == '\'') {
     buff1 = buff1.substr(1, buff1.size() - 2);
   }
-  buff = "cp -f " + buff1 + " " + OutputFolder + "/.";
-  resCallSystem = system(buff.c_str());
-  if (resCallSystem == -1) {
-    throw FileException("thames", "prepOutputFolder", buff, "FAILED");
-  }
+  copyFileInto(buff1, OutputFolder, "prepOutputFolder");
 
   // IPM file
   buff1.clear();
@@ -942,11 +961,7 @@ void prepOutputFolder(const string &OutputFolder, string &jobRoot,
   if (buff1[0] == '"' || buff1[0] == '\'') {
     buff1 = buff1.substr(1, buff1.size() - 2);
   }
-  buff = "cp -f " + buff1 + " " + OutputFolder + "/.";
-  resCallSystem = system(buff.c_str());
-  if (resCallSystem == -1) {
-    throw FileException("thames", "prepOutputFolder", buff, "FAILED");
-  }
+  copyFileInto(buff1, OutputFolder, "prepOutputFolder");
 
   // DBR file
   buff1.clear();
@@ -956,29 +971,10 @@ void prepOutputFolder(const string &OutputFolder, string &jobRoot,
   if (buff1[0] == '"' || buff1[0] == '\'') {
     buff1 = buff1.substr(1, buff1.size() - 2);
   }
-  buff = "cp -f " + buff1 + " " + OutputFolder + "/.";
-  resCallSystem = system(buff.c_str());
-  if (resCallSystem == -1) {
-    throw FileException("thames", "prepOutputFolder", buff, "FAILED");
-  }
-
-  buff = "cp -f " + gemInputName + " " + OutputFolder + "/.";
-  resCallSystem = system(buff.c_str());
-  if (resCallSystem == -1) {
-    throw FileException("thames", "prepOutputFolder", buff, "FAILED");
-  }
-
-  buff = "cp -f " + initMicName + " " + OutputFolder + "/.";
-  resCallSystem = system(buff.c_str());
-  if (resCallSystem == -1) {
-    throw FileException("thames", "prepOutputFolder", buff, "FAILED");
-  }
-
-  buff = "cp -f " + simParamName + " " + OutputFolder + "/.";
-  resCallSystem = system(buff.c_str());
-  if (resCallSystem == -1) {
-    throw FileException("thames", "prepOutputFolder", buff, "FAILED");
-  }
+  copyFileInto(buff1, OutputFolder, "prepOutputFolder");
+  copyFileInto(gemInputName, OutputFolder, "prepOutputFolder");
+  copyFileInto(initMicName, OutputFolder, "prepOutputFolder");
+  copyFileInto(simParamName, OutputFolder, "prepOutputFolder");
 
   std::clog << "     => All input files have been copied into " << OutputFolder
             << " folder" << endl;

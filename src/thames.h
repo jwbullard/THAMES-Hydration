@@ -122,6 +122,7 @@ Department of Commerce, April, 2000.
 #include "thameslib/StrainEnergy.h"
 #include "thameslib/ThermalStrain.h"
 #include "thameslib/global.h"
+#include <filesystem>
 #include <fstream>
 #include <getopt.h>
 #include <sstream>

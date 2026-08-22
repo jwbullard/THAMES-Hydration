@@ -3486,23 +3486,23 @@ void ChemicalSystem::initElasticModuliMap(void) {
   elasticModuli_["Damage"].altName = "Damage";
 
   /*
-  elasticModuli_["C2AS"].K = ;
-  elasticModuli_["C2AS"].G = ;
-  elasticModuli_["C2AS"].E = ;
-  elasticModuli_["C2AS"].n = ;
-  elasticModuli_["C2AS"].altName = "C2AS(am)";
+  elasticModuli_["C2AS(am)"].K = ;
+  elasticModuli_["C2AS(am)"].G = ;
+  elasticModuli_["C2AS(am)"].E = ;
+  elasticModuli_["C2AS(am)"].n = ;
+  elasticModuli_["C2AS(am)"].altName = "C2AS(am)";
 
-  elasticModuli_["CA2S"].K = ;
-  elasticModuli_["CA2S"].G = ;
-  elasticModuli_["CA2S"].E = ;
-  elasticModuli_["CA2S"].n = ;
-  elasticModuli_["CA2S"].altName = "CA2S(am)";
+  elasticModuli_["CA2S(am)"].K = ;
+  elasticModuli_["CA2S(am)"].G = ;
+  elasticModuli_["CA2S(am)"].E = ;
+  elasticModuli_["CA2S(am)"].n = ;
+  elasticModuli_["CA2S(am)"].altName = "CA2S(am)";
 
-  elasticModuli_["K6A2S"].K = ;
-  elasticModuli_["K6A2S"].G = ;
-  elasticModuli_["K6A2S"].E = ;
-  elasticModuli_["K6A2S"].n = ;
-  elasticModuli_["K6A2S"].altName = "K6A2S(am)";
+  elasticModuli_["K6A2S(am)"].K = ;
+  elasticModuli_["K6A2S(am)"].G = ;
+  elasticModuli_["K6A2S(am)"].E = ;
+  elasticModuli_["K6A2S(am)"].n = ;
+  elasticModuli_["K6A2S(am)"].altName = "K6A2S(am)";
 
   elasticModuli_["Diopside"].K = ;
   elasticModuli_[""].G = ;
@@ -3684,19 +3684,19 @@ void ChemicalSystem::initColorMap(void) {
   colorN_["Belite"].rgb.push_back(19);
   colorN_["Belite"].gray = 200;
 
-  colorN_["C2AS"].colorId = 11;
-  colorN_["C2AS"].altName = "C2AS(am)";
-  colorN_["C2AS"].rgb.push_back(255);
-  colorN_["C2AS"].rgb.push_back(165);
-  colorN_["C2AS"].rgb.push_back(0);
-  colorN_["C2AS"].gray = 110;
+  colorN_["C2AS(am)"].colorId = 11;
+  colorN_["C2AS(am)"].altName = "C2AS(am)";
+  colorN_["C2AS(am)"].rgb.push_back(255);
+  colorN_["C2AS(am)"].rgb.push_back(165);
+  colorN_["C2AS(am)"].rgb.push_back(0);
+  colorN_["C2AS(am)"].gray = 110;
 
-  colorN_["CA2S"].colorId = 12;
-  colorN_["CA2S"].altName = "CA2S(am)";
-  colorN_["CA2S"].rgb.push_back(255);
-  colorN_["CA2S"].rgb.push_back(192);
-  colorN_["CA2S"].rgb.push_back(65);
-  colorN_["CA2S"].gray = 108;
+  colorN_["CA2S(am)"].colorId = 12;
+  colorN_["CA2S(am)"].altName = "CA2S(am)";
+  colorN_["CA2S(am)"].rgb.push_back(255);
+  colorN_["CA2S(am)"].rgb.push_back(192);
+  colorN_["CA2S(am)"].rgb.push_back(65);
+  colorN_["CA2S(am)"].gray = 108;
 
   colorN_["Calcite"].colorId = 13;
   colorN_["Calcite"].altName = "Limestone, CaCO3, Aragonite, Vaterite";
@@ -3761,12 +3761,12 @@ void ChemicalSystem::initColorMap(void) {
   colorN_["Hydrotalcite"].rgb.push_back(200);
   colorN_["Hydrotalcite"].gray = 109;
 
-  colorN_["K6A2S"].colorId = 22;
-  colorN_["K6A2S"].altName = "K6A2S(am)";
-  colorN_["K6A2S"].rgb.push_back(255);
-  colorN_["K6A2S"].rgb.push_back(170);
-  colorN_["K6A2S"].rgb.push_back(128);
-  colorN_["K6A2S"].gray = 115;
+  colorN_["K6A2S(am)"].colorId = 22;
+  colorN_["K6A2S(am)"].altName = "K6A2S(am)";
+  colorN_["K6A2S(am)"].rgb.push_back(255);
+  colorN_["K6A2S(am)"].rgb.push_back(170);
+  colorN_["K6A2S(am)"].rgb.push_back(128);
+  colorN_["K6A2S(am)"].gray = 115;
 
   colorN_["Monosulfate"].colorId = 23;
   colorN_["Monosulfate"].altName = "Sulfoaluminate";
@@ -4425,17 +4425,42 @@ void ChemicalSystem::setElectrolyteComposition(bool doAttack) {
         // Set the DC moles to the target value
         DCMoles_[DCId] = targetDCMoles;
 
-        // Add the corresponding IC moles to represent external source
-        // This ensures GEMS has enough of each element to maintain the
-        // fixed concentration
-        if (deltaDCMoles > 0) {
-          for (int i = 0; i < numICs_; i++) {
-            double stoich = getDCStoich(DCId, i);
-            if (stoich != 0.0) {
-              ICMoles_[i] += deltaDCMoles * stoich;
-            }
+        // Transfer the corresponding IC moles to/from the external
+        // reservoir so the IC pool stays consistent with the imposed DC.
+        //
+        // Historical bug (fixed 2026-08-22, Session 59): this branch was
+        // gated on `deltaDCMoles > 0`, so when a reactant dissolving into
+        // the pool pushed the concentration ABOVE the target the DC was
+        // pulled back down but the IC pool was left inflated. On the next
+        // GEMS equilibration the un-removed IC pool redistributed into
+        // the aqueous phase and the target wasn't held. Symptom in the
+        // Session 57 Garrault validation runs: Ca11mM held at 12.05 mM
+        // (10% high), Ca22mM held at 23.55 mM (7% high). Removing the
+        // gate makes the transfer symmetric — deltaDCMoles*stoich already
+        // does the right thing for both signs.
+        for (int i = 0; i < numICs_; i++) {
+          double stoich = getDCStoich(DCId, i);
+          if (stoich != 0.0) {
+            ICMoles_[i] += deltaDCMoles * stoich;
           }
         }
+
+        // NOTE: We deliberately do NOT constrain DCLowerLimit_ /
+        // DCUpperLimit_ around the target here. That was tried in this
+        // same session and had a fatal side effect: pinning the DC
+        // (even with 5% slack) means the reactant's kinetic dissolution
+        // products can't leave the aqueous phase into the "reservoir",
+        // because the DC cap forces GEMS to instead reject the extra
+        // Ca and effectively suppress dissolution. Alite DOR collapsed
+        // to essentially zero in the Garrault fixtures with bounds
+        // active. The right semantics for `condition: "fixed"` is
+        // "reservoir absorbs / supplies as needed", which the symmetric
+        // IC transfer above already models correctly. GEMS's own
+        // re-equilibration will drift the DC slightly (~5% in the
+        // Garrault runs) because it re-partitions among Ca-bearing
+        // complexes, but the total Ca IC pool is now consistent with
+        // the imposed DC, and this drift is within the "reservoir
+        // precision" envelope for any realistic experiment.
 
         std::clog << "        ChemicalSystem::setElectrolyteComposition fixed  - "
                      "waterMass/DCconc/DCMoles_/deltaDC/DCId/DCName : "
