@@ -177,6 +177,13 @@ add_executable (thames ${SOURCES})
 
 target_link_libraries (thames thameslib ${EXTRA_LIBS} PNG::PNG)
 
+# MinGW-w64 requires ws2_32 for winsock2 symbols. RunMetadata.cc calls
+# ::gethostname() via <winsock2.h>; without this the link fails with
+# undefined reference to __imp_gethostname.
+if(WIN32)
+  target_link_libraries (thames ws2_32)
+endif()
+
 # macOS 26.4+ requires explicit ad-hoc signing for binaries to run
 if(APPLE)
   add_custom_command(TARGET thames POST_BUILD
