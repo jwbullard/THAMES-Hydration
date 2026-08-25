@@ -7,7 +7,9 @@
 
 #include <algorithm>
 #include <limits>
+#include <sstream>
 
+#include "RunMetadata.h"
 #include "SaturatingRateModel.h"
 
 using std::cout;
@@ -2099,30 +2101,58 @@ void KineticController::calculateKineticStep(double time, const double timestep,
             }
             keepNumDCMoles = DCMoles_[DCId] - numDCMolesDissolved;
 
-            // Commit the aqueous transfer for the (possibly capped)
-            // solid change. See KineticController.h for design rationale.
+            // DC-depletion clamp (Session 62). If the kinetic law's requested
+            // dissolution exceeds the DC moles available, clamp both the
+            // dissolved amount and keepNumDCMoles to the physically-realizable
+            // values instead of aborting the whole run. Previously this
+            // condition called exit(0) mid-simulation, killing long runs at
+            // the first small-phase depletion event (e.g. Ferrite at ~14 h in
+            // fly-ash mixes -- reproduced Session 61 on cem152-fa). The clamp
+            // is physically correct at depletion: dissolve exactly what's
+            // left, no more. Must run BEFORE commitSolidICTransfer so the
+            // aqueous side receives the clamped (not the over-large) amount.
+            if (keepNumDCMoles < 0) {
+              const double origRequest = numDCMolesDissolved;
+              numDCMolesDissolved = DCMoles_[DCId];
+              keepNumDCMoles = 0.0;
+              std::clog
+                  << endl
+                  << "  KineticController::calculateKineticStep WARNING for "
+                     "cyc = "
+                  << cyc << " : DC-depletion clamp applied" << endl
+                  << "    midx/DCId/phName : " << midx << " / " << DCId
+                  << " / " << phaseKineticModel_[midx]->getName() << endl
+                  << "    DCMoles_/requested/clamped : " << DCMoles_[DCId]
+                  << " / " << origRequest << " / " << numDCMolesDissolved
+                  << endl;
+            }
+
+            // Commit the aqueous transfer for the (possibly capped, possibly
+            // clamped) solid change. See KineticController.h for design
+            // rationale. Moved BELOW the depletion clamp above so the
+            // aqueous IC side does not receive an over-large transfer that
+            // the solid side cannot honor.
             if (std::fabs(numDCMolesDissolved) > 0.0) {
               commitSolidICTransfer(DCId, -numDCMolesDissolved);
             }
-
-            if (keepNumDCMoles < 0) {
-              std::clog
-                  << endl
-                  << "KineticController::calculateKineticStep error for cyc = "
-                  << cyc << " : keepNumDCMoles < 0  !!!" << endl;
-              std::clog
-                  << "midx/DCId/DCMoles_/numDCMolesDissolved/keepNumDCMoles : "
-                  << midx << " / " << DCId << " / " << DCMoles_[DCId] << " / "
-                  << numDCMolesDissolved << " / " << keepNumDCMoles << endl;
-              std::clog << "scaledMass/massDissolved/totMassImpurity/"
-                           "massDissolved - totMassImpurity : "
-                        << scaledMass << " / " << massDissolved << " / "
-                        << totMassImpurity << " / "
-                        << massDissolved - totMassImpurity << endl;
-              std::clog << endl << "end program" << endl;
-              exit(0);
-            }
           } else if (scaledMass < 0) {
+            // Mass/moles bookkeeping inconsistency -- distinct from the DC
+            // depletion case above. Genuine failure; keep the abort so this
+            // surfaces loudly, but finalize the provenance sidecar first
+            // (Session 62) so run_metadata.json records a real exit reason
+            // instead of leaving exit_reason="in_progress". Matches the
+            // pattern used in thames.cc ChemicalSystem catch blocks.
+            std::ostringstream _diag;
+            _diag << "cyc=" << cyc
+                  << " midx=" << midx
+                  << " phName=" << phaseKineticModel_[midx]->getName()
+                  << " scaledMass=" << scaledMass
+                  << " massDissolved=" << massDissolved
+                  << " scaledMassIni=" << scaledMassIni_[midx];
+            runmeta::finalize(
+                1,
+                "KineticController::calculateKineticStep: scaledMass < 0",
+                _diag.str());
             std::clog
                 << endl
                 << "KineticController::calculateKineticStep error for cyc = "
@@ -2132,7 +2162,7 @@ void KineticController::calculateKineticStep(double time, const double timestep,
                       << " / " << phaseKineticModel_[midx]->getName() << " / "
                       << scaledMassIni_[midx] << endl;
             std::clog << endl << "end program" << endl;
-            exit(0);
+            exit(1);
           } else {
             keepNumDCMoles = 0.0;
           }
