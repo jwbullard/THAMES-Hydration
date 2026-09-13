@@ -285,7 +285,7 @@ public:
     kineticData.saturatingDissolution.reset();
     kineticData.saturatingPrecipitation.reset();
     // Same reason: reset the transport block so shell parameters from
-    // one phase don't leak into another (Phase 2 of transport plan).
+    // one phase don't leak into another.
     kineticData.transport.reset();
   }
 
@@ -408,7 +408,7 @@ public:
 
   /**
   @brief Parse the optional `transport` sub-block for shell-diffusion
-         kinetics (Phase 2 of the mass-transport plan).
+         kinetics.
 
   Independent of `nucleation` — a phase can have shell-diffusion
   without CNT nucleation and vice versa. Populates

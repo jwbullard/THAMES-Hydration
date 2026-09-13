@@ -1,7 +1,6 @@
 /**
 @struct TransportParameters
-@brief Shell-diffusion parameters for one phase, used by Phase-3 of
-       the mass-transport-kinetics extension.
+@brief Shell-diffusion parameters for one phase.
 
 Populated by KineticController::parseTransportBlock from a `transport`
 sub-block inside a phase's `kinetic_data`. Consumed at simulation time
@@ -9,10 +8,10 @@ by Standard / SaturatingRate / Pozzolanic when computing the effective
 dissolution or precipitation rate through a semipermeable product
 shell.
 
-The full plan (approved 2026-07-30) is at
-~/.claude/plans/effervescent-forging-diffie.md. Phase 2 lands this
-struct plus the parser plus xport-namespace scaffolding; Phase 3 wires
-the rate models to actually consume it.
+Framework landed 2026-07-30 (Session 55). Design conversation preserved
+at `docs/transport_kinetics_brainstorm.md`. See `TransportCorrection.h`
+for the file-level status of the pieces (production path vs deferred
+refinements) and the C_eq / K-correction caveat.
 
 Fields:
 - `dEff`: effective diffusivity of the limiting dependent component (DC)
@@ -25,16 +24,21 @@ Fields:
   too large lets non-local topography bias the direction. Default 2.5.
 - `numShellBins`: K, the number of equal-frequency bins in the per-phase
   δ histogram. K=1 collapses to a single scalar (debugging / byte-parity);
-  K=5 default (Phase-3 evaluation); K → N_sites approaches per-site
-  rate summation (Option 4 fallback).
+  K=5 is the default; K → N_sites approaches per-site rate summation.
 - `limitingDCName`: name of the DC whose diffusion through the shell
   rate-limits the reaction. Not an IC name — the DC. Ca+2 for
   Alite/Belite/Portlandite, SO4-2 for ettringite/gypsum, SiO2@ for
   silica fume, etc. Empty string ("") means the transport block is
   parsed but disabled (rate model falls back to no shell correction).
+  A future refinement may make the "actually most-throttling DC" a
+  runtime selection when multiple candidates exist for a phase.
 - `stoich`: stoichiometry of the limiting DC in the solid's dissolution
   reaction (e.g., 1 for Ca in Portlandite, 6 for Ca in ettringite,
-  3 for SO4 in ettringite). Used to convert bulk SI back to C_eq.
+  3 for SO4 in ettringite). Used to convert bulk SI back to C_eq via
+  `C_eq = C_bulk / SI^(1/stoich)`. This inversion assumes dilute-solution
+  behavior (activity ≈ concentration) and that the limiting DC dominates
+  the ion-activity product — both fine for typical Portland pore
+  solutions, worth revisiting at high ionic strength.
 
 Absence of a `transport` block in the JSON leaves the phase's
 KineticData::transport optional empty; the rate model then uses its

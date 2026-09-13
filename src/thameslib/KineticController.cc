@@ -601,9 +601,9 @@ void KineticController::parseKineticDataForStandard(
   // Optional CNT nucleation block; leaves kineticData.nucleation empty if absent.
   parseNucleationBlock(p, kineticData);
 
-  // Optional shell-diffusion transport block (Phase 2 of transport-
-  // kinetics plan). Independent of nucleation. Leaves
-  // kineticData.transport empty if absent (rate model uses no-shell path).
+  // Optional shell-diffusion transport block. Independent of
+  // nucleation. Leaves kineticData.transport empty if absent
+  // (rate model uses the no-shell path).
   parseTransportBlock(p, kineticData);
 
   return;
@@ -764,9 +764,9 @@ void KineticController::parseKineticDataForPozzolanic(
   // Optional CNT nucleation block; leaves kineticData.nucleation empty if absent.
   parseNucleationBlock(p, kineticData);
 
-  // Optional shell-diffusion transport block (Phase 2 of transport-
-  // kinetics plan). Independent of nucleation. Leaves
-  // kineticData.transport empty if absent (rate model uses no-shell path).
+  // Optional shell-diffusion transport block. Independent of
+  // nucleation. Leaves kineticData.transport empty if absent
+  // (rate model uses the no-shell path).
   parseTransportBlock(p, kineticData);
 
   return;
@@ -898,8 +898,8 @@ void KineticController::parseNucleationBlock(const json::iterator p,
 
 void KineticController::parseTransportBlock(const json::iterator p,
                                             struct KineticData &kineticData) {
-  // Phase 2 of the transport-kinetics plan. Parses an optional
-  // `transport` sub-block inside a phase's `kinetic_data`. Called from
+  // Parses an optional `transport` sub-block inside a phase's
+  // `kinetic_data`. Called from
   // parseKineticDataForStandard / -Pozzolanic / -SaturatingRate after
   // parseNucleationBlock. Independent of nucleation (a phase can have
   // shell-diffusion without CNT and vice-versa).
@@ -1448,9 +1448,9 @@ void KineticController::parseKineticDataForSaturatingRate(
   // Optional CNT nucleation block; leaves kineticData.nucleation empty if absent.
   parseNucleationBlock(p, kineticData);
 
-  // Optional shell-diffusion transport block (Phase 2 of transport-
-  // kinetics plan). Independent of nucleation. Leaves
-  // kineticData.transport empty if absent (rate model uses no-shell path).
+  // Optional shell-diffusion transport block. Independent of
+  // nucleation. Leaves kineticData.transport empty if absent
+  // (rate model uses the no-shell path).
   parseTransportBlock(p, kineticData);
 }
 
@@ -1623,16 +1623,18 @@ void KineticController::calculateKineticStep(double time, const double timestep,
   phaseDissolvedId.resize(pKMsize_, 0);
   double numDCMolesDissolved, scaledMass, massDissolved;
 
-  // Phase 1 diagnostic: log per-phase shell-thickness histogram for
-  // every kinetic phase this cycle. Verbose-gated because the walker
-  // is O(dissolutionSites × normalRadius^3) and can add several
-  // seconds per cycle on a 200³ paste. No rate law consumes the
-  // output yet — this is pure instrumentation to verify the walker
-  // produces sensible δ trajectories on real hydration configs
-  // (Alite δ starts at 0, rises smoothly as C-S-H nucleates, etc).
-  // Defaults (2.5 voxel normal radius, 50 walk steps, K=5 bins) are
-  // hard-coded here; when Phase 2 lands they'll be pulled from the
-  // per-phase `transport` JSON block instead.
+  // Per-phase shell-thickness histogram diagnostic. Verbose-gated
+  // because the walker is O(dissolutionSites × normalRadius^3) and
+  // can add several seconds per cycle on a 200³ paste. Independent
+  // of the rate-consumption path (which lives in the concrete
+  // kinetic models and does its own ShellStats call, driven by that
+  // phase's `transport` block). Purpose here is instrumentation:
+  // verify the walker produces sensible δ trajectories on real
+  // hydration configs (Alite δ starts at 0, rises smoothly as C-S-H
+  // nucleates, etc). Defaults (2.5 voxel normal radius, 50 walk
+  // steps, K=5 bins) are hard-coded — a future refinement would
+  // pull them from each phase's parsed `transport` block instead
+  // of using globals, but this is instrumentation, not production.
   if (verbose_) {
     const double normalRadius = 2.5;
     const int maxWalkSteps = 50;

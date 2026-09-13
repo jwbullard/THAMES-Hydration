@@ -84,8 +84,8 @@ protected:
       /**< fractional-voxel accumulator drained when it crosses 1.0 */
 
   std::optional<TransportParameters> transport_;
-      /**< Shell-diffusion parameters (Phase 3 of transport-kinetics
-           plan). Empty = no shell correction. */
+      /**< Shell-diffusion parameters (opt-in, per phase). Empty =
+           no shell correction. */
   int limitingDCId_ = -1;
       /**< DC id of the limiting species; see StandardKineticModel.h
            for semantics. */

@@ -9,8 +9,8 @@ inside a ball of radius r (Bullard's method — see plan phase 1) and
 (2) walking outward one voxel at a time through the product shell
 until reaching an electrolyte voxel or a step cap. The per-site δ
 distribution is aggregated per phase into a K-bin equal-frequency
-histogram so the nonlinear rate law can be evaluated bin-wise in
-Phase 3 without collapsing to a single scalar (see
+histogram so the nonlinear rate law can be evaluated bin-wise by the
+kinetic models without collapsing to a single scalar (see
 `docs/POST_ALPHA_TODOS.md` and `docs/transport_kinetics_brainstorm.md`
 for the physics rationale).
 
@@ -47,8 +47,9 @@ without hitting electrolyte — those sites are treated as having δ
 above the maximum resolvable shell thickness and are excluded from the
 harmonic-mean aggregate (they contribute zero to the diffusion rate).
 `shellPhaseIds` records the microstructure-phase id of each product
-voxel visited, in walk order, so Phase 3 can pick a per-bin D_eff from
-the dominant shell composition.
+voxel visited, in walk order, so a future per-shell-phase D_eff map
+can look up the value from the dominant shell composition (see
+`TransportCorrection.h::pickDEff`).
 */
 struct ShellHit {
   int deltaVoxels = 0;
@@ -64,7 +65,7 @@ as the median of the sites that fall in the bin (robust to outliers
 within a bin). `siteFraction` is the fraction of the phase's total
 dissolution sites that fall in this bin. `dominantShellPhaseId` is
 the mode of the intermediate-phase histogram across the sites in the
-bin — the shell composition Phase 3 will use for D_eff lookup.
+bin — the shell composition for future per-shell-phase D_eff lookup.
 */
 struct ShellBin {
   double deltaRep = 0.0;              // representative shell thickness [m]
@@ -75,8 +76,8 @@ struct ShellBin {
 /**
 @brief Per-phase shell-thickness statistics for one cycle.
 
-`bins` is the K-bin equal-frequency histogram consumed by Phase 3's
-rate calculation. `deltaHarmonicRaw` and `deltaArithmeticRaw` are
+`bins` is the K-bin equal-frequency histogram consumed by the
+kinetic models' rate calculation. `deltaHarmonicRaw` and `deltaArithmeticRaw` are
 computed from the full unbinned distribution and retained for
 diagnostics (calibration debugging, visual verification that the bins
 are capturing the distribution). `numSitesTotal` includes both

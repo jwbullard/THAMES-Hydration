@@ -133,9 +133,9 @@ PozzolanicModel::PozzolanicModel(ChemicalSystem *cs, Lattice *lattice,
   // Copy in CNT parameters if present in the input JSON (empty otherwise).
   nucleation_ = kineticData.nucleation;
 
-  // Copy transport parameters if present (Phase 3 of transport-
-  // kinetics plan). See StandardKineticModel.cc for the resolution
-  // semantics of limitingDCId_.
+  // Copy transport parameters if present. See
+  // StandardKineticModel.cc for the resolution semantics of
+  // limitingDCId_.
   transport_ = kineticData.transport;
   limitingDCId_ = -1;
   if (transport_.has_value() && !transport_->limitingDCName.empty()) {
@@ -314,9 +314,14 @@ void PozzolanicModel::calculateKineticStep(const double timestep,
     // double saturationIndex = solut_->getSI(GEMPhaseId_);
     double saturationIndex = chemSys_->getMicroPhaseSI(microPhaseId_);
 
-    // Phase 3 shell correction: apply the series-resistance closure
-    // when a transport block is present. See StandardKineticModel.cc
-    // for the derivation and guard rationale.
+    // Shell-diffusion series-resistance correction. See the block
+    // comment in StandardKineticModel.cc::calculateKineticStep for
+    // the derivation (linear-rate closed form → factor = 1/(1+Da)
+    // summed per bin), the C_eq caveat tied to the ln K corrections
+    // in S56/S57, and the guard rationale. The linear closed form
+    // is exact only for f(Ω) = 1 − Ω; Pozzolanic's Avrami-Cottrell
+    // nonlinearity would be tightened by a future switch to
+    // xport::solveSurfaceConcentration.
     if (transport_.has_value() && limitingDCId_ >= 0) {
       const double waterMass = chemSys_->getDCMoles("H2O@") *
                                chemSys_->getDCMolarMass("H2O@") * 0.001;

@@ -7,11 +7,37 @@ models (Standard / SaturatingRate / Pozzolanic) to compute an effective
 rate that combines the surface-reaction kinetic law with a Fickian
 diffusion resistance through the product shell.
 
-Phase 2 lands this header with declarations only + stubbed bodies;
-Phase 3 fills in the Newton solver, the D_eff picker, and the diagnostic
-r_kin / r_diff exposure. Keeping the API surface stable across the two
-phases so the rate models can wire against this header once and not
-change again when Phase 3 fills in the bodies.
+Framework landed 2026-07-30 (Session 55). Design conversation preserved
+verbatim at `docs/transport_kinetics_brainstorm.md`. Opt-in per phase
+via a `transport` sub-block under `kinetic_data`; absent that block,
+kinetic models fall back to their prior no-shell rate calculation.
+
+Current state of the pieces exposed by this header:
+  - `shellCorrectionFactor` — the production path. Closed-form
+    linear-rate correction summed over the per-phase K-bin δ
+    histogram. All three kinetic models call this today.
+  - `solveSurfaceConcentration` — Brent iteration on an arbitrary
+    driving-force functor. Implemented and unit-tested (see
+    `test_transport_correction`) but NOT called from any kinetic
+    model as of 2026-09-12. Reserved for a future switch when we
+    want the true SR nonlinearity at the flux balance instead of
+    the linear closed-form. Tracked in `docs/POST_ALPHA_TODOS.md`.
+  - `pickDEff` — currently returns the block's global `dEff`
+    regardless of shell composition. A per-shell-phase D_eff map
+    (Ca+2 through C-S-H vs Ca+2 through AFm, etc.) is a deferred
+    refinement; the plumbing to select on `bin.dominantShellPhaseId`
+    is already in `shellCorrectionFactor`.
+
+C_eq caveat for readers coming in cold. The kinetic models compute
+C_eq at the call site from the reactant's own saturation index via
+C_eq = C_bulk / SI^(1/stoich). Numerically physical values (mM to
+hundreds of mM for typical species) depend on the equilibrium
+constant being physically correct. Pre-Session-56, ln K(C3S) was
+off by ~26 units, S(Alite) was ~1e-14 in a real paste, and C_eq
+came out ~1e14 mol/m³ — an artifact, not a formulation error.
+The S56 / S57 ln K corrections restored physical C_eq values;
+future clinker phases migrating from PK to SR/Standard need the
+same K audit before their transport blocks will behave sensibly.
 
 No THAMES dependencies. Header-only from the model perspective; only
 this file's translation unit pulls in <cmath>.
@@ -66,6 +92,12 @@ double solveSurfaceConcentrationLinear(double k, double C_eq, double dEff,
 @brief Solve the steady-state flux-balance equation for arbitrary
        driving-force f(Ω) via Brent's root-finder.
 
+NOT CURRENTLY WIRED: all three kinetic models use
+`shellCorrectionFactor` (linear closed-form) as of 2026-09-12.
+Wiring this true-nonlinear path is a POST_ALPHA refinement — see
+"Shell-diffusion long-duration validation run" in POST_ALPHA_TODOS
+and its "Refinements that may be worth landing first" list.
+
 Solves for C_surf that satisfies
 
     k · f(C_surf / C_eq)  =  dEff · (C_surf - C_bulk) / delta
@@ -97,13 +129,20 @@ double solveSurfaceConcentration(double k, double C_eq, double dEff,
 
 Looks up the phase pair (reactant, shell) in the transport
 parameters and returns the corresponding effective diffusivity.
-Phase 2 stub returns the block's global dEff regardless of shell
-composition. Phase 3 will introduce a per-shell-phase D_eff map so
-different shell materials (C-S-H vs AFm vs calcite around the same
-reactant) get different values.
+
+CURRENT IMPLEMENTATION: returns the block's global `dEff`
+regardless of shell composition (shellPhaseId argument unused).
+The per-shell-phase D_eff map that would let e.g. Ca+2 through
+C-S-H and Ca+2 through AFm get different values is a deferred
+refinement — the calling loop in `shellCorrectionFactor` already
+passes `bin.dominantShellPhaseId` through, so wiring a real map
+here is the only remaining step.
 
 @param shellPhaseId  microstructure phase id of the dominant shell
-                     traversed in the walk (from ShellBin)
+                     traversed in the walk (from ShellBin); currently
+                     ignored, but preserved in the API so the future
+                     per-shell-phase lookup does not need a call-site
+                     change.
 @param params        the phase's transport parameters
 @return effective diffusivity for that (reactant, shell) pair
 */
@@ -128,13 +167,31 @@ the shell-corrected rate:
 
     r_effective = r_kinetic_at_bulk_omega * factor
 
-For the linear driving-force f(Ω) = 1 - Ω this is EXACT (equivalent
-to solving the steady-state flux balance per bin and summing).
-For nonlinear f (Standard's (1-Ω^p)^q, SR's saturating form), it
-is a first-order approximation that is exact near equilibrium and
-degrades gracefully far from equilibrium. Future refinement will
-use Brent's method per bin for exact nonlinear behavior; the API
-of this function is the same in both cases so callers won't change.
+Derivation of the closed form (for the linear rate law
+`r = k · (1 − C_surf/C_eq)`, dissolution): steady-state flux
+balance across the shell reads
+
+    k · (1 − C_surf/C_eq)  =  D_eff · (C_surf − C_bulk) / δ
+
+Solving for C_surf and substituting back into `r`, then dividing
+by the no-shell rate `r_bulk = k · (1 − C_bulk/C_eq)`, collapses
+to `1 / (1 + Da)` with `Da = k · δ / (D_eff · C_eq)`. Summing
+that per-bin correction weighted by `siteFraction` gives the
+returned factor.
+
+For the linear driving-force this is EXACT (per-bin steady-state
+flux balance). For nonlinear f (Standard's (1-Ω^p)^q, SR's
+saturating form), it is a first-order approximation that is exact
+near equilibrium and degrades gracefully far from equilibrium.
+Wiring `solveSurfaceConcentration` per bin for exact nonlinear
+behavior is deferred (see that function's doc); the API of this
+function will not change when that switch happens.
+
+C_eq numerical sanity: the caller derives C_eq from the reactant's
+saturation index (`C_eq = C_bulk / SI^(1/stoich)`). Values only
+land in a physical range (mM to hundreds of mM) when the phase's
+equilibrium constant is itself physical — see the file-level
+docstring's note about the S56 / S57 ln K corrections.
 
 Guards: returns 1.0 (no correction) if ShellStats is empty, if any
 bin has degenerate δ_bin ≤ 0 or C_eq ≤ 0, or if D_eff comes back

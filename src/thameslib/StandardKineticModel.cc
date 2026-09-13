@@ -117,9 +117,9 @@ StandardKineticModel::StandardKineticModel(ChemicalSystem *cs, Lattice *lattice,
   // configured for this phase.
   nucleation_ = kineticData.nucleation;
 
-  // Copy in transport parameters if present (Phase 3 of transport-
-  // kinetics plan). std::optional propagates the empty state
-  // naturally when transport is not configured for this phase.
+  // Copy in transport parameters if present. std::optional
+  // propagates the empty state naturally when transport is not
+  // configured for this phase.
   // Resolve the limiting-DC name to a DC id once here; if the
   // database doesn't have that DC name, disable the shell correction
   // for this phase by leaving limitingDCId_ at -1.
@@ -239,15 +239,32 @@ void StandardKineticModel::calculateKineticStep(const double timestep,
 
     double saturationIndex = chemSys_->getMicroPhaseSI(microPhaseId_);
 
-    // Phase 3 shell correction: if this phase has a transport block
-    // and the limiting DC resolved to a valid id, apply the series-
-    // resistance (kinetic + Fickian diffusion) closure via a scalar
-    // multiplier on `area`. For the linear driving-force f(Ω) = 1-Ω
-    // this is EXACT (equivalent to solving the steady-state flux
-    // balance per shell-thickness bin and summing). For Standard's
-    // (1-Ω^p)^q with p or q ≠ 1 it is a first-order approximation
-    // that is exact near equilibrium; nonlinear-exact Newton solve
-    // is available in xport::solveSurfaceConcentration for future use.
+    // Shell-diffusion series-resistance correction. When the phase
+    // has a transport block and the limiting DC resolved to a valid
+    // id, multiply `area` by a per-bin-averaged scalar factor.
+    //
+    // Derivation (linear rate law r = k·(1 − C_surf/C_eq),
+    // dissolution): steady-state flux balance across the shell
+    //
+    //   k · (1 − C_surf/C_eq)  =  D_eff · (C_surf − C_bulk) / δ
+    //
+    // Solving for C_surf and dividing by the no-shell rate at C_bulk
+    // gives correction = 1 / (1 + Da) with Da = k·δ/(D_eff·C_eq).
+    // xport::shellCorrectionFactor sums that per-bin, weighted by
+    // the site fraction in each bin of the K-bin δ histogram. For
+    // the linear rate this is EXACT; for Standard's (1-Ω^p)^q with
+    // p or q ≠ 1 it is a first-order approximation that is exact
+    // near equilibrium. Nonlinear-exact Brent solve is available
+    // in xport::solveSurfaceConcentration for a future switch.
+    //
+    // C_eq is derived from bulk state: assuming dilute-solution
+    // activity ≈ concentration and single-species-dominant
+    // behavior, SI = (C_bulk/C_eq)^stoich, so
+    // C_eq = C_bulk / SI^(1/stoich). Note the numeric magnitude of
+    // C_eq is only physically sensible after the phase's ln K is
+    // itself physical — the S56/S57 Alite and C3A corrections did
+    // this for CemData18-Babushkin heritage phases; future clinker
+    // phases moving from PK to SR/Standard need the same audit.
     //
     // Guards: no correction applied when the transport block is
     // absent, the limiting DC isn't in the database, water mass is

@@ -1,7 +1,14 @@
 /**
 @file TransportCorrection.cc
-@brief Phase-2 stub implementations. Phase 3 fills in Newton solver
-       and per-shell D_eff mapping.
+@brief Series-resistance rate math implementations.
+
+`shellCorrectionFactor` (linear-rate closed form summed per bin) is
+the production path. `solveSurfaceConcentration` (Brent iteration on
+an arbitrary driving-force functor) is implemented and unit-tested
+but not currently called by any kinetic model. `pickDEff` still
+returns the block's global dEff regardless of shell composition —
+per-shell-phase D_eff map is a deferred refinement. See the header
+for the API contract and the C_eq / ln K-correction caveat.
 */
 
 #include "TransportCorrection.h"
@@ -38,9 +45,12 @@ double solveSurfaceConcentrationLinear(double k, double C_eq, double dEff,
 }
 
 double pickDEff(int /*shellPhaseId*/, const TransportParameters &params) {
-  // Phase 2 stub retained through Phase 3 first cut. A future
-  // refinement will introduce a per-shell-phase map so that e.g.
-  // Ca+2 through C-S-H and Ca+2 through AFm get different values.
+  // Global-dEff fallback. A per-shell-phase D_eff map (e.g.
+  // Ca+2 through C-S-H vs Ca+2 through AFm) is a deferred
+  // refinement — the caller in shellCorrectionFactor already
+  // passes bin.dominantShellPhaseId through, so wiring a real
+  // map here is the only remaining step. See the header for the
+  // API contract that will not need to change.
   return params.dEff;
 }
 
