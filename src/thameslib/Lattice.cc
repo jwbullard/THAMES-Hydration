@@ -5362,8 +5362,8 @@ void Lattice::calcMasterPoreSizeDist(
     for (j = 0; j < numPhasesWithPSD; ++j) {
       numPSDRowsForThisPhase = phasePoreSizeDist[j].size();
       if (numPSDRowsForThisPhase > 0) {
-        for (i = stoppedAt[j]; (phasePoreSizeDist[j][i].diam <= diameter) &&
-                               (i < numPSDRowsForThisPhase);
+        for (i = stoppedAt[j]; (i < numPSDRowsForThisPhase) &&
+                               (phasePoreSizeDist[j][i].diam <= diameter);
              ++i) {
           dpsv.volfrac += phasePoreSizeDist[j][i].volfrac;
         }
@@ -5485,6 +5485,9 @@ void Lattice::writePoreSizeDistribution(const double curtime,
   out << "Total pore volume fraction = " << pore_volfrac << ",," << endl;
   out << "Total void volume fraction = " << volumeFraction_[VOIDID] << ",,"
       << endl;
+  out << "Kelvin relative humidity = " << getKelvinRH() << ",," << endl;
+  out << "Water activity = " << chemSys_->getWaterActivity() << ",," << endl;
+  out << "Internal relative humidity = " << getInternalRH() << ",," << endl;
   out << "Pore size saturation data:" << ",," << endl;
   out << "Masterporevolume size = " << masterPoreSizeDist_.size() << ",,"
       << endl;

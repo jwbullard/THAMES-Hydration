@@ -442,6 +442,8 @@ void KineticController::parseKineticData(const json::iterator p,
       throw HandleException("KineticController", "parseKineticData", "type",
                             "Model type not specified");
     }
+
+    parseHumidityBlock(p, kineticData);
   } catch (HandleException hex) {
     hex.printException();
   }
@@ -1004,6 +1006,51 @@ void KineticController::parseTransportBlock(const json::iterator p,
   }
 }
 
+void KineticController::parseHumidityBlock(const json::iterator p,
+                                           struct KineticData &kineticData) {
+  // Expected JSON (both fields optional):
+  //   "rh_dependence": {
+  //     "h0":       {"value": 0.80, "range": [...], "provenance": "..."},
+  //     "exponent": {"value": 1.0,  "range": [...], "provenance": "..."}
+  //   }
+  json::iterator rhIt = p.value().find("rh_dependence");
+  if (rhIt == p.value().end()) {
+    return; // Absent block = defaults from HumidityParameters.h
+  }
+
+  auto readOptionalValue = [&](const std::string &key, double dflt) -> double {
+    auto it = rhIt.value().find(key);
+    if (it == rhIt.value().end())
+      return dflt;
+    auto v = it.value().find("value");
+    if (v == it.value().end()) {
+      throw DataException("KineticController", "parseHumidityBlock",
+                          "rh_dependence." + key + ".value not found");
+    }
+    return v.value().get<double>();
+  };
+
+  HumidityParameters hp;
+  hp.h0 = readOptionalValue("h0", hp.h0);
+  hp.exponent = readOptionalValue("exponent", hp.exponent);
+
+  if (hp.h0 < 0.0 || hp.h0 >= 1.0) {
+    throw DataException("KineticController", "parseHumidityBlock",
+                        "rh_dependence.h0 must be in [0, 1)");
+  }
+  if (hp.exponent <= 0.0) {
+    throw DataException("KineticController", "parseHumidityBlock",
+                        "rh_dependence.exponent must be positive");
+  }
+
+  kineticData.humidity = hp;
+
+  if (verbose_) {
+    std::clog << "--->Parsed rh_dependence sub-block for " << kineticData.name
+              << ": h0=" << hp.h0 << ", exponent=" << hp.exponent << endl;
+  }
+}
+
 void KineticController::updateJMAKPhase(int midx, double timestep, int cyc) {
   // Precondition: caller has verified useNucleationKinetics_ AND
   // jmakEnabled_[midx] AND phaseKineticModel_[midx]->hasNucleation().
@@ -1454,6 +1501,24 @@ void KineticController::parseKineticDataForSaturatingRate(
   parseTransportBlock(p, kineticData);
 }
 
+void KineticController::updateRelativeHumidity(void) {
+  kelvinRH_ = 1.0;
+  if (!chemSys_->isSaturated()) {
+    lattice_->calculatePoreSizeDistribution();
+    kelvinRH_ = lattice_->getKelvinRH();
+  }
+  for (int midx = 0; midx < pKMsize_; ++midx) {
+    if (phaseKineticModel_[midx] != nullptr)
+      phaseKineticModel_[midx]->setRelativeHumidity(kelvinRH_);
+  }
+  if (verbose_) {
+    double aw = chemSys_->getWaterActivity();
+    std::clog << "  KineticController: Kelvin RH = " << kelvinRH_
+              << ", water activity = " << aw
+              << ", internal RH = " << aw * kelvinRH_ << endl;
+  }
+}
+
 void KineticController::calcPhaseMasses(void) {
   int microPhaseId;
   double pscaledMass = 0.0;
@@ -1716,6 +1781,8 @@ void KineticController::calculateKineticStep(double time, const double timestep,
       DCMolesIni_[i] = DCMoles_[i];
     }
     surfaceAreaIni_ = lattice_->getSurfaceArea();
+
+    updateRelativeHumidity();
   }
 
   if (hyd_time <= beginAttackTime_) {
@@ -1733,21 +1800,6 @@ void KineticController::calculateKineticStep(double time, const double timestep,
       //  First step each iteration is to equilibrate gas phase
       //  with the electrolyte, while forbidding anything new
       //  from precipitating.
-
-      /// This is a big kluge for internal relative humidity
-      /// @note Using new gel and interhydrate pore size distribution model
-      ///       which is currently contained in the Lattice object.
-      ///
-      /// Surface tension of water is gamma = 0.072 J/m2
-      /// Molar volume of water is Vm = 1.8e-5 m3/mole
-      /// The Kelvin equation is
-      ///    p/p0 = exp (-4 gamma Vm / d R T) = exp (-6.23527e-7 / (d T))
-      ///
-      ///    where d is the pore diameter in meters and T is absolute
-      ///    temperature
-
-      /// Assume a zero contact angle for now.
-      /// @todo revisit the contact angle issue
 
       /// Loop over all kinetic models
 

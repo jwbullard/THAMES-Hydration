@@ -26,6 +26,7 @@ KineticModel::KineticModel() {
   DCName_.clear();
   specificSurfaceArea_ = refSpecificSurfaceArea_ = 0.0;
   degreeOfReaction_ = lossOnIgnition_ = 0.0;
+  rh_ = rhFactor_ = 1.0;
 
   ///
   /// The default is to not have sulfate attack or leaching, so we set the

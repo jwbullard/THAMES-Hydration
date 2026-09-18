@@ -1768,18 +1768,56 @@ public:
   // }
 
   /**
-  @brief Get the largest diameter of pores containing electrolyte
-  @return the diameter of the largest pore containing electrolyte
+  @brief Get the diameter of the pore-size bin containing the meniscus
+  (the smallest non-empty bin that is not completely saturated)
+  @return the bin diameter in nm, or -1.0 if every pore is saturated
   */
   double getLargestSaturatedPore(void) {
-    double capsize = 1000.0; // nm of voxel pores
     int size = masterPoreSizeDist_.size();
     for (int i = 0; i < size; i++) {
-      if (masterPoreSizeDist_[i].volfrac < 1.0) {
+      if (masterPoreSizeDist_[i].volfrac > 0.0 &&
+          masterPoreSizeDist_[i].volfracsat < 1.0) {
         return (masterPoreSizeDist_[i].diam);
       }
     }
-    return (capsize);
+    return (-1.0);
+  }
+
+  /**
+  @brief Get the Kelvin relative humidity of the pore solution
+
+  Uses the meniscus bin from the current pore size distribution, so
+  calculatePoreSizeDistribution must be called first. The Kelvin
+  equation with zero contact angle is
+
+      p/p0 = exp(-4 gamma Vm / (d R T)) = exp(-6.23527e-7 / (d T))
+
+  with gamma = 0.072 J/m2, Vm = 1.8e-5 m3/mol, d the meniscus diameter
+  [m], and T [K]. Approximations: gamma is independent of temperature
+  and composition, and d is the upper edge of the meniscus bin (bins
+  are 12 % wide).
+
+  @return the Kelvin relative humidity, 1.0 if every pore is saturated
+  */
+  double getKelvinRH(void) {
+    const double kelvinCoeff = 6.23527e-7; // 4 gamma Vm / R [m K]
+    double diam = getLargestSaturatedPore(); // nm; -1 if all full
+    if (diam <= 0.0)
+      return (1.0);
+    return (exp(-kelvinCoeff / (diam * 1.0e-9) / temperature_));
+  }
+
+  /**
+  @brief Get the internal relative humidity of the pore solution
+
+  Product of the water activity of the bulk electrolyte (dissolved
+  salts) and the Kelvin relative humidity (menisci). Comparable to an
+  RH-sensor reading or an ambient curing RH.
+
+  @return the internal relative humidity [0, 1]
+  */
+  double getInternalRH(void) {
+    return (chemSys_->getWaterActivity() * getKelvinRH());
   }
 
   /**

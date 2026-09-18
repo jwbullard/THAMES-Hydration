@@ -56,12 +56,6 @@ PozzolanicModel::PozzolanicModel() {
   refSpecificSurfaceArea_ = 1437.0392203;
 
   temperature_ = lattice_->getTemperature();
-  double critporediam = lattice_->getLargestSaturatedPore(); // in nm
-  critporediam *= 1.0e-9;                                    // in m
-  rh_ = exp(-6.23527e-7 / critporediam / temperature_);
-  rh_ = rh_ > 0.55 ? rh_ : 0.551;
-  rhFactor_ = rh_;
-
   arrhenius_ = exp((activationEnergy_ / GASCONSTANT) *
                    ((1.0 / refT_) - (1.0 / temperature_)));
 
@@ -137,6 +131,7 @@ PozzolanicModel::PozzolanicModel(ChemicalSystem *cs, Lattice *lattice,
   // StandardKineticModel.cc for the resolution semantics of
   // limitingDCId_.
   transport_ = kineticData.transport;
+  humidity_ = kineticData.humidity;
   limitingDCId_ = -1;
   if (transport_.has_value() && !transport_->limitingDCName.empty()) {
     limitingDCId_ = chemSys_->getDCIdOrMinusOne(transport_->limitingDCName);
@@ -148,12 +143,6 @@ PozzolanicModel::PozzolanicModel(ChemicalSystem *cs, Lattice *lattice,
                    "Shell correction disabled for this phase." << endl;
     }
   }
-
-  double critporediam = lattice_->getLargestSaturatedPore(); // in nm
-  critporediam *= 1.0e-9;                                    // in m
-  rh_ = exp(-6.23527e-7 / critporediam / temperature_);
-  rh_ = rh_ > 0.55 ? rh_ : 0.551;
-  rhFactor_ = rh_;
 
   arrhenius_ = exp((activationEnergy_ / GASCONSTANT) *
                    ((1.0 / refT_) - (1.0 / temperature_)));
@@ -213,21 +202,6 @@ void PozzolanicModel::calculateKineticStep(const double timestep,
     // RH factor is the same for all clinker phases
     // double vfvoid = lattice_->getVolumeFraction(VOIDID);
     // double vfh2o = lattice_->getVolumeFraction(ELECTROLYTEID);
-
-    /// This is a big kluge for internal relative humidity
-    /// @note Using new gel and interhydrate pore size distribution model
-    ///       which is currently contained in the Lattice object.
-    ///
-    /// Surface tension of water is gamma = 0.072 J/m2
-    /// Molar volume of water is Vm = 1.8e-5 m3/mole
-    /// The Kelvin equation is
-    ///    p/p0 = exp (-4 gamma Vm / d R T) = exp (-6.23527e-7 / (d T))
-    ///
-    ///    where d is the pore diameter in meters and T is absolute
-    ///    temperature
-
-    /// Assume a zero contact angle for now.
-    /// @todo revisit the contact angle issue
 
     scaledMass_ = scaledMass;
 

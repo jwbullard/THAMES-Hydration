@@ -65,10 +65,6 @@ protected:
       /**< Dimensionless factor multiplying computed surface area. */
   double dissolvedUnits_;
       /**< Number of DC units produced per unit dissolution reaction. */
-  double rh_;
-      /**< Relative humidity. */
-  double rhFactor_;
-      /**< RH correction factor applied to the rate. */
   double arrhenius_;
       /**< Arrhenius scale factor precomputed at construction from
            activationEnergy, refT, and temperature (see StandardKineticModel

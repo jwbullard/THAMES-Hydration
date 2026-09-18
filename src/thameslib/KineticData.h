@@ -57,6 +57,7 @@ component
 #include <optional>
 
 #include "global.h"
+#include "HumidityParameters.h"
 #include "JMAKParameters.h"
 #include "NucleationParameters.h"
 #include "SaturatingRateParameters.h"
@@ -94,10 +95,10 @@ struct KineticData {
   double sio2;           /**< Mole fraction SiO2 in material */
   double al2o3;          /**< Mole fraction Al2O3 in material */
   double cao;            /**< Mole fraction CaO in material */
-  double rh_;            /**< relative humidity */
-  double rhFactor_;      /**< relative humidity factor, i.e. the correction
-                              of the hydration rate taking into account the
-                              ambient relative humidity */
+  HumidityParameters humidity;
+      /**< h0 and exponent of the RH rate factor f(rh); defaults from
+           HumidityParameters.h unless the phase's `kinetic_data` has an
+           `rh_dependence` sub-block */
   std::optional<NucleationParameters> nucleation;
       /**< CNT parameters for this phase; empty = CNT disabled */
   std::optional<JMAKParameters> jmak;

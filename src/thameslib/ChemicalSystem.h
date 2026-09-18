@@ -5111,6 +5111,13 @@ public:
   double getDCActivity(const long int dcidx) { return (node_->Get_aDC(dcidx)); }
 
   /**
+  @brief Get the activity of liquid water (H2O@) in the electrolyte
+
+  @return the water activity from the most recent GEM equilibrium
+  */
+  double getWaterActivity(void) { return (node_->Get_aDC(waterDCId_)); }
+
+  /**
   @brief Get the chemical activity of a dependent component (DC) by name
 
   @param dcname is the name of the DC being queried

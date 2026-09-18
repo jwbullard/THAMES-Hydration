@@ -26,6 +26,7 @@ kinetic models without knowing which support CNT. See
 #include "global.h"
 #include "Exceptions.h"
 #include "ChemicalSystem.h"
+#include "HumidityParameters.h"
 #include "KineticData.h"
 #include "Lattice.h"
 
@@ -75,6 +76,13 @@ protected:
   bool verbose_;                  /**< Flag for verbose output */
   bool warning_;                  /**< Flag for warnining output */
 
+  double rh_;                     /**< Kelvin relative humidity of the pore
+                                       solution, set each cycle by
+                                       KineticController */
+  double rhFactor_;               /**< Rate multiplier f(rh_); see
+                                       HumidityParameters.h */
+  HumidityParameters humidity_;   /**< h0 and exponent of f(rh) */
+
 public:
   /**
   @brief Default constructor.
@@ -118,6 +126,32 @@ public:
   @return a string indicating the model type
   */
   virtual std::string getType() const { return (GenericType); }
+
+  /**
+  @brief Set the Kelvin relative humidity and recompute the rate factor.
+
+  Called once per cycle by KineticController, identically for every model.
+
+  @param rh is the Kelvin relative humidity [0, 1]
+  */
+  void setRelativeHumidity(double rh) {
+    rh_ = rh;
+    rhFactor_ = rhRateFactor(rh_, humidity_);
+  }
+
+  /**
+  @brief Get the Kelvin relative humidity last set for this model
+
+  @return the relative humidity [0, 1]
+  */
+  double getRelativeHumidity() const { return rh_; }
+
+  /**
+  @brief Get the rate multiplier for the current relative humidity
+
+  @return f(rh) in [0, 1]
+  */
+  double getRHFactor() const { return rhFactor_; }
 
   /**
   @brief Compute fractional voxels expected to nucleate for this phase this cycle.

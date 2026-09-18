@@ -34,8 +34,6 @@ SaturatingRateModel::SaturatingRateModel() {
   // Default constructor is NOT USED; provides safe defaults only.
   surfaceAreaMultiplier_ = 1.0;
   dissolvedUnits_ = 1.0;
-  rh_ = 1.0;
-  rhFactor_ = 1.0;
   arrhenius_ = 1.0;
   sulfateAttackTime_ = 1.0e10;
   leachTime_ = 1.0e10;
@@ -74,6 +72,7 @@ SaturatingRateModel::SaturatingRateModel(ChemicalSystem *cs, Lattice *lattice,
   // StandardKineticModel.cc for the resolution semantics of
   // limitingDCId_.
   transport_ = kineticData.transport;
+  humidity_ = kineticData.humidity;
   limitingDCId_ = -1;
   if (transport_.has_value() && !transport_->limitingDCName.empty()) {
     limitingDCId_ = chemSys_->getDCIdOrMinusOne(transport_->limitingDCName);
@@ -102,12 +101,6 @@ SaturatingRateModel::SaturatingRateModel(ChemicalSystem *cs, Lattice *lattice,
   activationEnergy_ = kineticData.activationEnergy;
   scaledMass_ = kineticData.scaledMass;
   initScaledMass_ = kineticData.scaledMass;
-
-  double critporediam = lattice_->getLargestSaturatedPore(); // in nm
-  critporediam *= 1.0e-9;                                    // in m
-  rh_ = exp(-6.23527e-7 / critporediam / temperature_);
-  rh_ = rh_ > 0.55 ? rh_ : 0.551;
-  rhFactor_ = rh_;
 
   arrhenius_ = exp((activationEnergy_ / GASCONSTANT) *
                    ((1.0 / refT_) - (1.0 / temperature_)));

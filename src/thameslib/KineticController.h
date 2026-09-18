@@ -208,6 +208,21 @@ private:
   double beginAttackTime_;       /**< Simulation time at which to begin the attack
                                       (sulfate attack for now); hydration stops when
                                       the current time equqls beginAttackTime_ */
+  double kelvinRH_ = 1.0;        /**< Kelvin relative humidity of the pore
+                                      solution at the start of the current
+                                      step; 1.0 in saturated mode */
+
+  /**
+  @brief Compute the Kelvin relative humidity and pass it to every model.
+
+  Called once at the start of each fresh (non-retry) step. In saturated
+  mode every pore is full and RH = 1 exactly. In sealed mode the pore
+  size distribution and its saturation state are recomputed and the
+  Kelvin RH is taken from Lattice::getKelvinRH. The rate factor uses the
+  Kelvin RH only, not the internal RH (which includes water activity),
+  so that saturated curing gives f = 1 as in the calibration data.
+  */
+  void updateRelativeHumidity(void);
 
   std::vector<double> surfaceAreaIni_; /**< vector of surface areas of each microPhase
                                        before to start the dissolution for a given
@@ -279,6 +294,8 @@ public:
     // Same reason: reset the JMAK block (2026-07-28). JMAK is a growth-
     // side extension of CNT and inherits the same per-phase leak risk.
     kineticData.jmak.reset();
+    // Same reason: restore the default RH dependence.
+    kineticData.humidity = HumidityParameters();
     // Same reason: reset the SaturatingRate blocks. Otherwise a preceding
     // SaturatingRate phase's parameters would silently apply to a
     // Standard/Pozzolanic/ParrotKilloh phase parsed after it.
@@ -424,6 +441,27 @@ public:
   */
   void parseTransportBlock(const json::iterator pp,
                            struct KineticData &kineticData);
+
+  /**
+  @brief Parse the optional `rh_dependence` sub-block of a phase's
+  `kinetic_data`.
+
+  Overrides h0 and/or the exponent of the RH rate factor (see
+  HumidityParameters.h). Absent block or absent field keeps the default.
+  Applies to every kinetic model type.
+
+  @param pp is the iterator into the phase's `kinetic_data` JSON block
+  @param kineticData is the KineticData struct being populated
+  */
+  void parseHumidityBlock(const json::iterator pp,
+                          struct KineticData &kineticData);
+
+  /**
+  @brief Get the Kelvin relative humidity used in the current step
+
+  @return the relative humidity [0, 1]
+  */
+  double getKelvinRH(void) const { return kelvinRH_; }
 
   /**
   @brief Per-cycle JMAK update for one JMAK-enabled phase.
