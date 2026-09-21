@@ -3161,7 +3161,7 @@ public:
         else if (icName == "C") dcName = "HCO3-";
         else if (icName == "Ca") dcName = "Ca+2";
         else if (icName == "Cl") dcName = "Cl-";
-        else if (icName == "Fe") dcName = "Fe+2";
+        else if (icName == "Fe") dcName = "Fe+3"; // Fe(III); sync w/ KineticController
         else if (icName == "K") dcName = "K+";
         else if (icName == "Mg") dcName = "Mg+2";
         else if (icName == "Na") dcName = "Na+";

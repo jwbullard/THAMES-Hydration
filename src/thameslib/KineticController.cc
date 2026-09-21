@@ -1307,7 +1307,7 @@ inline std::string icNameToAqDCName(const std::string &icName) {
   if (icName == "C")   return "HCO3-";
   if (icName == "Ca")  return "Ca+2";
   if (icName == "Cl")  return "Cl-";
-  if (icName == "Fe")  return "Fe+2";
+  if (icName == "Fe")  return "Fe+3";  // Fe(III), as in C4AF and Fe hydrates
   if (icName == "K")   return "K+";
   if (icName == "Mg")  return "Mg+2";
   if (icName == "Na")  return "Na+";
@@ -1367,6 +1367,13 @@ void KineticController::commitSolidICTransfer(int solidDCId,
   if (std::fabs(deltaSolid) < 1.0e-30) return;
 
   const int numICs = chemSys_->getNumICs();
+  const int oIC = chemSys_->getICId("O");
+  const int hIC = chemSys_->getICId("H");
+
+  // Net O and H change of the whole system from this transfer, which
+  // must end at zero. Start with the solid's own change.
+  double residO = deltaSolid * chemSys_->getDCStoich(solidDCId, oIC);
+  double residH = deltaSolid * chemSys_->getDCStoich(solidDCId, hIC);
 
   // Apply aqueous DC changes, accumulating charge for compensation.
   // Sign: aqueous DC change = -(deltaSolid * solidStoich / aqStoich).
@@ -1385,19 +1392,45 @@ void KineticController::commitSolidICTransfer(int solidDCId,
     const double aqDelta = -deltaSolid * solidStoich / aqStoich;
     DCMoles_[aqDCId] += aqDelta;
     chargeAccum += aqDelta * chemSys_->getDCCharge(aqDCId);
+    residO += aqDelta * chemSys_->getDCStoich(aqDCId, oIC);
+    residH += aqDelta * chemSys_->getDCStoich(aqDCId, hIC);
   }
 
   // Charge compensation via H+ or OH-.
   // chargeAccum > 0 means aqueous became more positive → add OH- (-1).
   // chargeAccum < 0 means aqueous became more negative → add H+ (+1).
   if (std::fabs(chargeAccum) > 1.0e-30) {
-    if (chargeAccum > 0.0) {
-      const int ohId = chemSys_->getDCIdOrMinusOne("OH-");
-      if (ohId >= 0) DCMoles_[ohId] += chargeAccum;  // |charge OH-| = 1
-    } else {
-      const int hId = chemSys_->getDCIdOrMinusOne("H+");
-      if (hId >= 0) DCMoles_[hId] += -chargeAccum;   // |charge H+| = 1
+    const int compId = (chargeAccum > 0.0) ? chemSys_->getDCIdOrMinusOne("OH-")
+                                           : chemSys_->getDCIdOrMinusOne("H+");
+    if (compId >= 0) {
+      const double compDelta = std::fabs(chargeAccum); // |charge| = 1
+      DCMoles_[compId] += compDelta;
+      residO += compDelta * chemSys_->getDCStoich(compId, oIC);
+      residH += compDelta * chemSys_->getDCStoich(compId, hIC);
     }
+  }
+
+  // Balance O and H with water. The mapped ICs and the charge
+  // compensation do not conserve O or H by themselves: e.g. C3S
+  // dissolution adds SiO2@ + 6 OH- (8 O, 6 H) for the 5 O the solid
+  // loses, i.e. 3 H2O too many (C3S + 3 H2O -> 3 Ca+2 + 6 OH- + SiO2).
+  // Remove (or add) exactly that much H2O@ so O is conserved; H is then
+  // conserved too for a charge-neutral solid.
+  const double waterDelta = -residO;
+  if (DCMoles_[waterDCId_] + waterDelta < 0.0) {
+    std::clog << "  WARNING: commitSolidICTransfer: water needed for "
+              << chemSys_->getDCName(solidDCId) << " (" << -waterDelta
+              << " mol) exceeds available H2O@ (" << DCMoles_[waterDCId_]
+              << " mol); clamping at zero, O/H not conserved" << endl;
+    DCMoles_[waterDCId_] = 0.0;
+  } else {
+    DCMoles_[waterDCId_] += waterDelta;
+  }
+  const double hImbalance = residH + 2.0 * waterDelta;
+  if (std::fabs(hImbalance) > 1.0e-9 * (std::fabs(residH) + 1.0e-20)) {
+    std::clog << "  WARNING: commitSolidICTransfer: H imbalance "
+              << hImbalance << " mol after water balance for "
+              << chemSys_->getDCName(solidDCId) << endl;
   }
 }
 
