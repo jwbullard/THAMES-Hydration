@@ -4782,7 +4782,8 @@ void Lattice::adjustMicrostructureVolumes(vector<double> &vol, int volSize,
     solidVolumeWithPores_ += vol[i];
     // subvoxelPoreVolume_ += (vol[i] * chemSys_->getMicroPhasePorosity(i));
     subvoxelPoreVolume_ +=
-        (vol[i] * microPhasePorosityInt_[i]) / convFactDbl2IntPor_;
+        (vol[i] * chemSys_->getMicroPhasePoreVolumeFractionInt(i)) /
+        convFactDbl2IntPor_;
   }
 
   if (solidVolumeWithPores_ <= 0.0)
@@ -5318,8 +5319,12 @@ vector<double> Lattice::getPoreVolumeFractions(void) {
   double d_convFactDbl2IntPor = static_cast<double>(convFactDbl2IntPor_);
 
   for (int i = 0; i < numMicroPhases_; ++i) {
-    // phi = chemSys_->getMicroPhasePorosity(i);
-    phi = microPhasePorosityInt_[i] / d_convFactDbl2IntPor;
+    // Pore-volume fraction, NOT the wmc wetting weight: an empty (VOID)
+    // voxel is entirely pore space even though it wets nothing. Queried
+    // from ChemicalSystem rather than the cached microPhasePorosityInt_
+    // so a CSHQ porosity update cannot leave this stale.
+    phi = chemSys_->getMicroPhasePoreVolumeFractionInt(i) /
+          d_convFactDbl2IntPor;
     pore_volfrac[i] = volumeFraction_[i] * phi;
   }
   return (pore_volfrac);

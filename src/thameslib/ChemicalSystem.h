@@ -343,6 +343,32 @@ class ChemicalSystem {
                                                 (integer, dimensionless) */
 
   /**
+  @brief Fraction of a phase's voxel volume that is pore space.
+
+  Distinct from microPhasePorosity_ even though the two agree for every
+  solid phase. microPhasePorosity_ doubles as the per-site *wetting weight*
+  (Lattice::setWmc0 and the wmc arithmetic that decides which surfaces are
+  eligible to dissolve or grow), which is why VOID carries 0 there: a
+  gas-filled voxel must not wet its neighbours. But a VOID voxel is
+  *entirely* pore space, so for pore-volume purposes its fraction is 1.
+
+  Conflating the two meanings made the pore size distribution blind to empty
+  capillary voxels: the CSV reported "Empty voxel-scale void volume
+  fraction = 0" while the microstructure was several percent VOID, and
+  Lattice::getLargestSaturatedPore never saw those empty pores, so Kelvin RH
+  read exactly 1.0 while capillary pores stood empty (found 2026-09-23).
+
+  Values: VOID = 1, ELECTROLYTE = 1, solids = their sub-voxel porosity.
+  Consumed only by pore-volume paths (Lattice::getPoreVolumeFractions,
+  Lattice::adjustMicrostructureVolumes, and the 1/(1-phi) volume inflation
+  in ChemicalSystem::calculateState); never by the wmc paths.
+  */
+  std::vector<double> microPhasePoreVolumeFraction_;
+  std::vector<int> microPhasePoreVolumeFractionInt_; /**< integer-scaled
+                                              companion, same convention as
+                                              microPhasePorosityInt_ */
+
+  /**
   @brief Sub-voxel pore size distribution (volume basis) of each phase
   */
   std::vector<std::vector<struct PoreSizeData>> poreSizeDistribution_;
@@ -2517,6 +2543,44 @@ public:
 
   std::vector<int> getMicroPhasePorosityInt() const {
     return microPhasePorosityInt_;
+  }
+
+  /**
+  @brief Get the pore-volume fraction of a microstructure phase.
+
+  See microPhasePoreVolumeFraction_ for why this is not the same concept as
+  getMicroPhasePorosity, even though the values agree for solids.
+
+  @param idx is the microstructure phase id
+  @return the fraction of that phase's voxel volume that is pore space
+  */
+  double getMicroPhasePoreVolumeFraction(const int idx) const {
+    return microPhasePoreVolumeFraction_[idx];
+  }
+
+  /**
+  @brief Get the integer-scaled pore-volume fraction of a phase.
+
+  @param idx is the microstructure phase id
+  @return the pore-volume fraction scaled by convFactDbl2IntPor_
+  */
+  int getMicroPhasePoreVolumeFractionInt(const int idx) const {
+    return microPhasePoreVolumeFractionInt_[idx];
+  }
+
+  /**
+  @brief Get the list of pore-volume fractions of all phases.
+
+  @note Used by the copy constructor and by Lattice when caching the list.
+
+  @return the pore-volume fraction of every microstructure phase
+  */
+  std::vector<double> getMicroPhasePoreVolumeFraction() const {
+    return microPhasePoreVolumeFraction_;
+  }
+
+  std::vector<int> getMicroPhasePoreVolumeFractionInt() const {
+    return microPhasePoreVolumeFractionInt_;
   }
 
   /**

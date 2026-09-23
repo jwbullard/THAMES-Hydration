@@ -83,6 +83,8 @@ ChemicalSystem::ChemicalSystem(const string &GEMfilename,
   contactAngle_.clear();
   microPhasePorosity_.clear();
   microPhasePorosityInt_.clear();
+  microPhasePoreVolumeFraction_.clear();
+  microPhasePoreVolumeFractionInt_.clear();
   poreSizeDistribution_.clear();
   k2o_.clear();
   na2o_.clear();
@@ -602,6 +604,8 @@ ChemicalSystem::ChemicalSystem(const string &GEMfilename,
       microPhaseMass_.resize(numMicroPhases_, 0.0);
       microPhasePorosity_.resize(numMicroPhases_, 0.0);
       microPhasePorosityInt_.resize(numMicroPhases_, 0);
+      microPhasePoreVolumeFraction_.resize(numMicroPhases_, 0.0);
+      microPhasePoreVolumeFractionInt_.resize(numMicroPhases_, 0);
       if (verbose_) {
         std::clog << " Setting microPhaseMass size to " << numMicroPhases_
                   << endl;
@@ -629,6 +633,14 @@ ChemicalSystem::ChemicalSystem(const string &GEMfilename,
   microPhasePorosityInt_[0] = voidIntPorosity_;
   microPhasePorosity_[1] = 1.0; // ELECTROLYTE
   microPhasePorosityInt_[1] = electrolyteIntPorosity_;
+
+  /// A VOID voxel wets nothing (porosity 0 above, which doubles as the wmc
+  /// weight) but is entirely pore space, so its pore-volume fraction is 1.
+  /// See microPhasePoreVolumeFraction_ for why the two must differ.
+  microPhasePoreVolumeFraction_[0] = 1.0; // VOID
+  microPhasePoreVolumeFractionInt_[0] = convFactDbl2IntPor_;
+  microPhasePoreVolumeFraction_[1] = 1.0; // ELECTROLYTE
+  microPhasePoreVolumeFractionInt_[1] = electrolyteIntPorosity_;
 
   ///
   /// Set up the main map that correlates microstructure phases with GEM CSD
@@ -1872,6 +1884,8 @@ ChemicalSystem::ChemicalSystem(const ChemicalSystem &obj) {
   microPhaseDCMembers_ = obj.getMicroPhaseDCMembers();
   microPhasePorosity_ = obj.getMicroPhasePorosity();
   microPhasePorosityInt_ = obj.getMicroPhasePorosityInt();
+  microPhasePoreVolumeFraction_ = obj.getMicroPhasePoreVolumeFraction();
+  microPhasePoreVolumeFractionInt_ = obj.getMicroPhasePoreVolumeFractionInt();
   poreSizeDistribution_ = obj.getPoreSizeDistribution();
   k2o_ = obj.getK2o();
   na2o_ = obj.getNa2o();
@@ -1965,6 +1979,8 @@ ChemicalSystem::~ChemicalSystem(void) {
   microPhaseDCMembers_.clear();
   microPhasePorosity_.clear();
   microPhasePorosityInt_.clear();
+  microPhasePoreVolumeFraction_.clear();
+  microPhasePoreVolumeFractionInt_.clear();
   poreSizeDistribution_.clear();
   k2o_.clear();
   na2o_.clear();
@@ -2327,6 +2343,12 @@ void ChemicalSystem::calcMicroPhasePorosity(const unsigned int idx) {
 
   microPhasePorosityInt_[idx] = testPorInt;
   microPhasePorosity_[idx] = testPorDbl;
+
+  /// For a solid phase the pore-volume fraction IS its sub-voxel porosity;
+  /// only VOID and ELECTROLYTE make the two concepts diverge, and those are
+  /// set once at construction and never recomputed here.
+  microPhasePoreVolumeFractionInt_[idx] = testPorInt;
+  microPhasePoreVolumeFraction_[idx] = testPorDbl;
 
   if (microPhaseName_[idx] == "CSHQ") {
     std::clog << "    ChemicalSystem::calcMicroPhasePorosity - "
@@ -2770,7 +2792,10 @@ int ChemicalSystem::calculateState(double time, bool isFirst = false,
       std::clog.flush();
     }
 
-    phi = microPhasePorosity_[i];
+    // Pore-volume fraction, not the wmc wetting weight. The loop starts at
+    // ELECTROLYTEID and ELECTROLYTE takes the branch below, so the 1/(1-phi)
+    // inflation only ever sees solids, for which the two agree.
+    phi = microPhasePoreVolumeFraction_[i];
 
     if (!isKinetic_[i]) {
       // calcMicroPhasePorosity(i);
