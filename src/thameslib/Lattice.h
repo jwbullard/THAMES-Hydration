@@ -100,6 +100,18 @@ private:
   folders, hand-built images); callers must check hasParticleIds() first.
   */
   std::vector<int> particleId_;
+
+  /**
+  @brief Microstructure phase of each voxel at t = 0, indexed like site_.
+
+  Used with particleId_ to decide whether a voxel bonds to its neighbours.
+  A voxel that has changed phase since the start grew (or transformed) in
+  place and therefore bonds, even though it still carries the particle id of
+  whatever occupied that spot initially: gypsum replaced by ettringite is the
+  ordinary case. Without this, such a voxel would be mistaken for part of an
+  intact original grain.
+  */
+  std::vector<int> initialMicroPhaseId_;
   int numSites_;           /**< Total number of sites */
 
   ChemicalSystem *chemSys_; /**< Pointer to simulation's ChemicalSystem */
@@ -368,6 +380,40 @@ public:
   */
   static bool isOriginalParticle(const int pimgValue) {
     return (pimgValue > 1);
+  }
+
+  /**
+  @brief Report whether a voxel bonds adhesively to its neighbours.
+
+  True when the voxel grew or transformed in place during the simulation,
+  which is the case unless it is still an untouched piece of an original
+  particle. Used by percolation set-detection: two such voxels always
+  transmit load across their contact, whereas two intact original-particle
+  voxels do so only within one particle (see sameOriginalParticle).
+
+  @param siteIdx is the site index
+  @return true when the voxel bonds to whatever it touches
+  */
+  bool bondsToNeighbors(const int siteIdx) const {
+    if (!isOriginalParticle(getParticleId(siteIdx)))
+      return true;
+    return (static_cast<int>(initialMicroPhaseId_.size()) == numSites_ &&
+            site_[siteIdx].getMicroPhaseId() != initialMicroPhaseId_[siteIdx]);
+  }
+
+  /**
+  @brief Report whether two voxels belong to the same original particle.
+
+  Two grains that merely touch after flocculation must not read as a
+  connected solid path, which is why mere adjacency is not enough.
+
+  @param siteIdxA is the first site index
+  @param siteIdxB is the second site index
+  @return true when both are original-particle voxels sharing an id
+  */
+  bool sameOriginalParticle(const int siteIdxA, const int siteIdxB) const {
+    const int idA = getParticleId(siteIdxA);
+    return (isOriginalParticle(idA) && idA == getParticleId(siteIdxB));
   }
 
   /**

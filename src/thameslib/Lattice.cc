@@ -595,6 +595,17 @@ Lattice::Lattice(ChemicalSystem *cs, RanGen *rg, int seedRNG,
   /// Phase identities are determined by the KineticModel
   ///
 
+  ///
+  /// Remember the starting phase of every voxel so that percolation can tell
+  /// an untouched piece of an original grain from a voxel that has since
+  /// grown or transformed in place. See Lattice::bondsToNeighbors.
+  ///
+
+  initialMicroPhaseId_.resize(numSites_, 0);
+  for (i = 0; i < numSites_; i++) {
+    initialMicroPhaseId_[i] = site_[i].getMicroPhaseId();
+  }
+
   vector<double> microPhaseMass(numMicroPhases_, 0.0);
 
   surfaceArea_.clear();

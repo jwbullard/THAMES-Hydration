@@ -99,6 +99,9 @@ struct PhaseData {
   // double randomGrowth;
   int stressCalc;
   int weak;
+  int rigidityParticipates; /**< 1 if this phase carries load once bonded,
+                                 so that it counts toward the connected
+                                 solid path used for set detection */
   double k2o;
   double na2o;
   double mgo;
@@ -221,6 +224,23 @@ class ChemicalSystem {
                            pressure in the microstructure */
   std::vector<int> weakPhaseId_;    /**< IDs of solid phases that can be damaged
                                          by stress in the microstructure */
+
+  /**
+  @brief Whether each phase counts toward rigidity percolation (set detection).
+
+  Indexed by microstructure phase id. A phase participates when it is
+  internally cohesive and can bond adhesively to another phase, which is
+  true of every solid until there is evidence otherwise, so the default is
+  true for solids and false for VOID and ELECTROLYTE. Set per phase from an
+  optional `rigidity.participates` entry in simparams.json; no phase name
+  appears in this class, so non-portland systems need no code change.
+
+  Whether a given CONTACT transmits load is a separate, geometric question
+  answered in Lattice: two voxels of original particles bond only when they
+  belong to the same particle, while anything that grew in place bonds to
+  whatever it touches.
+  */
+  std::vector<bool> rigidityParticipates_;
   std::vector<int> porousPhaseId_;  /**< IDs of solid phases that have internal
                                          porosity in the microstructure */
   std::vector<std::string> ICName_; /**< Names of ICs in the GEM CSD */
@@ -1210,6 +1230,18 @@ public:
   @return the vector of microstructure phase ids
   */
   std::vector<int> getWeakPhaseId_(void) const { return weakPhaseId_; }
+
+  /**
+  @brief Report whether a phase counts toward rigidity percolation.
+
+  @param idx is the microstructure phase id
+  @return true when the phase carries load once bonded
+  */
+  bool participatesInRigidity(const int idx) const {
+    return (idx >= 0 && idx < static_cast<int>(rigidityParticipates_.size()))
+               ? rigidityParticipates_[idx]
+               : false;
+  }
 
   /**
   @brief Determine if a given microstructure phase is eligible

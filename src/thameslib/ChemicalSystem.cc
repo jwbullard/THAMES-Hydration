@@ -1196,6 +1196,10 @@ void ChemicalSystem::parseMicroPhases(const json::iterator cdi, int numEntries,
     //  phaseData.RdVal.clear();
     phaseData.stressCalc = 0;
     phaseData.weak = 0;
+    /// Solids carry load once bonded; VOID and ELECTROLYTE never do. A phase
+    /// is excluded only by an explicit `rigidity.participates: false`.
+    phaseData.rigidityParticipates =
+        (phaseData.id == VOIDID || phaseData.id == ELECTROLYTEID) ? 0 : 1;
 
     // Initialize elastic moduli (will be loaded from JSON if available)
     phaseData.hasElasticData = false;
@@ -1267,6 +1271,13 @@ void ChemicalSystem::parseMicroPhases(const json::iterator cdi, int numEntries,
     if (p != cdi.value()[i].end()) {
       // Weak means the phase can be damaged by stress
       phaseData.weak = p.value();
+    }
+    p = cdi.value()[i].find("rigidity");
+    if (p != cdi.value()[i].end()) {
+      json::iterator pp = p.value().find("participates");
+      if (pp != p.value().end()) {
+        phaseData.rigidityParticipates = (pp.value() == true) ? 1 : 0;
+      }
     }
     p = cdi.value()[i].find("display_data");
     if (p != cdi.value()[i].end()) {
@@ -1412,6 +1423,7 @@ void ChemicalSystem::parseMicroPhases(const json::iterator cdi, int numEntries,
 
     growthTemplate_.push_back(calcGrowthTemplate(phaseData.affinity));
 
+    rigidityParticipates_.push_back(phaseData.rigidityParticipates > 0);
     poreSizeDistribution_.push_back(phaseData.poreSizeDist);
     if (verbose_) {
       std::clog << "Pushed pore size distribution data for phase "
