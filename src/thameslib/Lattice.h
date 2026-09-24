@@ -194,13 +194,13 @@ private:
   double waterMolarMass_; /**< the water molar mass corresp. to waterDCId_ */
   double waterMolarVol_;  /**< the water molar volume corresp. to waterDCId_ */
 
-  int electrolyteIntPorosity_;
-  int voidIntPorosity_;
+  int electrolyteWettingWeightInt_;
+  int voidWettingWeightInt_;
   int convFactDbl2IntPor_;
 
   std::vector<std::vector<int>> affinityInt_;
   std::vector<std::vector<bool>> growthTemplate_;
-  std::vector<int> microPhasePorosityInt_;
+  std::vector<int> microPhaseWettingWeightInt_;
 
   double oneFaceAreaPerHundredGramSolid_; /** surface area of one voxel's face
                                              per 100g of the initial solid mass

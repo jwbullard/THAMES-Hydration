@@ -335,18 +335,30 @@ class ChemicalSystem {
   */
   std::map<int, std::vector<double>> microPhaseMemberVolumeFraction_;
 
-  std::vector<double> microPhasePorosity_; /**< The sub-voxel porosity of a
-                                              given phase, such as C-S-H
-                                                (dimensionless) */
-  std::vector<int> microPhasePorosityInt_; /**< The sub-voxel porosity of a
-                                              given phase, such as C-S-H
-                                                (integer, dimensionless) */
+  /**
+  @brief How strongly a phase's voxel wets its neighbours (dimensionless).
+
+  Numerically the sub-voxel porosity for every solid phase, but it is
+  consumed as a *weight*, not as a volume: Lattice::setWmc0 and the wmc
+  arithmetic use it to decide which surfaces are wet enough to dissolve or
+  grow, and Lattice weights surface areas by it. That is why VOID carries 0
+  — a gas-filled voxel offers no water to its neighbours — even though a
+  VOID voxel is entirely pore space.
+
+  For the volume question ("how much of this phase is pore?") use
+  microPhasePoreVolumeFraction_ instead. Until 2026-09-23 a single field
+  answered both questions, and the pore size distribution consequently could
+  not see empty capillary voxels.
+  */
+  std::vector<double> microPhaseWettingWeight_;
+  std::vector<int> microPhaseWettingWeightInt_; /**< integer-scaled companion,
+                                              scaled by convFactDbl2IntPor_ */
 
   /**
   @brief Fraction of a phase's voxel volume that is pore space.
 
-  Distinct from microPhasePorosity_ even though the two agree for every
-  solid phase. microPhasePorosity_ doubles as the per-site *wetting weight*
+  Distinct from microPhaseWettingWeight_ even though the two agree for every
+  solid phase. microPhaseWettingWeight_ doubles as the per-site *wetting weight*
   (Lattice::setWmc0 and the wmc arithmetic that decides which surfaces are
   eligible to dissolve or grow), which is why VOID carries 0 there: a
   gas-filled voxel must not wet its neighbours. But a VOID voxel is
@@ -366,7 +378,7 @@ class ChemicalSystem {
   std::vector<double> microPhasePoreVolumeFraction_;
   std::vector<int> microPhasePoreVolumeFractionInt_; /**< integer-scaled
                                               companion, same convention as
-                                              microPhasePorosityInt_ */
+                                              microPhaseWettingWeightInt_ */
 
   /**
   @brief Sub-voxel pore size distribution (volume basis) of each phase
@@ -676,8 +688,8 @@ class ChemicalSystem {
                                        phases). initDCUpperLimit will keep these
                                        at 0.0 instead of resetting to 1e6. */
 
-  int electrolyteIntPorosity_;
-  int voidIntPorosity_;
+  int electrolyteWettingWeightInt_;
+  int voidWettingWeightInt_;
   int convFactDbl2IntPor_; /**< conversion factor for porosity - from double to
                               integer */
   int convFactDbl2IntAff_; /**< conversion factor for affinity - from double to
@@ -2437,12 +2449,12 @@ public:
   @param idx is the microstructure phase with internal porosity
   @param pval is the value of the volume fraction of subvoxel pores to assign
   */
-  void setMicroPhasePorosity(const int idx, double pval) {
+  void setMicroPhaseWettingWeight(const int idx, double pval) {
     // try {
-    microPhasePorosity_[idx] = pval;
+    microPhaseWettingWeight_[idx] = pval;
     //} catch (out_of_range &oor) {
-    //  EOBException ex("ChemicalSystem", "setMicroPhasePorosity",
-    //                  "microPhasePorosity_", microPhasePorosity_.size(), idx);
+    //  EOBException ex("ChemicalSystem", "setMicroPhaseWettingWeight",
+    //                  "microPhaseWettingWeight_", microPhaseWettingWeight_.size(), idx);
     //  ex.printException();
     //  exit(1);
     //}
@@ -2472,23 +2484,23 @@ public:
   @param idx is the microstructure phase with internal (subvoxel) porosity
   @return the subvoxel pore volume fraction of the phase
   */
-  double getMicroPhasePorosity(const int idx) {
+  double getMicroPhaseWettingWeight(const int idx) {
     // try {
     // if (idx == VOIDID || idx == ELECTROLYTEID) {
     //   return 1.0;
     // } else {
-    return microPhasePorosity_[idx];
+    return microPhaseWettingWeight_[idx];
     // }
     //} catch (out_of_range &oor) {
-    //  EOBException ex("ChemicalSystem", "getMicroPhasePorosity",
-    //                  "microPhasePorosity_", microPhasePorosity_.size(), idx);
+    //  EOBException ex("ChemicalSystem", "getMicroPhaseWettingWeight",
+    //                  "microPhaseWettingWeight_", microPhaseWettingWeight_.size(), idx);
     //  ex.printException();
     //  exit(1);
     //}
   }
 
-  int getMicroPhasePorosityInt(const int idx) {
-    return microPhasePorosityInt_[idx];
+  int getMicroPhaseWettingWeightInt(const int idx) {
+    return microPhaseWettingWeightInt_[idx];
   }
 
   /**
@@ -2505,13 +2517,13 @@ public:
   @return the volume fraction of the phase occupied by pores at the scale of one
   micrometer
   */
-  double getMicroPhasePorosity(const std::string &str) {
+  double getMicroPhaseWettingWeight(const std::string &str) {
     int idx = getMicroPhaseId(str);
     // try {
-    return microPhasePorosity_[idx];
+    return microPhaseWettingWeight_[idx];
     //} catch (out_of_range &oor) {
-    //  EOBException ex("ChemicalSystem", "getMicroPhasePorosity",
-    //                  "microPhasePorosity_", microPhasePorosity_.size(), idx);
+    //  EOBException ex("ChemicalSystem", "getMicroPhaseWettingWeight",
+    //                  "microPhaseWettingWeight_", microPhaseWettingWeight_.size(), idx);
     //  ex.printException();
     //  exit(1);
     //}
@@ -2537,19 +2549,19 @@ public:
   @return the list of porosities of all microstructure phases at the scale of
   one micrometer
   */
-  std::vector<double> getMicroPhasePorosity() const {
-    return microPhasePorosity_;
+  std::vector<double> getMicroPhaseWettingWeight() const {
+    return microPhaseWettingWeight_;
   }
 
-  std::vector<int> getMicroPhasePorosityInt() const {
-    return microPhasePorosityInt_;
+  std::vector<int> getMicroPhaseWettingWeightInt() const {
+    return microPhaseWettingWeightInt_;
   }
 
   /**
   @brief Get the pore-volume fraction of a microstructure phase.
 
   See microPhasePoreVolumeFraction_ for why this is not the same concept as
-  getMicroPhasePorosity, even though the values agree for solids.
+  getMicroPhaseWettingWeight, even though the values agree for solids.
 
   @param idx is the microstructure phase id
   @return the fraction of that phase's voxel volume that is pore space

@@ -64,9 +64,9 @@ Site::Site(int xp, int yp, int zp, int xs, int ys, int zs, int neigh,
 }
 
 // void Site::calcWmc(void) {
-//   wmc_ = chemSys_->getMicroPhasePorosity(getMicroPhaseId());
+//   wmc_ = chemSys_->getMicroPhaseWettingWeight(getMicroPhaseId());
 //   for (int i = 0; i < NN_NNN; i++) {
-//     wmc_ += chemSys_->getMicroPhasePorosity(nb_[i]->getMicroPhaseId());
+//     wmc_ += chemSys_->getMicroPhaseWettingWeight(nb_[i]->getMicroPhaseId());
 //   }
 // }
 

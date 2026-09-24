@@ -81,8 +81,8 @@ ChemicalSystem::ChemicalSystem(const string &GEMfilename,
   affinity_.clear();
   affinityInt_.clear();
   contactAngle_.clear();
-  microPhasePorosity_.clear();
-  microPhasePorosityInt_.clear();
+  microPhaseWettingWeight_.clear();
+  microPhaseWettingWeightInt_.clear();
   microPhasePoreVolumeFraction_.clear();
   microPhasePoreVolumeFractionInt_.clear();
   poreSizeDistribution_.clear();
@@ -602,8 +602,8 @@ ChemicalSystem::ChemicalSystem(const string &GEMfilename,
 
       microPhaseVolume_.resize(numMicroPhases_, 0.0);
       microPhaseMass_.resize(numMicroPhases_, 0.0);
-      microPhasePorosity_.resize(numMicroPhases_, 0.0);
-      microPhasePorosityInt_.resize(numMicroPhases_, 0);
+      microPhaseWettingWeight_.resize(numMicroPhases_, 0.0);
+      microPhaseWettingWeightInt_.resize(numMicroPhases_, 0);
       microPhasePoreVolumeFraction_.resize(numMicroPhases_, 0.0);
       microPhasePoreVolumeFractionInt_.resize(numMicroPhases_, 0);
       if (verbose_) {
@@ -627,12 +627,12 @@ ChemicalSystem::ChemicalSystem(const string &GEMfilename,
   /// Set up the porosities for VOID and ELECTROLYTE microPhases
   ///
 
-  electrolyteIntPorosity_ = convFactDbl2IntPor_;
-  voidIntPorosity_ = 0;
-  microPhasePorosity_[0] = 0.0; // VOID
-  microPhasePorosityInt_[0] = voidIntPorosity_;
-  microPhasePorosity_[1] = 1.0; // ELECTROLYTE
-  microPhasePorosityInt_[1] = electrolyteIntPorosity_;
+  electrolyteWettingWeightInt_ = convFactDbl2IntPor_;
+  voidWettingWeightInt_ = 0;
+  microPhaseWettingWeight_[0] = 0.0; // VOID
+  microPhaseWettingWeightInt_[0] = voidWettingWeightInt_;
+  microPhaseWettingWeight_[1] = 1.0; // ELECTROLYTE
+  microPhaseWettingWeightInt_[1] = electrolyteWettingWeightInt_;
 
   /// A VOID voxel wets nothing (porosity 0 above, which doubles as the wmc
   /// weight) but is entirely pore space, so its pore-volume fraction is 1.
@@ -640,7 +640,7 @@ ChemicalSystem::ChemicalSystem(const string &GEMfilename,
   microPhasePoreVolumeFraction_[0] = 1.0; // VOID
   microPhasePoreVolumeFractionInt_[0] = convFactDbl2IntPor_;
   microPhasePoreVolumeFraction_[1] = 1.0; // ELECTROLYTE
-  microPhasePoreVolumeFractionInt_[1] = electrolyteIntPorosity_;
+  microPhasePoreVolumeFractionInt_[1] = electrolyteWettingWeightInt_;
 
   ///
   /// Set up the main map that correlates microstructure phases with GEM CSD
@@ -1882,8 +1882,8 @@ ChemicalSystem::ChemicalSystem(const ChemicalSystem &obj) {
   microPhaseMembers_ = obj.getMicroPhaseMembers();
   microPhaseMemberVolumeFraction_ = obj.getMicroPhaseMemberVolumeFraction();
   microPhaseDCMembers_ = obj.getMicroPhaseDCMembers();
-  microPhasePorosity_ = obj.getMicroPhasePorosity();
-  microPhasePorosityInt_ = obj.getMicroPhasePorosityInt();
+  microPhaseWettingWeight_ = obj.getMicroPhaseWettingWeight();
+  microPhaseWettingWeightInt_ = obj.getMicroPhaseWettingWeightInt();
   microPhasePoreVolumeFraction_ = obj.getMicroPhasePoreVolumeFraction();
   microPhasePoreVolumeFractionInt_ = obj.getMicroPhasePoreVolumeFractionInt();
   poreSizeDistribution_ = obj.getPoreSizeDistribution();
@@ -1977,8 +1977,8 @@ ChemicalSystem::~ChemicalSystem(void) {
   microPhaseMass_.clear();
   microPhaseMassDissolved_.clear();
   microPhaseDCMembers_.clear();
-  microPhasePorosity_.clear();
-  microPhasePorosityInt_.clear();
+  microPhaseWettingWeight_.clear();
+  microPhaseWettingWeightInt_.clear();
   microPhasePoreVolumeFraction_.clear();
   microPhasePoreVolumeFractionInt_.clear();
   poreSizeDistribution_.clear();
@@ -2126,7 +2126,7 @@ void ChemicalSystem::writeChemSys(ofstream &out) {
   out << "numMicroPhases_ = " << numMicroPhases_ << endl;
   out << "microPhase_Id) microPhaseName_[i] / microPhaseId_[i] / "
          "randomGrowth_[i] / affinity_[i][j] / growthTemplate_[i][j] / "
-         "microPhasePorosity_[i]"
+         "microPhaseWettingWeight_[i]"
       << endl;
   for (int i = 0; i < numMicroPhases_; i++) {
     out << endl << i << ") Name: " << microPhaseName_[i] << endl;
@@ -2151,7 +2151,7 @@ void ChemicalSystem::writeChemSys(ofstream &out) {
       out << "  - no templates";
     }
     out << endl;
-    out << "              porosity: " << microPhasePorosity_[i] << endl;
+    out << "              porosity: " << microPhaseWettingWeight_[i] << endl;
     out << "            impurities: " << endl;
     out << "                  k2o_[i]: " << k2o_[i] << endl;
     out << "                 na2o_[i]: " << na2o_[i] << endl;
@@ -2324,7 +2324,7 @@ void ChemicalSystem::calcMicroPhasePorosity(const unsigned int idx) {
     }
   }
 
-  // setMicroPhasePorosity(idx, porosity);
+  // setMicroPhaseWettingWeight(idx, porosity);
 
   int testPorInt;
   double testPorDbl = 0.0;
@@ -2341,8 +2341,8 @@ void ChemicalSystem::calcMicroPhasePorosity(const unsigned int idx) {
   testPorInt = porosity * convFactDbl2IntPor_;
   testPorDbl = testPorInt / static_cast<double>(convFactDbl2IntPor_);
 
-  microPhasePorosityInt_[idx] = testPorInt;
-  microPhasePorosity_[idx] = testPorDbl;
+  microPhaseWettingWeightInt_[idx] = testPorInt;
+  microPhaseWettingWeight_[idx] = testPorDbl;
 
   /// For a solid phase the pore-volume fraction IS its sub-voxel porosity;
   /// only VOID and ELECTROLYTE make the two concepts diverge, and those are
@@ -2353,11 +2353,11 @@ void ChemicalSystem::calcMicroPhasePorosity(const unsigned int idx) {
   if (microPhaseName_[idx] == "CSHQ") {
     std::clog << "    ChemicalSystem::calcMicroPhasePorosity - "
               << microPhaseName_[idx]
-              << " : microPhasePorosity_ = " << microPhasePorosity_[idx]
-              << "    microPhasePorosityInt_= " << microPhasePorosityInt_[idx]
+              << " : microPhaseWettingWeight_ = " << microPhaseWettingWeight_[idx]
+              << "    microPhaseWettingWeightInt_= " << microPhaseWettingWeightInt_[idx]
               << endl;
   }
-  // microPhasePorosity_[idx] = porosity;
+  // microPhaseWettingWeight_[idx] = porosity;
 
   return;
 }
@@ -2799,7 +2799,7 @@ int ChemicalSystem::calculateState(double time, bool isFirst = false,
 
     if (!isKinetic_[i]) {
       // calcMicroPhasePorosity(i);
-      // phi = microPhasePorosity_[i];
+      // phi = microPhaseWettingWeight_[i];
 
       microPhaseMembersSize_i = microPhaseMembers_[i].size();
 
@@ -2862,17 +2862,17 @@ int ChemicalSystem::calculateState(double time, bool isFirst = false,
 
           std::clog << endl
                     << "ChemicalSystem::calculateState error1 - "
-                       "solid phase having microPhasePorosity_ >= 1 for cyc = "
+                       "solid phase having microPhaseWettingWeight_ >= 1 for cyc = "
                     << cyc << " and microPhaseId_ = " << i << " :" << endl;
           for (int i = ELECTROLYTEID; i < numMicroPhases_; i++) {
-            std::clog << "   " << i << " : phName/microPhasePorosity_ : "
-                      << microPhaseName_[i] << " / " << microPhasePorosity_[i]
+            std::clog << "   " << i << " : phName/microPhaseWettingWeight_ : "
+                      << microPhaseName_[i] << " / " << microPhaseWettingWeight_[i]
                       << endl;
           }
           std::clog << endl << "end program" << endl;
 
           throw GEMException("ChemicalSystem", "calculateState",
-                             "error : microPhasePorosity_ >= 1");
+                             "error : microPhaseWettingWeight_ >= 1");
         }
       }
 
@@ -2898,7 +2898,7 @@ int ChemicalSystem::calculateState(double time, bool isFirst = false,
       }
     } else {
       // calcMicroPhasePorosity(i);
-      // phi = getMicroPhasePorosity(i);
+      // phi = getMicroPhaseWettingWeight(i);
       if (verbose_) {
         std::clog << "    IS a KINETIC phase: is composed of "
                   << GEMPhaseName_[microPhaseMembers_[i][0]]

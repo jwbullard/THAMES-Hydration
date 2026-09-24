@@ -81,8 +81,8 @@ Lattice::Lattice(ChemicalSystem *cs, RanGen *rg, int seedRNG,
   rg_ = rg;
 
   convFactDbl2IntPor_ = chemSys_->getConvFactDbl2IntPor();
-  microPhasePorosityInt_.clear();
-  microPhasePorosityInt_ = chemSys_->getMicroPhasePorosityInt();
+  microPhaseWettingWeightInt_.clear();
+  microPhaseWettingWeightInt_ = chemSys_->getMicroPhaseWettingWeightInt();
 
   affinityInt_.clear();
   affinityInt_ = chemSys_->getAffinityInt();
@@ -722,25 +722,25 @@ Lattice::Lattice(ChemicalSystem *cs, RanGen *rg, int seedRNG,
   }
 
   // calc & set wmc
-  electrolyteIntPorosity_ = microPhasePorosityInt_[ELECTROLYTEID];
-  voidIntPorosity_ = microPhasePorosityInt_[VOIDID];
+  electrolyteWettingWeightInt_ = microPhaseWettingWeightInt_[ELECTROLYTEID];
+  voidWettingWeightInt_ = microPhaseWettingWeightInt_[VOIDID];
   int phId;
   // double rng;
   for (i = 0; i < numSites_; i++) {
     // stId = site_[i].getId();
     phId = site_[i].getMicroPhaseId();
     if (phId == ELECTROLYTEID) {
-      site_[i].setWmc0(electrolyteIntPorosity_); // 1.e5
+      site_[i].setWmc0(electrolyteWettingWeightInt_); // 1.e5
     } else if ((phId != VOIDID)) {
       // rng = callRNG();
       // if (rng >= thrPorosity) {
-      //   site_[i].setWmc0(microPhasePorosityInt_[phId]);
+      //   site_[i].setWmc0(microPhaseWettingWeightInt_[phId]);
       // } else {
       //   site_[i].setWmc0(0);
       // }
-      site_[i].setWmc0(microPhasePorosityInt_[phId]);
+      site_[i].setWmc0(microPhaseWettingWeightInt_[phId]);
     } else {
-      site_[i].setWmc0(voidIntPorosity_); // VOID 1.e5
+      site_[i].setWmc0(voidWettingWeightInt_); // VOID 1.e5
     }
   }
 
@@ -1022,9 +1022,9 @@ void Lattice::findInterfaces(void) {
               << dissolutionInterfaceSize_[i]
               << "     growthInterfaceSize_ =  " << std::setw(8)
               << growthInterfaceSize_[i]
-              << "     porosity : " << chemSys_->getMicroPhasePorosity(i)
+              << "     porosity : " << chemSys_->getMicroPhaseWettingWeight(i)
               << "     porosityInt : " << std::setw(8)
-              << chemSys_->getMicroPhasePorosityInt(i) << "     templates : ";
+              << chemSys_->getMicroPhaseWettingWeightInt(i) << "     templates : ";
     for (int j = 0; j < numMicroPhases_; j++) {
       if (chemSys_->isGrowthTemplate(i, j)) {
         std::clog << j << " ";
@@ -1188,7 +1188,7 @@ bool Lattice::hasPorousSolidNeighbor(const int siteID,
 xport::Vec3 Lattice::estimateOutwardNormal(int siteId,
                                            double normalRadiusVoxels) const {
   // Porosity-weighted centroid inside a ball of radius r around siteId.
-  // Uses microPhasePorosityInt_[phaseId] (electrolyte = 100000 → weight 1,
+  // Uses microPhaseWettingWeightInt_[phaseId] (electrolyte = 100000 → weight 1,
   // void = 0, porous solids ∈ (0, 100000)). The centroid vector from
   // the surface site to the porosity centre-of-mass approximates the
   // outward normal (points from reactant surface toward the fluid).
@@ -1227,8 +1227,8 @@ xport::Vec3 Lattice::estimateOutwardNormal(int siteId,
         const int phId = site_[nbId].getMicroPhaseId();
         const double w =
             (phId >= 0 &&
-             phId < static_cast<int>(microPhasePorosityInt_.size()))
-                ? static_cast<double>(microPhasePorosityInt_[phId])
+             phId < static_cast<int>(microPhaseWettingWeightInt_.size()))
+                ? static_cast<double>(microPhaseWettingWeightInt_[phId])
                 : 0.0;
         if (w <= 0.0) continue;
 
@@ -1717,12 +1717,12 @@ vector<int> Lattice::growPhase(vector<int> growPhaseIDVect,
       /// @todo Determine why the calculation works this way.
       ///
 
-      // double por = chemSys_->getMicroPhasePorosity(phaseID);
-      wmcEnd = microPhasePorosityInt_[phaseID];
+      // double por = chemSys_->getMicroPhaseWettingWeight(phaseID);
+      wmcEnd = microPhaseWettingWeightInt_[phaseID];
       ste->setWmc0(wmcEnd);
 
-      // dwmcval = chemSys_->getMicroPhasePorosity(phaseid) -
-      //           chemSys_->getMicroPhasePorosity(pid);
+      // dwmcval = chemSys_->getMicroPhaseWettingWeight(phaseid) -
+      //           chemSys_->getMicroPhaseWettingWeight(pid);
       dwmcval = wmcEnd - wmcIni;
       ste->dWmc(dwmcval);
 
@@ -2186,8 +2186,8 @@ int Lattice::nucleatePhaseRnd(const int phaseID, const int numToNucleate) {
     /// @todo Determine why the calculation works this way.
     ///
 
-    // double por = chemSys_->getMicroPhasePorosity(phaseID);
-    wmcEnd = microPhasePorosityInt_[phaseID];
+    // double por = chemSys_->getMicroPhaseWettingWeight(phaseID);
+    wmcEnd = microPhaseWettingWeightInt_[phaseID];
     ste->setWmc0(wmcEnd);
 
     dwmcval = wmcEnd - wmcIni;
@@ -2602,8 +2602,8 @@ int Lattice::nucleatePhaseAff(const int phaseID, const int numToNucleate) {
     /// @todo Determine why the calculation works this way.
     ///
 
-    // double por = chemSys_->getMicroPhasePorosity(phaseID);
-    wmcEnd = microPhasePorosityInt_[phaseID];
+    // double por = chemSys_->getMicroPhaseWettingWeight(phaseID);
+    wmcEnd = microPhaseWettingWeightInt_[phaseID];
     ste->setWmc0(wmcEnd);
 
     dwmcval = wmcEnd - wmcIni;
@@ -3025,7 +3025,7 @@ std::clog << endl
       /// @todo Determine why the calculation works this way.
       ///
 
-      wmcEnd = electrolyteIntPorosity_; // ELECTROLYTEID;
+      wmcEnd = electrolyteWettingWeightInt_; // ELECTROLYTEID;
       ste->setWmc0(wmcEnd);
 
       dwmcval = wmcEnd - wmcIni;
@@ -3565,11 +3565,11 @@ int Lattice::emptyVoxelPorosity(int numToEmpty) {
       ste0->setInGrowInterfacePos(pid, -1);
       growthInterfaceSize_[pid]--;
     }
-    site_[siteID].setWmc0(voidIntPorosity_);
-    site_[siteID].dWmc(-electrolyteIntPorosity_);
+    site_[siteID].setWmc0(voidWettingWeightInt_);
+    site_[siteID].dWmc(-electrolyteWettingWeightInt_);
     for (int i = 0; i < NN_NNN; i++) {
       stenb = site_[siteID].nb(i);
-      stenb->dWmc(-electrolyteIntPorosity_);
+      stenb->dWmc(-electrolyteWettingWeightInt_);
       if ((stenb->getWmc() == 0) && (stenb->getMicroPhaseId() > ELECTROLYTEID))
         removeDissolutionSite(stenb, stenb->getMicroPhaseId());
     }
@@ -3633,13 +3633,13 @@ int Lattice::fillVoxelPorosity(int numToFill) {
   for (int ii = 0; ii < distVectSize; ii++) {
     siteID = distVect[ii];
     setMicroPhaseId(siteID, ELECTROLYTEID);
-    site_[siteID].setWmc0(electrolyteIntPorosity_);
-    site_[siteID].dWmc(electrolyteIntPorosity_);
+    site_[siteID].setWmc0(electrolyteWettingWeightInt_);
+    site_[siteID].dWmc(electrolyteWettingWeightInt_);
     site_[siteID].clearGrowth();
     for (int i = 0; i < NN_NNN; i++) {
       stenb = site_[siteID].nb(i);
       // wmcIni = stenb->getWmc();
-      stenb->dWmc(electrolyteIntPorosity_);
+      stenb->dWmc(electrolyteWettingWeightInt_);
       nbpid = stenb->getMicroPhaseId();
       if (nbpid > ELECTROLYTEID) {
         if (stenb->getInDissInterfacePos() == -1)
@@ -3906,8 +3906,8 @@ int Lattice::changeMicrostructure(double time, const int simtype,
   // std::clog << endl << " exit Lattice::changeMicrostructure " <<
   // endl;
 
-  microPhasePorosityInt_.clear();
-  microPhasePorosityInt_ = chemSys_->getMicroPhasePorosityInt();
+  microPhaseWettingWeightInt_.clear();
+  microPhaseWettingWeightInt_ = chemSys_->getMicroPhaseWettingWeightInt();
 
   ///
   /// @todo This function is very large; consider breaking it into small pieces
@@ -4774,13 +4774,13 @@ void Lattice::adjustMicrostructureVolumes(vector<double> &vol, int volSize,
   subvoxelPoreVolume_ = 0.0;
   // for (i = 0; i < volSize; ++i) {
   //   if (i != ELECTROLYTEID && i != VOIDID) {
-  //     subvoxelPoreVolume_ += (vol[i] * chemSys_->getMicroPhasePorosity(i));
+  //     subvoxelPoreVolume_ += (vol[i] * chemSys_->getMicroPhaseWettingWeight(i));
   //   }
   // }
 
   for (i = FIRST_SOLID; i < volSize; ++i) {
     solidVolumeWithPores_ += vol[i];
-    // subvoxelPoreVolume_ += (vol[i] * chemSys_->getMicroPhasePorosity(i));
+    // subvoxelPoreVolume_ += (vol[i] * chemSys_->getMicroPhaseWettingWeight(i));
     subvoxelPoreVolume_ +=
         (vol[i] * chemSys_->getMicroPhasePoreVolumeFractionInt(i)) /
         convFactDbl2IntPor_;
@@ -5058,7 +5058,7 @@ void Lattice::adjustMicrostructureVolFracs(vector<string> &names,
 // double phi; // Holds the subvoxel porosity of a microstructurephase
 //   for (int i = 0; i < size; ++i) {
 //     if (i != ELECTROLYTEID && i != VOIDID) {
-//       subvoxelPoreVolume_ += (vol[i] * chemSys_->getMicroPhasePorosity(i));
+//       subvoxelPoreVolume_ += (vol[i] * chemSys_->getMicroPhaseWettingWeight(i));
 //     }
 //   }
 
@@ -5321,7 +5321,7 @@ vector<double> Lattice::getPoreVolumeFractions(void) {
   for (int i = 0; i < numMicroPhases_; ++i) {
     // Pore-volume fraction, NOT the wmc wetting weight: an empty (VOID)
     // voxel is entirely pore space even though it wets nothing. Queried
-    // from ChemicalSystem rather than the cached microPhasePorosityInt_
+    // from ChemicalSystem rather than the cached microPhaseWettingWeightInt_
     // so a CSHQ porosity update cannot leave this stale.
     phi = chemSys_->getMicroPhasePoreVolumeFractionInt(i) /
           d_convFactDbl2IntPor;
@@ -6242,13 +6242,13 @@ double Lattice::fillAllPorosity(const int cyc) {
       for (int ii = 0; ii < countVoid; ii++) {
         siteID = voidVect[ii];
         setMicroPhaseId(siteID, ELECTROLYTEID);
-        site_[siteID].setWmc0(electrolyteIntPorosity_);
-        site_[siteID].dWmc(electrolyteIntPorosity_);
+        site_[siteID].setWmc0(electrolyteWettingWeightInt_);
+        site_[siteID].dWmc(electrolyteWettingWeightInt_);
         site_[siteID].clearGrowth();
         for (int i = 0; i < NN_NNN; i++) {
           stenb = site_[siteID].nb(i);
           // wmcIni = stenb->getWmc();
-          stenb->dWmc(electrolyteIntPorosity_);
+          stenb->dWmc(electrolyteWettingWeightInt_);
           nbpid = stenb->getMicroPhaseId();
           if (nbpid > ELECTROLYTEID) {
             if (stenb->getInDissInterfacePos() == -1)
@@ -6953,9 +6953,9 @@ void Lattice::transformSolSol(Site *ste, int oldPhId, int newPhId,
   /// between the growing phase's porosity and the template's porosity.
   ///
 
-  // wmcEnd = chemSys_->getMicroPhasePorosityInt(newPhId); // normally wmcEnd =
+  // wmcEnd = chemSys_->getMicroPhaseWettingWeightInt(newPhId); // normally wmcEnd =
   // 1
-  wmcEnd = microPhasePorosityInt_[newPhId];
+  wmcEnd = microPhaseWettingWeightInt_[newPhId];
   ste->setWmc0(wmcEnd);
 
   dwmcval = wmcEnd - wmcIni; // normally dwmcval = 0
@@ -7105,8 +7105,8 @@ vector<int> Lattice::transformLiqSol(Site *ste, int growPhID, int totalTRC) {
   /// Weighted mean curvature (wmc) is changed by the difference
   /// between the growing phase's porosity and the template's porosity.
 
-  // double por = chemSys_->getMicroPhasePorosity(growPhID);
-  wmcEnd = microPhasePorosityInt_[growPhID];
+  // double por = chemSys_->getMicroPhaseWettingWeight(growPhID);
+  wmcEnd = microPhaseWettingWeightInt_[growPhID];
   ste->setWmc0(wmcEnd);
 
   dwmcval = wmcEnd - wmcIni;
@@ -8256,7 +8256,7 @@ void Lattice::addSeedCSHQ(bool seedMassCEM, bool seedMassC3S, bool seedMassC2S,
               << " m3/mol     porosity = " << DCporosities[i] << endl;
   }
   density = avMolarMass / avMolarVol / 1.0e6; // g/cm3
-  porosity = chemSys_->getMicroPhasePorosity(cshqId);
+  porosity = chemSys_->getMicroPhaseWettingWeight(cshqId);
   std::clog << endl
             << "  Lattice::addSeedCSHQ - CSHQ : "
             << " avMolarMass = " << avMolarMass
@@ -8264,7 +8264,7 @@ void Lattice::addSeedCSHQ(bool seedMassCEM, bool seedMassC3S, bool seedMassC2S,
             << " m3/mol    density = " << density
             << " g/cm3    porosity = " << porosity << endl;
 
-  microPhasePorosityInt_[cshqId] = chemSys_->getMicroPhasePorosityInt(cshqId);
+  microPhaseWettingWeightInt_[cshqId] = chemSys_->getMicroPhaseWettingWeightInt(cshqId);
 
   std::vector<std::string> microPhaseName = chemSys_->getMicroPhaseName();
   std::vector<double> microPhaseMass = chemSys_->getMicroPhaseMass();
@@ -8557,7 +8557,7 @@ void Lattice::calcSurfaceAreas(void) {
         for (int j = 0; j < NUM_NEAREST_NEIGHBORS; j++) {
           stenb = ste->nb(j);
           surfaceArea_[phId] +=
-              (microPhasePorosityInt_[stenb->getMicroPhaseId()] /
+              (microPhaseWettingWeightInt_[stenb->getMicroPhaseId()] /
                d_convFactDbl2IntPor);
         }
       }
@@ -8594,7 +8594,7 @@ void Lattice::calcSurfaceArea(int phId) {
     // for (int j = 0; j < NN_NNN; j++) {
     for (int j = 0; j < NUM_NEAREST_NEIGHBORS; j++) {
       stenb = site_[stId].nb(j); // ste->nb(j);
-      surfaceArea_[phId] += (microPhasePorosityInt_[stenb->getMicroPhaseId()] /
+      surfaceArea_[phId] += (microPhaseWettingWeightInt_[stenb->getMicroPhaseId()] /
                              d_convFactDbl2IntPor);
     }
   }
