@@ -80,6 +80,26 @@ private:
   int zdim_;               /**< Number of sites in the z dimension */
   double resolution_;      /**< Voxel edge length [micrometers] */
   std::vector<Site> site_; /**< 1D list of Site objects (site = voxel) */
+
+  /**
+  @brief Original particle id of each voxel, read from the `.pimg` image.
+
+  micgen writes `partid + 1` for every voxel belonging to a drawn particle
+  and ELECTROLYTE (1) for everything else, so a value <= 1 means "not part
+  of any original particle" (VCCTL used 0 for the same purpose; see
+  isOriginalParticle()). Indexed like site_.
+
+  The image describes the INITIAL microstructure and is never updated as
+  hydration proceeds, so a voxel now occupied by a hydration product still
+  carries the background value of whatever stood there at t = 0. Percolation
+  set-detection relies on that: two reactant voxels count as connected
+  through their interior only when they share a real particle id, while
+  hydration products connect through the bridging rules instead.
+
+  Empty when no `.pimg` accompanied the microstructure (older operation
+  folders, hand-built images); callers must check hasParticleIds() first.
+  */
+  std::vector<int> particleId_;
   int numSites_;           /**< Total number of sites */
 
   ChemicalSystem *chemSys_; /**< Pointer to simulation's ChemicalSystem */
@@ -317,6 +337,38 @@ public:
   @return the total number of lattice sites
   */
   int getNumSites() const { return numSites_; }
+
+  /**
+  @brief Report whether original particle ids were loaded from a `.pimg`.
+
+  @return true when particleId_ is populated for every site
+  */
+  bool hasParticleIds() const {
+    return (static_cast<int>(particleId_.size()) == numSites_);
+  }
+
+  /**
+  @brief Get the original particle id of a site.
+
+  @param siteIdx is the site index, as used by site_
+  @return the particle id, or 0 when no `.pimg` was loaded
+  */
+  int getParticleId(const int siteIdx) const {
+    return hasParticleIds() ? particleId_[siteIdx] : 0;
+  }
+
+  /**
+  @brief Report whether a `.pimg` value denotes a real original particle.
+
+  micgen writes ELECTROLYTE (1) for voxels outside every drawn particle and
+  VCCTL wrote 0, so treat both as "no particle" and accept either producer.
+
+  @param pimgValue is a raw value from the particle-id image
+  @return true when the value identifies an original particle
+  */
+  static bool isOriginalParticle(const int pimgValue) {
+    return (pimgValue > 1);
+  }
 
   /**
   @brief Set the volume fraction of a given microstructure phase.

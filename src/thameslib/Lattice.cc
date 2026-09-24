@@ -514,6 +514,76 @@ Lattice::Lattice(ChemicalSystem *cs, RanGen *rg, int seedRNG,
   }
 
   ///
+  /// Load the companion particle-id image (`.pimg`) if micgen wrote one.
+  ///
+  /// Same layout as the microstructure image: five header pairs, then one
+  /// value per voxel in the same order. Percolation set-detection uses it to
+  /// tell two reactant voxels of the SAME original particle from two
+  /// particles that merely touch; without it, flocculated particles in
+  /// contact would register as set at t = 0.
+  ///
+  /// A missing or mismatched file is not fatal: older operation folders and
+  /// hand-built microstructures have none, so particleId_ is left empty and
+  /// set-detection reports itself unavailable rather than guessing.
+  ///
+
+  string particleFileName = fileName;
+  const string imgSuffix = ".img";
+  if (particleFileName.size() > imgSuffix.size() &&
+      particleFileName.compare(particleFileName.size() - imgSuffix.size(),
+                               imgSuffix.size(), imgSuffix) == 0) {
+    particleFileName.replace(particleFileName.size() - imgSuffix.size(),
+                             imgSuffix.size(), ".pimg");
+
+    ifstream pin(particleFileName.c_str());
+    if (!pin) {
+      std::clog << "Lattice::Lattice - no particle-id image at "
+                << particleFileName
+                << "; percolation set-detection will be unavailable" << endl;
+    } else {
+      string pbuff;
+      int pxdim = 0, pydim = 0, pzdim = 0;
+      double pres = 0.0;
+      pin >> pbuff; // version identifier
+      if (pbuff == VERSIONSTRING) {
+        string pversion;
+        pin >> pversion;
+        pin >> pbuff >> pxdim; // X size
+        pin >> pbuff >> pydim; // Y size
+        pin >> pbuff >> pzdim; // Z size
+        pin >> pbuff >> pres;  // voxel resolution
+      }
+
+      if (pxdim != xdim_ || pydim != ydim_ || pzdim != zdim_) {
+        std::clog << "Lattice::Lattice - WARNING: particle-id image "
+                  << particleFileName << " is " << pxdim << "x" << pydim << "x"
+                  << pzdim << " but the microstructure is " << xdim_ << "x"
+                  << ydim_ << "x" << zdim_
+                  << "; ignoring it (set-detection unavailable)" << endl;
+      } else {
+        particleId_.resize(numSites_, 0);
+        int partId = 0;
+        int numRead = 0;
+        for (numRead = 0; numRead < numSites_ && (pin >> partId); numRead++) {
+          particleId_[numRead] = partId;
+        }
+        if (numRead < numSites_) {
+          std::clog << "Lattice::Lattice - WARNING: particle-id image "
+                    << particleFileName << " ended after " << numRead << " of "
+                    << numSites_
+                    << " voxels; ignoring it (set-detection unavailable)"
+                    << endl;
+          particleId_.clear();
+        } else {
+          std::clog << "Lattice::Lattice - loaded particle ids for "
+                    << numSites_ << " voxels from " << particleFileName << endl;
+        }
+      }
+      pin.close();
+    }
+  }
+
+  ///
   /// Done with the input microstructure file, so close it.
   ///
 
