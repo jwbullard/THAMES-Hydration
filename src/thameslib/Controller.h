@@ -195,9 +195,13 @@ private:
 
   Connectivity is assessed on a schedule rather than every cycle: it costs
   three labeling passes over the lattice, and neither set nor capillary
-  depercolation moves fast enough to need finer resolution. Before initial
-  set the microstructure changes quickly, so it is checked every 10 min of
-  hydration time; afterwards every hour.
+  depercolation moves fast enough to need finer resolution. The fine cadence
+  runs until FINAL set rather than initial set, because the resolution of the
+  cadence is the resolution of the answer: on the sealed cem151-neat
+  reference the whole setting window is 2.55 to 5.62 h, so dropping to a
+  coarse interval at initial set would pin final set only to the hour it fell
+  in. Ten minutes until final set, two hours afterwards; the extra
+  assessments cost well under a percent of run time.
 
   Initial set is rigidity percolation in 3D — the first assessment in which
   the load-bearing solids span all three directions.
@@ -221,8 +225,8 @@ private:
   are written empty so that "not looked at" is never mistaken for "not set".
   Capillary percolation is unaffected: it is purely geometric.
   */
-  static constexpr double PERCOLATION_INTERVAL_BEFORE_SET_H = 10.0 / 60.0;
-  static constexpr double PERCOLATION_INTERVAL_AFTER_SET_H = 1.0;
+  static constexpr double PERCOLATION_INTERVAL_BEFORE_FINAL_SET_H = 10.0 / 60.0;
+  static constexpr double PERCOLATION_INTERVAL_AFTER_FINAL_SET_H = 2.0;
   static constexpr double FINAL_SET_CONNECTED_FRACTION = 0.80;
 
   bool setDetectionAvailable_;  /**< false when no `.pimg` was loaded */

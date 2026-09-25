@@ -631,13 +631,20 @@ void Controller::updatePercolationState(double currTime) {
   ///
   /// Assess on a schedule, not every cycle: three labeling passes over the
   /// lattice cost far more than they are worth at every timestep, and
-  /// neither setting nor capillary depercolation moves that fast. Ten
-  /// minutes of hydration time before initial set, an hour afterwards.
+  /// neither setting nor capillary depercolation moves that fast. The fine
+  /// cadence runs until FINAL set, not initial set: the setting window is
+  /// only a few hours wide, so a coarse interval after initial set would
+  /// leave final set resolved no better than the interval itself. Once both
+  /// events are in hand only capillary depercolation is left to follow, and
+  /// that plays out over days.
+  ///
+  /// With no particle-id image there is no set to detect, so the coarse
+  /// interval applies from the start rather than forever.
   ///
 
-  const double interval = initialSetDetected_
-                              ? PERCOLATION_INTERVAL_AFTER_SET_H
-                              : PERCOLATION_INTERVAL_BEFORE_SET_H;
+  const bool awaitingSet = setDetectionAvailable_ && !finalSetDetected_;
+  const double interval = awaitingSet ? PERCOLATION_INTERVAL_BEFORE_FINAL_SET_H
+                                      : PERCOLATION_INTERVAL_AFTER_FINAL_SET_H;
   if (lastPercolationTime_ >= 0.0 &&
       (currTime - lastPercolationTime_) < interval) {
     return;
@@ -650,8 +657,7 @@ void Controller::updatePercolationState(double currTime) {
   /// governs whether curing water can still reach the interior.
 
   percolation::Result solid;
-  const bool assessSolid = setDetectionAvailable_ && !finalSetDetected_;
-  if (assessSolid) {
+  if (awaitingSet) {
     solid = lattice_->assessRigidityPercolation();
 
     if (!initialSetDetected_ && solid.spansAllDirections()) {
@@ -686,14 +692,14 @@ void Controller::updatePercolationState(double currTime) {
   }
   outfs << setprecision(5) << currTime;
   for (int d = 0; d < 3; ++d) {
-    if (assessSolid) {
+    if (awaitingSet) {
       outfs << "," << (solid.direction[d].spans ? 1 : 0);
     } else {
       outfs << ","; // not assessed on this pass
     }
   }
   for (int d = 0; d < 3; ++d) {
-    if (assessSolid) {
+    if (awaitingSet) {
       outfs << "," << solid.direction[d].connectedFraction;
     } else {
       outfs << ",";
