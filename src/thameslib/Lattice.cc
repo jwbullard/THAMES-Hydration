@@ -3623,31 +3623,209 @@ double Lattice::fillSubVoxelPorosity(double aqFracToFill) {
   return (aqFracFilled);
 }
 
+
+vector<double> Lattice::getCapillaryPoreDepth(void) const {
+  ///
+  /// The capillary pore space is ELECTROLYTE plus VOID. Everything else,
+  /// including the sub-voxel porosity inside solid phases, counts as solid:
+  /// the question here is the size of the voxel-scale pore a voxel belongs
+  /// to, and gel pores inside a C-S-H voxel are not part of that.
+  ///
+
+  vector<char> pore(numSites_, 0);
+  for (int i = 0; i < numSites_; i++) {
+    const int pid = site_[i].getMicroPhaseId();
+    if (pid == ELECTROLYTEID || pid == VOIDID)
+      pore[i] = 1;
+  }
+
+  return edt::squaredDistanceToBackground(xdim_, ydim_, zdim_, pore);
+}
+
+namespace {
+
+/**
+@brief Get a repeatable pseudo-random fraction in [0, 1) for one site.
+
+Used only to break ties between voxels at identical depth. A hash rather than
+the simulation's random number generator: it has to give the same answer
+every time a site is looked at within a call, which would otherwise mean
+storing a number for every voxel in the lattice, and it is drawn a few
+million times per cycle, which would otherwise dominate the cost of emptying.
+The seed comes from the simulation's generator, so runs stay reproducible and
+tie-breaking still differs from cycle to cycle.
+
+@param site is the site id
+@param seed is the per-call seed
+@return a fraction in [0, 1)
+*/
+inline double tieBreak(int site, unsigned int seed) {
+  unsigned int x = static_cast<unsigned int>(site) * 2654435761u;
+  x ^= seed;
+  x ^= x >> 15;
+  x *= 2246822519u;
+  x ^= x >> 13;
+  x *= 3266489917u;
+  x ^= x >> 16;
+  return static_cast<double>(x) / 4294967296.0;
+}
+
+} // namespace
+
+vector<int> Lattice::selectSitesToEmpty(int numToEmpty) {
+  vector<int> selected;
+  if (numToEmpty <= 0)
+    return selected;
+
+  const vector<double> depth = getCapillaryPoreDepth();
+  if (static_cast<int>(depth.size()) != numSites_)
+    return selected;
+
+  ///
+  /// Depths are squared distances between lattice points, so they are whole
+  /// numbers and any two distinct depths differ by at least one. Adding a
+  /// fraction below one half therefore shuffles voxels that are equally deep
+  /// without ever reordering voxels that are not.
+  ///
+
+  const unsigned int seed =
+      static_cast<unsigned int>(callRNG() * 4294967295.0);
+  auto key = [&depth, seed](int i) {
+    return depth[i] + 0.49 * tieBreak(i, seed);
+  };
+
+  /// Candidates for starting a new cavity, deepest first. Held as a heap
+  /// rather than sorted: only a few per cycle are ever taken, and building a
+  /// heap costs a single pass where sorting half a million voxels does not.
+
+  vector<int> candidates;
+  candidates.reserve(numSites_ / 4);
+  for (int i = 0; i < numSites_; i++) {
+    if (site_[i].getMicroPhaseId() == ELECTROLYTEID)
+      candidates.push_back(i);
+  }
+  auto shallower = [&key](int a, int b) { return key(a) < key(b); };
+  make_heap(candidates.begin(), candidates.end(), shallower);
+
+  /// Growth sites: electrolyte touching something already empty, deepest
+  /// first. Cavities emptied on earlier cycles seed this, so a cavity keeps
+  /// growing across cycles instead of restarting.
+
+  priority_queue<pair<double, int>> frontier;
+  vector<char> queued(numSites_, 0);
+  vector<char> chosen(numSites_, 0);
+
+  for (int i = 0; i < numSites_; i++) {
+    if (site_[i].getMicroPhaseId() != ELECTROLYTEID)
+      continue;
+    for (int j = 0; j < NUM_NEAREST_NEIGHBORS; j++) {
+      if (site_[i].nb(j)->getMicroPhaseId() == VOIDID) {
+        frontier.push(make_pair(key(i), i));
+        queued[i] = 1;
+        break;
+      }
+    }
+  }
+
+  while (static_cast<int>(selected.size()) < numToEmpty) {
+
+    /// Start a new cavity when there is nowhere to grow, or now and then on
+    /// purpose so that the emptied volume ends up as several cavities rather
+    /// than one.
+
+    bool nucleate = frontier.empty();
+    if (!nucleate && !selected.empty())
+      nucleate = (callRNG() < CAVITY_NUCLEATION_PROBABILITY);
+
+    int siteID = -1;
+    if (nucleate) {
+      while (!candidates.empty() && chosen[candidates.front()]) {
+        pop_heap(candidates.begin(), candidates.end(), shallower);
+        candidates.pop_back();
+      }
+      if (!candidates.empty()) {
+        siteID = candidates.front();
+        pop_heap(candidates.begin(), candidates.end(), shallower);
+        candidates.pop_back();
+      }
+    }
+
+    if (siteID < 0) {
+      /// Either we are growing, or nucleation found nothing left to take.
+      while (!frontier.empty() && chosen[frontier.top().second])
+        frontier.pop();
+      if (frontier.empty())
+        break; // no electrolyte left anywhere
+      siteID = frontier.top().second;
+      frontier.pop();
+    }
+
+    chosen[siteID] = 1;
+    selected.push_back(siteID);
+
+    for (int j = 0; j < NUM_NEAREST_NEIGHBORS; j++) {
+      Site *stenb = site_[siteID].nb(j);
+      const int nbid = stenb->getId();
+      if (!chosen[nbid] && !queued[nbid] &&
+          stenb->getMicroPhaseId() == ELECTROLYTEID) {
+        frontier.push(make_pair(key(nbid), nbid));
+        queued[nbid] = 1;
+      }
+    }
+  }
+
+  return selected;
+}
+
+vector<int> Lattice::selectSitesToFill(int numToFill) {
+  vector<int> selected;
+  if (numToFill <= 0)
+    return selected;
+
+  const vector<double> depth = getCapillaryPoreDepth();
+  if (static_cast<int>(depth.size()) != numSites_)
+    return selected;
+
+  const unsigned int seed =
+      static_cast<unsigned int>(callRNG() * 4294967295.0);
+  auto key = [&depth, seed](int i) {
+    return depth[i] + 0.49 * tieBreak(i, seed);
+  };
+
+  for (int i = 0; i < numSites_; i++) {
+    if (site_[i].getMicroPhaseId() == VOIDID)
+      selected.push_back(i);
+  }
+
+  /// Shallowest first, which is the edge of a cavity: water returns to the
+  /// finest space still empty, and cavities close inward from their walls.
+  /// Only the first numToFill matter, so stop there rather than ordering the
+  /// whole of a large void volume.
+
+  const int numWanted =
+      (static_cast<int>(selected.size()) < numToFill) ? selected.size()
+                                                      : numToFill;
+  partial_sort(selected.begin(), selected.begin() + numWanted, selected.end(),
+               [&key](int a, int b) { return key(a) < key(b); });
+  selected.resize(numWanted);
+
+  return selected;
+}
+
 int Lattice::emptyVoxelPorosity(int numToEmpty) {
-  int maxsearchsize = 3;
   Site *stenb;
 
   ///
-  /// Finding all potential VOID sites.
-  ///
-  /// @todo Consider removing some of the standard output, or setting a flag for
-  /// it.
+  /// Choose the voxels to empty: deepest in the capillary pore space first,
+  /// grown outward from what is already empty so the result is a handful of
+  /// compact cavities. See selectSitesToEmpty.
   ///
 
-  // std::clog << "    Lattice::emptyPorosity - check for cyc = " << cyc
-  //      << " :      numToEmpty = " << numToEmpty;
-  // std::clog.flush();
-
-  vector<int> distVect =
-      findDomainSizeDistribution(ELECTROLYTEID, numToEmpty, maxsearchsize, 0);
+  vector<int> distVect = selectSitesToEmpty(numToEmpty);
   int distVectSize = distVect.size();
 
   // std::clog << "      distVect.size() = " << distVectSize << endl;
   // std::clog.flush();
-
-  ///
-  /// We want to empty the sites with the largest pore count
-  ///
 
   // if (distVectSize < numToEmpty) {
   //   std::clog << endl
@@ -3706,13 +3884,10 @@ int Lattice::emptyVoxelPorosity(int numToEmpty) {
 
 int Lattice::fillVoxelPorosity(int numToFill) {
 
-  int maxsearchsize = 10;
-
   ///
-  /// Finding all potential VOID sites.
-  ///
-  /// @todo Consider removing some of the standard output, or setting a flag for
-  /// it.
+  /// Choose the voxels to fill: shallowest in the capillary pore space
+  /// first, so cavities close inward from their walls. See
+  /// selectSitesToFill.
   ///
 
   if (verbose_) {
@@ -3725,16 +3900,11 @@ int Lattice::fillVoxelPorosity(int numToFill) {
   //      << " :      numToFill = " << numToFill;
   // std::clog.flush();
 
-  vector<int> distVect =
-      findDomainSizeDistribution(VOIDID, numToFill, maxsearchsize, 1);
+  vector<int> distVect = selectSitesToFill(numToFill);
   int distVectSize = distVect.size();
 
   // std::clog << "      distVect.size() = " << distVectSize << endl;
   // std::clog.flush();
-
-  ///
-  /// We want to fill the sites with the smallest pore count
-  ///
 
   if (distVectSize < numToFill) {
     std::clog
@@ -7461,169 +7631,6 @@ void Lattice::applyExpansion(vector<int> alnb, double exp) {
   // }
 
   return;
-}
-
-int Lattice::findDomainSize(int siteid, int maxsize) {
-
-  int boxhalf = maxsize / 2;
-  int nfound = 0;
-
-  int phaseid = (site_[siteid]).getMicroPhaseId();
-  int qx = (site_[siteid]).getX();
-  int qy = (site_[siteid]).getY();
-  int qz = (site_[siteid]).getZ();
-
-  int qxlo = qx - boxhalf;
-  int qxhi = qx + boxhalf;
-  int qylo = qy - boxhalf;
-  int qyhi = qy + boxhalf;
-  int qzlo = qz - boxhalf;
-  int qzhi = qz + boxhalf;
-
-  /***
-   *    Count the number of requisite sites in the
-   *    3-D cube box using whatever boundaries are specified
-   ***/
-
-  for (int ix = qxlo; ix <= qxhi; ix++) {
-    for (int iy = qylo; iy <= qyhi; iy++) {
-      for (int iz = qzlo; iz <= qzhi; iz++) {
-
-        /// Count if phase id only
-
-        if (site_[getIndex(ix, iy, iz)].getMicroPhaseId() == phaseid) {
-          nfound++;
-        }
-      }
-    }
-  }
-
-  return nfound;
-}
-
-vector<int> Lattice::findDomainSizeDistribution(int phaseid, const int numsites,
-                                                int maxsize,
-                                                int sortorder = 0) {
-  // if sortorder is 0 => sorting in descending order
-
-  int domainsize = 0;
-  int ix, iy, iz;
-  int qx, qy, qz;
-  int qxlo, qxhi, qylo, qyhi, qzlo, qzhi;
-  int sizeCateg, pos, stId;
-  double rng;
-
-  int boxhalf = maxsize / 2;
-  int dim = maxsize;
-  if (maxsize % 2 == 0)
-    dim++;
-  int totSize = static_cast<int>(pow(dim, 3)) + 1;
-
-  vector<int> init;
-  vector<vector<int>> siteDomainSizeDistribution(totSize, init);
-  vector<int> selectedSites;
-
-  for (int i = 0; i < numSites_; i++) {
-    if (site_[i].getMicroPhaseId() == phaseid) {
-
-      qx = (site_[i]).getX();
-      qy = (site_[i]).getY();
-      qz = (site_[i]).getZ();
-
-      qxlo = qx - boxhalf;
-      qxhi = qx + boxhalf;
-      qylo = qy - boxhalf;
-      qyhi = qy + boxhalf;
-      qzlo = qz - boxhalf;
-      qzhi = qz + boxhalf;
-
-      /***
-       *    Count the number of requisite sites in the
-       *    3-D cube box using whatever boundaries are specified
-       ***/
-
-      domainsize = 0;
-      for (ix = qxlo; ix <= qxhi; ix++) {
-        for (iy = qylo; iy <= qyhi; iy++) {
-          for (iz = qzlo; iz <= qzhi; iz++) {
-
-            /// Count if phase id only
-
-            if (site_[getIndex(ix, iy, iz)].getMicroPhaseId() == phaseid) {
-              domainsize++;
-            }
-          }
-        }
-      }
-
-      siteDomainSizeDistribution[domainsize].push_back(i);
-    }
-  }
-
-  int j;
-  int contor = 0;
-  int diff = numsites;
-  if (sortorder == 0) { // emptyPorosity
-    j = totSize;
-    while (diff > 0) {
-      sizeCateg = siteDomainSizeDistribution[j - 1].size();
-      if (diff < sizeCateg) {
-        for (int k = 0; k < diff; k++) {
-          rng = callRNG();
-          pos = static_cast<int>(rng * (sizeCateg - 1));
-          stId = siteDomainSizeDistribution[j - 1][pos];
-          selectedSites.push_back(stId);
-          siteDomainSizeDistribution[j - 1][pos] =
-              siteDomainSizeDistribution[j - 1][sizeCateg - 1];
-
-          sizeCateg--;
-          contor++;
-        }
-      } else {
-        if (sizeCateg > 0) {
-          selectedSites.insert(selectedSites.end(),
-                               siteDomainSizeDistribution[j - 1].begin(),
-                               siteDomainSizeDistribution[j - 1].end());
-          contor += sizeCateg;
-        }
-        j--;
-      }
-      diff = numsites - contor;
-      if (j == 0)
-        break;
-    }
-  } else { // fillPorosity
-    j = 1;
-    while (diff > 0) {
-      sizeCateg = siteDomainSizeDistribution[j].size();
-      if (diff < sizeCateg) {
-        for (int k = 0; k < diff; k++) {
-          rng = callRNG();
-          pos = static_cast<int>(rng * (sizeCateg - 1));
-          stId = siteDomainSizeDistribution[j][pos];
-          selectedSites.push_back(stId);
-          siteDomainSizeDistribution[j][pos] =
-              siteDomainSizeDistribution[j][sizeCateg - 1];
-
-          sizeCateg--;
-          contor++;
-        }
-      } else {
-        if (sizeCateg > 0) {
-          selectedSites.insert(selectedSites.end(),
-                               siteDomainSizeDistribution[j].begin(),
-                               siteDomainSizeDistribution[j].end());
-          contor += sizeCateg;
-        }
-        j++;
-      }
-      diff = numsites - contor;
-      if (j > totSize)
-        break;
-    }
-  }
-
-  return (selectedSites);
 }
 
 void Lattice::findIsolatedClusters(void) {

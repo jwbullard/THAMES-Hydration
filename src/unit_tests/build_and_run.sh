@@ -45,6 +45,14 @@ clang++ -std=c++17 -O2 -Wall \
 ./test_percolation
 
 echo ""
+echo "=== test_distance_transform ==="
+clang++ -std=c++17 -O2 -Wall \
+    -I../thameslib \
+    -o test_distance_transform \
+    test_distance_transform.cc ../thameslib/DistanceTransform.cc
+./test_distance_transform
+
+echo ""
 echo "=== test_transport_correction ==="
 clang++ -std=c++17 -O2 -Wall \
     -I../thameslib \

@@ -13,6 +13,7 @@ exists, hydrates, and possibly deteriorates.
 
 #include "AppliedStrain.h"
 #include "ChemicalSystem.h"
+#include "DistanceTransform.h"
 #include "Exceptions.h"
 #include "Interface.h"
 #include "Isite.h"
@@ -24,7 +25,9 @@ exists, hydrates, and possibly deteriorates.
 #include "utils.h"
 // #include "../version.h"
 
+#include <algorithm>
 #include <climits>
+#include <queue>
 
 /**
 @struct Sitesize
@@ -1098,6 +1101,77 @@ public:
   int emptyVoxelPorosity(int numToEmpty);
 
   /**
+  @brief Chance of starting a new cavity rather than enlarging an existing one.
+
+  Self-desiccation does not hollow out a single enormous void, nor does it
+  empty voxels one at a time all over the specimen; it opens a scatter of
+  discrete cavities in the coarsest pores. This is the one knob that decides
+  how many. At 0.05 roughly one voxel in twenty starts somewhere new and the
+  rest enlarge what is already there, so cavities stay compact while their
+  number grows slowly with the volume emptied.
+
+  Not user-editable, and not calibrated against anything measured: it sets
+  cavity size and spacing, which no measurement in THAMES currently
+  constrains. Named so it is easy to find when one does.
+  */
+  static constexpr double CAVITY_NUCLEATION_PROBABILITY = 0.05;
+
+  /**
+  @brief Get how deep inside the capillary pore space each voxel sits.
+
+  The squared Euclidean distance from every voxel to the nearest solid,
+  periodic in all three directions, with the capillary pore space taken as
+  ELECTROLYTE plus VOID. Empty voxels have to count as pore here: a cavity
+  that has already drained is still part of the pore it drained from, and
+  leaving it out would make the water beside it look like it sat in a
+  one-voxel crack.
+
+  Distances come back squared, which keeps them exact integers and orders the
+  same way the distances themselves do.
+
+  @return the squared pore depth of every voxel, indexed as the lattice is
+  */
+  std::vector<double> getCapillaryPoreDepth(void) const;
+
+  /**
+  @brief Choose which electrolyte voxels chemical shrinkage should empty.
+
+  Water leaves the largest pores first, because they hold it least tightly:
+  that is the Kelvin equation, and it is why a drying paste hollows out its
+  coarse porosity long before its gel pores. Emptying in descending order of
+  pore depth does that directly.
+
+  Order alone would still scatter the emptied voxels one by one across every
+  large pore in the box. Real self-desiccation instead opens a few discrete
+  cavities, so once a voxel has been emptied the next one is taken from the
+  deepest voxel ADJACENT to what is already empty, which grows each cavity
+  outward from its center and keeps it compact and roughly spherical. A new
+  cavity is started with probability CAVITY_NUCLEATION_PROBABILITY each time
+  a voxel is emptied, and whenever no growth site is available.
+
+  Ties in depth are broken at random, since a cube lattice offers many voxels
+  at identical distance and always taking the first would drift the cavities
+  along the indexing direction.
+
+  @param numToEmpty is how many voxels to choose
+  @return the chosen site ids, in the order they should be emptied
+  */
+  std::vector<int> selectSitesToEmpty(int numToEmpty);
+
+  /**
+  @brief Choose which void voxels returning water should fill.
+
+  The reverse of selectSitesToEmpty: shallowest first, so cavities close from
+  their edges inward and the last water to return is the water that left
+  first. Nothing needs to grow here, because the shallow voxels of a cavity
+  are its surface by construction.
+
+  @param numToFill is how many voxels to choose
+  @return the chosen site ids, in the order they should be filled
+  */
+  std::vector<int> selectSitesToFill(int numToFill);
+
+  /**
   @brief Empty a prescribed volume fraction of electrolyte from sub-voxel pores
 
   @param volFracToRemove is the target reduction in electrolyte volume
@@ -2118,27 +2192,6 @@ public:
     }
     return cemsurf;
   }
-
-  /**
-  @brief Get the sorted distribution of domain sizes
-
-  @param phaseid is the id of the phase to query
-  @param numsites is the maximum number of sites to store and sort
-  @param maxisze is the maxmimum linear size of interest
-  @param sortorder is 0 if sorting in descending order, nonzero otherwise
-  @return an STL list of the site ids according to the distribution
-  */
-  std::vector<int> findDomainSizeDistribution(int phaseid, const int numsites,
-                                              int maxsize, int sortorder);
-
-  /**
-  @brief Estimate the <i>linear size</i> of a domain
-
-  @param siteid is the id of the microstructure phase
-  @param maxsize is the maxmimum linear size of interest
-  @return the edge length of the maximum cube that contains the same phase
-  */
-  int findDomainSize(int siteid, int maxsize);
 
   /**
   @brief Set the verbose flag

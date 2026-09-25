@@ -3,3 +3,4 @@ test_nucleation_rate
 test_saturating_rate
 test_jmak_growth
 test_percolation
+test_distance_transform
