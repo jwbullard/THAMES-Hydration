@@ -1101,22 +1101,6 @@ public:
   int emptyVoxelPorosity(int numToEmpty);
 
   /**
-  @brief Chance of starting a new cavity rather than enlarging an existing one.
-
-  Self-desiccation does not hollow out a single enormous void, nor does it
-  empty voxels one at a time all over the specimen; it opens a scatter of
-  discrete cavities in the coarsest pores. This is the one knob that decides
-  how many. At 0.05 roughly one voxel in twenty starts somewhere new and the
-  rest enlarge what is already there, so cavities stay compact while their
-  number grows slowly with the volume emptied.
-
-  Not user-editable, and not calibrated against anything measured: it sets
-  cavity size and spacing, which no measurement in THAMES currently
-  constrains. Named so it is easy to find when one does.
-  */
-  static constexpr double CAVITY_NUCLEATION_PROBABILITY = 0.05;
-
-  /**
   @brief Get how deep inside the capillary pore space each voxel sits.
 
   The squared Euclidean distance from every voxel to the nearest solid,
@@ -1141,13 +1125,28 @@ public:
   coarse porosity long before its gel pores. Emptying in descending order of
   pore depth does that directly.
 
-  Order alone would still scatter the emptied voxels one by one across every
-  large pore in the box. Real self-desiccation instead opens a few discrete
-  cavities, so once a voxel has been emptied the next one is taken from the
-  deepest voxel ADJACENT to what is already empty, which grows each cavity
-  outward from its center and keeps it compact and roughly spherical. A new
-  cavity is started with probability CAVITY_NUCLEATION_PROBABILITY each time
-  a voxel is emptied, and whenever no growth site is available.
+  Order alone would still scatter the emptied voxels across every large pore
+  in the box, including pores no vapour could have reached. Emptying is
+  invasion, not nucleation: the pore water of a self-desiccating paste sits
+  at a few MPa of tension, far too little to form a bubble, so the vapour
+  comes from an air void and works its way in along the capillary network.
+  Each voxel after the first is therefore taken from the deepest voxel
+  ADJACENT to what is already empty. Accessibility decides what may be
+  emptied and depth decides the order, which is invasion percolation, and
+  the emptied region follows the coarse pore network rather than forming a
+  neat sphere.
+
+  A second void is started only when the first has no electrolyte neighbour
+  left, meaning some pore cluster cannot be reached at all. There is no
+  nucleation probability: air voids are larger than this whole box, so an
+  RVE this size contains none, and one invasion front is the honest picture.
+
+  Once the capillary network depercolates, an isolated pocket of water can
+  be reached by nothing and cannot cavitate either. A real paste holds it
+  under rising tension and contracts around it, which is autogenous
+  shrinkage. THAMES keeps the box volume fixed, so it has nowhere to put
+  that deficit and empties the pocket anyway. That last step is a
+  convenience, not physics.
 
   Ties in depth are broken at random, since a cube lattice offers many voxels
   at identical distance and always taking the first would drift the cavities

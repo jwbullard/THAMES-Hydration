@@ -3729,13 +3729,18 @@ vector<int> Lattice::selectSitesToEmpty(int numToEmpty) {
 
   while (static_cast<int>(selected.size()) < numToEmpty) {
 
-    /// Start a new cavity when there is nowhere to grow, or now and then on
-    /// purpose so that the emptied volume ends up as several cavities rather
-    /// than one.
+    /// Start a new void only when the existing one has nowhere left to go.
+    /// Vapour is not created here, it arrives: a paste self-desiccating at
+    /// RH 0.97 holds its pore water at about 4 MPa of tension, where the
+    /// work to form a critical bubble is some 10^4 kT, so cavitation is out
+    /// of the question and the hydrophilic solid surfaces do nothing to
+    /// help. What empties the pores is the vapour already present at an air
+    /// void invading along the capillary network, and air voids are larger
+    /// than this whole box, so the invasion front enters from outside it.
+    /// Emptying the deepest voxel reachable from the existing void is that
+    /// invasion. A second void appears only where the first cannot reach.
 
-    bool nucleate = frontier.empty();
-    if (!nucleate && !selected.empty())
-      nucleate = (callRNG() < CAVITY_NUCLEATION_PROBABILITY);
+    const bool nucleate = frontier.empty();
 
     int siteID = -1;
     if (nucleate) {
