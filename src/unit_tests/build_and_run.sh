@@ -37,6 +37,14 @@ clang++ -std=c++17 -O2 -Wall \
 ./test_transport_stats
 
 echo ""
+echo "=== test_percolation ==="
+clang++ -std=c++17 -O2 -Wall \
+    -I../thameslib \
+    -o test_percolation \
+    test_percolation.cc ../thameslib/Percolation.cc
+./test_percolation
+
+echo ""
 echo "=== test_transport_correction ==="
 clang++ -std=c++17 -O2 -Wall \
     -I../thameslib \
