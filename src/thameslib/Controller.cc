@@ -107,6 +107,8 @@ Controller::Controller(Lattice *msh, KineticController *kc, ChemicalSystem *cs,
   finalSetDetected_ = false;
   initialSetTime_ = 0.0;
   finalSetTime_ = 0.0;
+  capillaryDepercolated_ = false;
+  depercolationTime_ = 0.0;
   if (!setDetectionAvailable_) {
     std::clog << "Controller::Controller - no particle-id image was loaded; "
                  "setting-time detection is unavailable for this run "
@@ -606,7 +608,10 @@ Controller::Controller(Lattice *msh, KineticController *kc, ChemicalSystem *cs,
 void Controller::writeSettingTimes(void) {
   ///
   /// Rewritten as each event is detected, rather than once at the end, so a
-  /// run that aborts still leaves behind whatever was established.
+  /// run that aborts still leaves behind whatever was established. Carries
+  /// capillary depercolation alongside the two set times: it is the third
+  /// milestone of the same story, and the one that decides whether curing
+  /// water can still reach the interior.
   ///
 
   const string outfilename = jobRoot_ + "_SettingTimes.csv";
@@ -617,12 +622,16 @@ void Controller::writeSettingTimes(void) {
   }
 
   outfs << runmeta::csvCommentLine() << endl;
-  outfs << "Setting,Time(h)" << endl;
+  outfs << "Event,Time(h)" << endl;
   if (initialSetDetected_) {
     outfs << "Initial," << setprecision(5) << initialSetTime_ << endl;
   }
   if (finalSetDetected_) {
     outfs << "Final," << setprecision(5) << finalSetTime_ << endl;
+  }
+  if (capillaryDepercolated_) {
+    outfs << "CapillaryDepercolation," << setprecision(5) << depercolationTime_
+          << endl;
   }
   outfs.close();
 }
@@ -683,6 +692,36 @@ void Controller::updatePercolationState(double currTime) {
   }
 
   const percolation::Result capillary = lattice_->assessCapillaryPercolation();
+
+  /// Saturated curing draws replacement water from an external reservoir,
+  /// which only reaches the interior while a capillary path spans the
+  /// microstructure. Once that path is gone the specimen is sealed in
+  /// everything but name, so say so: switch isSaturated_ off and let it
+  /// self-desiccate on the water it already holds. See the declaration of
+  /// capillaryDepercolated_ for why spanning, and not mere contact with a
+  /// surface, is the criterion.
+
+  if (!capillaryDepercolated_ && !capillary.direction[0].spans &&
+      !capillary.direction[1].spans && !capillary.direction[2].spans) {
+    capillaryDepercolated_ = true;
+    depercolationTime_ = currTime;
+    const bool wasSaturated = chemSys_->isSaturated();
+    if (wasSaturated) {
+      chemSys_->setIsSaturated(false);
+    }
+    std::clog << endl
+              << "Controller::updatePercolationState - CAPILLARY "
+                 "DEPERCOLATION at "
+              << currTime << " h (capillary pores span in no direction)"
+              << endl;
+    if (wasSaturated) {
+      std::clog << "Controller::updatePercolationState - curing switched from "
+                   "saturated to sealed: the interior can no longer draw "
+                   "water from the external reservoir"
+                << endl;
+    }
+    writeSettingTimes();
+  }
 
   const string outfilename = jobRoot_ + "_Percolation.csv";
   ofstream outfs(outfilename.c_str(), ios::app);

@@ -237,11 +237,47 @@ private:
   double finalSetTime_;   /**< hours; meaningful once finalSetDetected_ */
 
   /**
+  @brief Whether the capillary network has stopped spanning the microstructure.
+
+  Saturated curing means the specimen sits in water and draws replacement
+  water in as reaction consumes it. That only works while a capillary path
+  connects the surface to the interior. Once the capillary network no longer
+  spans the microstructure in any direction, the interior is cut off from the
+  reservoir and continues to react on the water already inside it, which is
+  exactly sealed curing. At that point isSaturated_ is switched off in
+  ChemicalSystem even if the user asked for saturated curing, and the
+  specimen starts to self-desiccate.
+
+  Gel and interhydrate pores stay connected long after the capillaries close,
+  but they are far too fine to carry water at any useful rate over specimen
+  dimensions, so they are not an ingress path on the timescale of a
+  simulation.
+
+  The criterion is loss of spanning in ALL three directions, which is what
+  depercolation means in the cement literature and what VCCTL's burn3d
+  measured. Spanning is not a convenient proxy for reaching the specimen
+  surface; under periodic boundaries it is the only statement that can be
+  made. The RVE is an embedded volume deep inside an unbounded body, so its
+  faces are not surfaces: a cluster touching one simply continues into the
+  adjacent image. Only a spanning cluster forms an unbounded path through
+  the tiled material, and only an unbounded path can reach a real surface.
+  A cluster that touches a face without spanning is a closed pocket however
+  far the tiling is carried out.
+
+  One-way. In principle dissolution could reopen a capillary path, but
+  depercolation is monotonic in practice, and a specimen whose interior has
+  already desiccated does not become saturated again by reconnecting.
+  */
+  bool capillaryDepercolated_;
+  double depercolationTime_; /**< hours; meaningful once depercolated */
+
+  /**
   @brief Assess connectivity if the schedule calls for it, and record set.
 
   Writes one row of the percolation time series per assessment, and rewrites
   the setting-times file as each event is detected so the record survives an
-  aborted run.
+  aborted run. Also switches saturated curing to sealed when the capillary
+  network stops spanning; see capillaryDepercolated_.
 
   @param currTime is the current hydration time [h]
   */
@@ -249,6 +285,9 @@ private:
 
   /**
   @brief Write the setting-times file from whatever has been detected.
+
+  Holds initial set, final set and capillary depercolation, each written as
+  soon as it happens.
   */
   void writeSettingTimes(void);
 
