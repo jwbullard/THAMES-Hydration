@@ -191,6 +191,64 @@ private:
   double stepTimeTHR_;
 
   /**
+  @brief Percolation assessment cadence and set state.
+
+  Connectivity is assessed on a schedule rather than every cycle: it costs
+  three labeling passes over the lattice, and neither set nor capillary
+  depercolation moves fast enough to need finer resolution. Before initial
+  set the microstructure changes quickly, so it is checked every 10 min of
+  hydration time; afterwards every hour.
+
+  Initial set is rigidity percolation in 3D — the first assessment in which
+  the load-bearing solids span all three directions.
+
+  Final set is a connected-fraction threshold. VCCTL used 0.985, but on the
+  sealed cem151-neat reference (w/c 0.44) that lands at 19 h against an
+  initial set of 2.55 h, which is far too late for a paste whose Vicat final
+  set would be a few hours. The threshold is PROVISIONAL at 0.80, the
+  connected fraction that run reaches at 5 h of hydration (interpolated
+  between 0.78188 at 4.62 h and 0.84058 at 5.62 h). It wants calibrating
+  against measured Vicat times across several w/c ratios; the
+  `_Percolation.csv` series gives the whole trajectory to calibrate against
+  rather than a single point.
+
+  Both thresholds live here rather than in simparams.json: they define what
+  THAMES means by setting, and are not the user's to vary.
+
+  Set detection needs the `.pimg` particle-id image to tell one grain's
+  interior from two grains in contact. Without it setDetectionAvailable_
+  stays false, the solid assessment is skipped entirely, and the set columns
+  are written empty so that "not looked at" is never mistaken for "not set".
+  Capillary percolation is unaffected: it is purely geometric.
+  */
+  static constexpr double PERCOLATION_INTERVAL_BEFORE_SET_H = 10.0 / 60.0;
+  static constexpr double PERCOLATION_INTERVAL_AFTER_SET_H = 1.0;
+  static constexpr double FINAL_SET_CONNECTED_FRACTION = 0.80;
+
+  bool setDetectionAvailable_;  /**< false when no `.pimg` was loaded */
+  double lastPercolationTime_;  /**< hydration time of the last assessment */
+  bool initialSetDetected_;
+  bool finalSetDetected_;
+  double initialSetTime_; /**< hours; meaningful once initialSetDetected_ */
+  double finalSetTime_;   /**< hours; meaningful once finalSetDetected_ */
+
+  /**
+  @brief Assess connectivity if the schedule calls for it, and record set.
+
+  Writes one row of the percolation time series per assessment, and rewrites
+  the setting-times file as each event is detected so the record survives an
+  aborted run.
+
+  @param currTime is the current hydration time [h]
+  */
+  void updatePercolationState(double currTime);
+
+  /**
+  @brief Write the setting-times file from whatever has been detected.
+  */
+  void writeSettingTimes(void);
+
+  /**
   @brief Adaptive time stepping controller.
 
   Manages timestep selection based on GEMS solver feedback.

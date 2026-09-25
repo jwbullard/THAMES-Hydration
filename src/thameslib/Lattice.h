@@ -16,6 +16,7 @@ exists, hydrates, and possibly deteriorates.
 #include "Exceptions.h"
 #include "Interface.h"
 #include "Isite.h"
+#include "Percolation.h"
 #include "RanGen.h"
 #include "Site.h"
 #include "TransportStats.h"
@@ -411,6 +412,36 @@ public:
   @param siteIdxB is the second site index
   @return true when both are original-particle voxels sharing an id
   */
+  /**
+  @brief Assess rigidity percolation of the load-bearing solid skeleton.
+
+  Feeds percolation::assess with the phases that declare
+  `rigidity.participates`, the in-place-growth bonding flags, and the
+  original particle ids, so that grains which merely touch do not count as a
+  load path. Used for set detection: initial set is the first assessment that
+  spans all three directions, final set the first whose connected fraction
+  reaches the caller's threshold.
+
+  @warning Requires the `.pimg` particle-id image. Check hasParticleIds()
+  first; without it the same-grain rule cannot be applied and the caller
+  should report set detection as unavailable rather than guess.
+
+  @return the per-direction spanning flags and connected fractions
+  */
+  percolation::Result assessRigidityPercolation() const;
+
+  /**
+  @brief Assess percolation of the capillary pore network.
+
+  VOID and ELECTROLYTE voxels both count: an empty capillary is still part of
+  the ingress pathway, since water can imbibe into it. Connectivity here is
+  purely geometric, so no particle ids are needed and the assessment works
+  even for microstructures with no `.pimg`.
+
+  @return the per-direction spanning flags and connected fractions
+  */
+  percolation::Result assessCapillaryPercolation() const;
+
   bool sameOriginalParticle(const int siteIdxA, const int siteIdxB) const {
     const int idA = getParticleId(siteIdxA);
     return (isOriginalParticle(idA) && idA == getParticleId(siteIdxB));

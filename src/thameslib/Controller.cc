@@ -96,6 +96,23 @@ Controller::Controller(Lattice *msh, KineticController *kc, ChemicalSystem *cs,
   chemSys_ = cs;
   kineticController_ = kc;
   lattice_ = msh;
+
+  // Percolation / set detection. Set detection needs the particle-id image
+  // to tell one grain's interior from two grains in contact; without it we
+  // skip the solid assessment rather than report a set time we cannot
+  // justify. Capillary percolation is geometric and runs regardless.
+  setDetectionAvailable_ = lattice_->hasParticleIds();
+  lastPercolationTime_ = -1.0;
+  initialSetDetected_ = false;
+  finalSetDetected_ = false;
+  initialSetTime_ = 0.0;
+  finalSetTime_ = 0.0;
+  if (!setDetectionAvailable_) {
+    std::clog << "Controller::Controller - no particle-id image was loaded; "
+                 "setting-time detection is unavailable for this run "
+                 "(capillary percolation is unaffected)"
+              << endl;
+  }
   thermalstr_ = thmstr;
   jobRoot_ = jobname;
 
@@ -285,7 +302,23 @@ Controller::Controller(Lattice *msh, KineticController *kc, ChemicalSystem *cs,
     for (int i = 0; i < chemSys_->getNumMicroPhases(); i++) {
       outfs << "," << chemSys_->getMicroPhaseName(i);
     }
-    outfs << endl;
+    // Empty rather than 0 when detection is unavailable, so that "we did not
+    // look" is never read as "it had not set".
+    outfs << ",InitialSet,FinalSet" << endl;
+    outfs.close();
+
+    outfilename = jobRoot_ + "_Percolation.csv";
+    outfs.open(outfilename.c_str());
+    if (!outfs) {
+      throw FileException("Controller", "Controller", outfilename,
+                          "Could not append");
+    }
+    outfs << runmeta::csvCommentLine() << endl;
+    outfs << "Time(h),SolidSpansX,SolidSpansY,SolidSpansZ,"
+          << "SolidConnectedFracX,SolidConnectedFracY,SolidConnectedFracZ,"
+          << "CapillarySpansX,CapillarySpansY,CapillarySpansZ,"
+          << "CapillaryConnectedFracX,CapillaryConnectedFracY,"
+          << "CapillaryConnectedFracZ" << endl;
     outfs.close();
 
     outfilename = jobRoot_ + "_pH.csv";
@@ -570,6 +603,112 @@ Controller::Controller(Lattice *msh, KineticController *kc, ChemicalSystem *cs,
   }
 }
 
+void Controller::writeSettingTimes(void) {
+  ///
+  /// Rewritten as each event is detected, rather than once at the end, so a
+  /// run that aborts still leaves behind whatever was established.
+  ///
+
+  const string outfilename = jobRoot_ + "_SettingTimes.csv";
+  ofstream outfs(outfilename.c_str());
+  if (!outfs) {
+    throw FileException("Controller", "writeSettingTimes", outfilename,
+                        "Could not write");
+  }
+
+  outfs << runmeta::csvCommentLine() << endl;
+  outfs << "Setting,Time(h)" << endl;
+  if (initialSetDetected_) {
+    outfs << "Initial," << setprecision(5) << initialSetTime_ << endl;
+  }
+  if (finalSetDetected_) {
+    outfs << "Final," << setprecision(5) << finalSetTime_ << endl;
+  }
+  outfs.close();
+}
+
+void Controller::updatePercolationState(double currTime) {
+  ///
+  /// Assess on a schedule, not every cycle: three labeling passes over the
+  /// lattice cost far more than they are worth at every timestep, and
+  /// neither setting nor capillary depercolation moves that fast. Ten
+  /// minutes of hydration time before initial set, an hour afterwards.
+  ///
+
+  const double interval = initialSetDetected_
+                              ? PERCOLATION_INTERVAL_AFTER_SET_H
+                              : PERCOLATION_INTERVAL_BEFORE_SET_H;
+  if (lastPercolationTime_ >= 0.0 &&
+      (currTime - lastPercolationTime_) < interval) {
+    return;
+  }
+  lastPercolationTime_ = currTime;
+
+  /// Solids are assessed only while a set event is still outstanding: once
+  /// final set is reached there is nothing further to detect, and the
+  /// assessment is pure cost. Capillary percolation continues, because it
+  /// governs whether curing water can still reach the interior.
+
+  percolation::Result solid;
+  const bool assessSolid = setDetectionAvailable_ && !finalSetDetected_;
+  if (assessSolid) {
+    solid = lattice_->assessRigidityPercolation();
+
+    if (!initialSetDetected_ && solid.spansAllDirections()) {
+      initialSetDetected_ = true;
+      initialSetTime_ = currTime;
+      std::clog << endl
+                << "Controller::updatePercolationState - INITIAL SET at "
+                << currTime << " h (solids percolate in all three directions)"
+                << endl;
+      writeSettingTimes();
+    }
+    if (initialSetDetected_ && !finalSetDetected_ &&
+        solid.minConnectedFraction() >= FINAL_SET_CONNECTED_FRACTION) {
+      finalSetDetected_ = true;
+      finalSetTime_ = currTime;
+      std::clog << endl
+                << "Controller::updatePercolationState - FINAL SET at "
+                << currTime << " h (connected solid fraction "
+                << solid.minConnectedFraction() << " >= "
+                << FINAL_SET_CONNECTED_FRACTION << ")" << endl;
+      writeSettingTimes();
+    }
+  }
+
+  const percolation::Result capillary = lattice_->assessCapillaryPercolation();
+
+  const string outfilename = jobRoot_ + "_Percolation.csv";
+  ofstream outfs(outfilename.c_str(), ios::app);
+  if (!outfs) {
+    throw FileException("Controller", "updatePercolationState", outfilename,
+                        "Could not append");
+  }
+  outfs << setprecision(5) << currTime;
+  for (int d = 0; d < 3; ++d) {
+    if (assessSolid) {
+      outfs << "," << (solid.direction[d].spans ? 1 : 0);
+    } else {
+      outfs << ","; // not assessed on this pass
+    }
+  }
+  for (int d = 0; d < 3; ++d) {
+    if (assessSolid) {
+      outfs << "," << solid.direction[d].connectedFraction;
+    } else {
+      outfs << ",";
+    }
+  }
+  for (int d = 0; d < 3; ++d) {
+    outfs << "," << (capillary.direction[d].spans ? 1 : 0);
+  }
+  for (int d = 0; d < 3; ++d) {
+    outfs << "," << capillary.direction[d].connectedFraction;
+  }
+  outfs << endl;
+  outfs.close();
+}
+
 void Controller::doCycle(double elemTimeInterval) {
 
   RestoreSystem iniLattice;
@@ -699,6 +838,13 @@ void Controller::doCycle(double elemTimeInterval) {
 
     if (timesGEMFailed_loc == 0) {
       lastGoodTime_ = currTime;
+
+      /// Assess connectivity on the successful-cycle path only: a cycle that
+      /// GEMS rejected gets retried from the same state, so assessing it
+      /// would both waste the passes and record a microstructure that is
+      /// about to be recomputed. The call returns immediately unless the
+      /// schedule is due.
+      updatePercolationState(currTime);
       std::clog << endl
                 << "Controller::doCycle - vector time_ before next cycle - "
                    "i/cyc/lastGoodI = "
@@ -2333,6 +2479,12 @@ void Controller::writeTxtOutputFiles(double time) {
   outfs << setprecision(5) << time;
   for (i = 0; i < numMicroPhases_; i++) {
     outfs << "," << (lattice_->getVolumeFraction(i));
+  }
+  if (setDetectionAvailable_) {
+    outfs << "," << (initialSetDetected_ ? 1 : 0) << ","
+          << (finalSetDetected_ ? 1 : 0);
+  } else {
+    outfs << ",,"; // detection unavailable: leave both columns empty
   }
   outfs << endl;
   outfs.close();

@@ -881,6 +881,49 @@ void Lattice::addSite(int x, const int y, const int z) {
   site_.push_back(Site(x, y, z, xdim_, ydim_, zdim_, NN_NNN, chemSys_));
 }
 
+percolation::Result Lattice::assessRigidityPercolation() const {
+  ///
+  /// Only phases that declare `rigidity.participates` carry load, and only
+  /// voxels that grew in place bond to whatever they touch; two intact
+  /// original-particle voxels bond only inside one grain. Those three inputs
+  /// reproduce VCCTL's burn rules without naming a phase here.
+  ///
+
+  vector<char> participates(numSites_, 0);
+  vector<char> bonds(numSites_, 0);
+
+  for (int i = 0; i < numSites_; i++) {
+    const int phaseId = site_[i].getMicroPhaseId();
+    if (!chemSys_->participatesInRigidity(phaseId))
+      continue;
+    participates[i] = 1;
+    bonds[i] = bondsToNeighbors(i) ? 1 : 0;
+  }
+
+  return percolation::assess(xdim_, ydim_, zdim_, participates, bonds,
+                             particleId_);
+}
+
+percolation::Result Lattice::assessCapillaryPercolation() const {
+  ///
+  /// Empty capillaries belong to the pathway just as saturated ones do:
+  /// water imbibes into a void as readily as it flows through solution. No
+  /// bonding rule applies, so every contact between two pore voxels counts
+  /// and no particle ids are needed.
+  ///
+
+  vector<char> participates(numSites_, 0);
+  for (int i = 0; i < numSites_; i++) {
+    const int phaseId = site_[i].getMicroPhaseId();
+    if (phaseId == VOIDID || phaseId == ELECTROLYTEID)
+      participates[i] = 1;
+  }
+
+  const vector<char> allBonding(numSites_, 1);
+  return percolation::assess(xdim_, ydim_, zdim_, participates, allBonding,
+                             vector<int>());
+}
+
 void Lattice::normalizePhaseMasses(vector<double> microPhaseMass) {
   int microPhaseId, DCId;
   double pscaledMass = 0.0;
