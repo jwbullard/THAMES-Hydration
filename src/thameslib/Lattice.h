@@ -1986,6 +1986,45 @@ public:
   }
 
   /**
+  @brief Share of voxel-scale porosity taken to lie below the voxel size.
+
+  The pore size distribution has sub-voxel bins up to 100 nm and then one bin
+  holding every voxel-scale pore, at 1 um for a 1 um lattice. Nothing lies
+  between. A meniscus draining the capillary system therefore sits at exactly
+  1000 nm for most of a run and then jumps a full decade, taking the capillary
+  tension with it from 0.29 to 2.87 MPa.
+
+  Real pastes do have porosity in that decade, but not much: pressurization-
+  depressurization MIP finds a persistently bimodal distribution with the
+  capillary peak at 0.8 to 10 um and a second peak at 0.01 to 0.1 um, and the
+  1H NMR populations of Muller and Scrivener run interlayer 1 nm, gel 3 nm,
+  interhydrate 10 nm, then capillary above 0.5 um. Both put 0.1 to 1 um in the
+  valley between populations rather than on a shoulder, so spreading the
+  porosity evenly across the decade would overstate it and would flatten a
+  bimodality two independent techniques agree is real. The steep fall in
+  humidity there is therefore partly physical: a meniscus really does cross
+  that range quickly, because little water is in it.
+
+  This constant is the modest share of voxel-scale porosity treated as lying
+  below the voxel size, log-uniformly over 100 nm to 1 um. The rest stays at
+  the voxel size. Draining removes the coarse part first, so the meniscus sits
+  at 1 um until the capillary system is (1 - share) empty and then sweeps down
+  the decade, joining the sub-voxel bins continuously.
+
+  Uncalibrated. To calibrate it, fit the depth of the valley in a measured
+  dV/dlog(d) for the paste in question, remembering that MIP reports pore
+  ENTRY diameters and that ink-bottle volume ran about ten times throat volume
+  in the study above, which biases that decade downward; the NMR comparison is
+  the cleaner anchor.
+
+  Affects the meniscus position only. Pore volumes and saturation are left
+  alone deliberately: the water in these pores is held in voxels the lattice
+  already tracks, and routing it through the sub-voxel machinery as well would
+  drain it twice.
+  */
+  static constexpr double CAPILLARY_BRIDGE_SHARE = 0.15;
+
+  /**
   @brief Get the diameter at which the meniscus actually sits [nm]
 
   getLargestSaturatedPore names the BIN holding the meniscus, which moves in
@@ -2013,6 +2052,29 @@ public:
       if (masterPoreSizeDist_[i].volfrac > 0.0 &&
           masterPoreSizeDist_[i].volfracsat < 1.0) {
         const double upper = masterPoreSizeDist_[i].diam;
+
+        ///
+        /// The voxel-scale bin is the special case: it stands for every pore
+        /// the lattice cannot resolve, which is a range and not a size. A
+        /// share of it is taken to lie below the voxel size (see
+        /// CAPILLARY_BRIDGE_SHARE), and since draining takes the coarse pores
+        /// first the meniscus only enters that range once the bin is
+        /// (1 - share) empty. It then sweeps the decade down to 100 nm, where
+        /// the sub-voxel bins pick up.
+        ///
+
+        if (i == size - 1 && CAPILLARY_BRIDGE_SHARE > 0.0) {
+          double filled = masterPoreSizeDist_[i].volfracsat;
+          if (filled < 0.0)
+            filled = 0.0;
+          if (filled >= CAPILLARY_BRIDGE_SHARE)
+            return (upper);
+          const double intoBridge = 1.0 - (filled / CAPILLARY_BRIDGE_SHARE);
+          const double bridgeBottom = 100.0; // nm, top of the sub-voxel bins
+          if (upper <= bridgeBottom)
+            return (upper);
+          return (upper * pow(bridgeBottom / upper, intoBridge));
+        }
 
         /// The lower edge is the previous bin's diameter. For the finest bin
         /// there is none, so borrow the spacing of the pair above it rather
