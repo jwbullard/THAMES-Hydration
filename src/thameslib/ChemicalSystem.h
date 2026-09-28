@@ -627,6 +627,17 @@ class ChemicalSystem {
       microVoidVolume_; /**< Absolute volume of void space in microstrucxture */
   double GEMVolume_;    /**< Absolute volume of the microstructure, units are
                              m3/100g */
+  /**
+  @brief Volume of water drawn in from the external reservoir so far.
+
+  Units m3 per 100 g of solid, the same frame as every other volume here.
+  Only saturated curing adds any; a sealed system leaves this at zero. It is
+  needed to report chemical shrinkage, which is the volume change of the
+  REACTION and so must exclude matter that entered from outside. ASTM C1608
+  measures exactly this quantity, as the water a saturated specimen takes up.
+  */
+  double cumulativeWaterImbibed_;
+
   double initGEMVolume_; /**< Initial absolute volume of the microstructure,
                               units are m3/100g */
 
@@ -3957,6 +3968,13 @@ public:
 
   */
   double getInitGEMVolume() { return (initGEMVolume_); }
+
+  /**
+  @brief Get the volume of water imbibed from outside so far (m3/100 g).
+
+  @return the cumulative imbibed water volume
+  */
+  double getCumulativeWaterImbibed() const { return cumulativeWaterImbibed_; }
 
   /**
   @brief Get the volume of a GEM CSD phase (by id).

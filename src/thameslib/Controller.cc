@@ -323,6 +323,38 @@ Controller::Controller(Lattice *msh, KineticController *kc, ChemicalSystem *cs,
           << "CapillaryConnectedFracZ" << endl;
     outfs.close();
 
+    outfilename = jobRoot_ + "_Shrinkage.csv";
+    outfs.open(outfilename.c_str());
+    if (!outfs) {
+      throw FileException("Controller", "Controller", outfilename,
+                          "Could not append");
+    }
+    outfs << runmeta::csvCommentLine() << endl;
+    // Chemical shrinkage is per gram of INITIAL SOLID, which is the same as
+    // per gram of cement for a neat paste but not for a blended one. The
+    // poromechanical inputs follow the strain so it can be recomputed under a
+    // different homogenization without rerunning.
+    outfs << "Time(h),ChemicalShrinkage(mL/g solid),"
+          << "ChemicalShrinkage(volfrac),AutogenousStrain(microstrain),"
+          << "CapillaryTension(MPa),Saturation,DrainedBulkModulus(GPa),"
+          << "SkeletonBulkModulus(GPa),SelfConsistentConverged" << endl;
+    outfs.close();
+
+    outfilename = jobRoot_ + "_Humidity.csv";
+    outfs.open(outfilename.c_str());
+    if (!outfs) {
+      throw FileException("Controller", "Controller", outfilename,
+                          "Could not append");
+    }
+    outfs << runmeta::csvCommentLine() << endl;
+    // Three humidities, deliberately separate: Kelvin is what the meniscus
+    // imposes and what drives the rates, activity is what the dissolved ions
+    // impose, and the product is what an embedded probe would read.
+    outfs << "Time(h),KelvinRH,WaterActivity,InternalRH,"
+          << "MeniscusDiameter(nm),SaturationVoxelScale,"
+          << "SaturationSubvoxel,SaturationTotal" << endl;
+    outfs.close();
+
     outfilename = jobRoot_ + "_pH.csv";
     outfs.open(outfilename.c_str());
     if (!outfs) {
@@ -603,6 +635,226 @@ Controller::Controller(Lattice *msh, KineticController *kc, ChemicalSystem *cs,
     */
     lattice_->createGrowingVectSA();
   }
+}
+
+
+bool Controller::estimateDrainedModuli(double &pasteK,
+                                       double &skeletonK) const {
+  ///
+  /// Build the phase list twice over: once with the porosity in it, giving
+  /// the drained modulus of the paste, and once with the solids alone, giving
+  /// the modulus of the skeleton they form. The difference between the two is
+  /// what the Biot coefficient is made of.
+  ///
+
+  vector<homog::Phase> paste;
+  vector<homog::Phase> skeleton;
+  paste.reserve(2 * numMicroPhases_);
+  skeleton.reserve(numMicroPhases_);
+
+  for (int i = 0; i < numMicroPhases_; i++) {
+    const double volumeFraction = lattice_->getVolumeFraction(i);
+    if (volumeFraction <= 0.0)
+      continue;
+
+    /// Every pore is passed as empty, whatever it actually holds: drained
+    /// means the fluid carries no load.
+
+    if (i == VOIDID || i == ELECTROLYTEID) {
+      homog::Phase pore;
+      pore.volumeFraction = volumeFraction;
+      paste.push_back(pore);
+      continue;
+    }
+
+    const string name = chemSys_->getMicroPhaseName(i);
+    const elMod moduli = chemSys_->getElasticModuliComp(name);
+
+    /// Split the phase into its solid part and its sub-voxel pores, so gel
+    /// porosity softens the paste as it should rather than being carried
+    /// along inside a solid modulus.
+
+    const double porosity = chemSys_->getMicroPhasePoreVolumeFraction(i);
+    const double solidFraction = volumeFraction * (1.0 - porosity);
+    const double poreFraction = volumeFraction * porosity;
+
+    if (solidFraction > 0.0) {
+      homog::Phase solid;
+      solid.volumeFraction = solidFraction;
+      solid.bulkModulus = moduli.K;
+      solid.shearModulus = moduli.G;
+      paste.push_back(solid);
+      skeleton.push_back(solid);
+    }
+    if (poreFraction > 0.0) {
+      homog::Phase pore;
+      pore.volumeFraction = poreFraction;
+      paste.push_back(pore);
+    }
+  }
+
+  const homog::Result pasteResult = homog::selfConsistent(paste);
+  const homog::Result skeletonResult = homog::selfConsistent(skeleton);
+
+  pasteK = pasteResult.bulkModulus;
+  skeletonK = skeletonResult.bulkModulus;
+
+  return (pasteResult.converged && skeletonResult.converged);
+}
+
+void Controller::writeShrinkage(double time) {
+  const string outfilename = jobRoot_ + "_Shrinkage.csv";
+  ofstream outfs(outfilename.c_str(), ios::app);
+  if (!outfs) {
+    throw FileException("Controller", "writeShrinkage", outfilename,
+                        "Could not append");
+  }
+
+  ///
+  /// Chemical shrinkage is the volume change of the REACTION, so it is taken
+  /// from the thermodynamic volumes GEMS reports rather than from the
+  /// lattice. getGEMVolume sums every non-gas phase, solids and aqueous
+  /// together, with no voxel constraint and none of the 1/(1-phi) inflation
+  /// that microVolume_ carries for porous solids: microVolume_ answers "how
+  /// much room do the phases need", which is a different question and can
+  /// exceed the box.
+  ///
+  /// Water drawn in from outside is subtracted, because matter that entered
+  /// the system is not reaction product. Under saturated curing that imbibed
+  /// volume IS the shrinkage, and is what ASTM C1608 puts on its balance;
+  /// under sealed curing nothing is imbibed and the deficit shows up as empty
+  /// pore space instead. Either way the number below is the same quantity.
+  ///
+  /// Volumes are m3 per 100 g of initial solid (Lattice::normalizePhaseMasses),
+  /// so mL per gram of solid is m3 times 1e6 mL/m3 over 100 g.
+  ///
+
+  const double initialVolume = chemSys_->getInitGEMVolume();
+  const double currentVolume = chemSys_->getGEMVolume();
+  const double deficit = initialVolume - currentVolume +
+                         chemSys_->getCumulativeWaterImbibed();
+
+  const bool volumesReady = (initialVolume > 0.0 && currentVolume > 0.0);
+  const double shrinkageFraction =
+      volumesReady ? deficit / initialVolume : 0.0;
+  const double shrinkagePerGram = volumesReady ? deficit * 1.0e6 / 100.0 : 0.0;
+
+  ///
+  /// Autogenous shrinkage. The tension follows from the Kelvin humidity, the
+  /// same humidity that throttles the reaction rates, with RT/V_m about
+  /// 137 MPa at room temperature. A saturated specimen has RH = 1 and no
+  /// tension, so no strain.
+  ///
+
+  const double gasConstant = 8.314462618;              // J/(mol K)
+  const double molarVolumeWater = 1.807e-5;            // m3/mol at 298 K
+  const double temperature = chemSys_->getTemperature();
+  const double kelvinRH = lattice_->getKelvinRH();
+
+  double tensionMPa = 0.0;
+  if (kelvinRH > 0.0 && kelvinRH < 1.0) {
+    tensionMPa = -(gasConstant * temperature / molarVolumeWater) *
+                 log(kelvinRH) / 1.0e6;
+  }
+
+  const double saturatedPore =
+      lattice_->getVoxelPoreVolumeFractionSaturated() +
+      lattice_->getSubvoxelPoreVolumeFractionSaturated();
+  const double totalPore = lattice_->getVoxelPoreVolumeFraction() +
+                           lattice_->getSubvoxelPoreVolumeFraction();
+  const double saturation =
+      (totalPore > 0.0) ? (saturatedPore / totalPore) : 0.0;
+
+  double pasteK = 0.0, skeletonK = 0.0;
+  const bool converged = estimateDrainedModuli(pasteK, skeletonK);
+
+  ///
+  /// Below the self-consistent scheme's own percolation limit the paste has
+  /// essentially no stiffness, 1/K runs away, and the strain that comes out
+  /// is arithmetic rather than physics. The floor is 1 GPa: a paste stiffer
+  /// than that is past the threshold by a comfortable margin, and one softer
+  /// gets empty columns rather than a number nobody should use. For scale, a
+  /// mature paste is 10 to 20 GPa.
+  ///
+
+  const double kFloorGPa = 1.0;
+  const bool moduliUsable =
+      (converged && pasteK > kFloorGPa && skeletonK > pasteK);
+
+  double strainMicro = 0.0;
+  if (moduliUsable) {
+    const double compliance = (1.0 / pasteK - 1.0 / skeletonK) / 1.0e9;
+    strainMicro = -(saturation * tensionMPa * 1.0e6 / 3.0) * compliance * 1.0e6;
+  }
+
+  ///
+  /// No column referenced to final set, though ASTM C1698 measures from
+  /// there. The self-consistent scheme has no usable stiffness until well
+  /// after the solids percolate: on the sealed reference, final set is 4.7 h
+  /// but the paste does not reach 1 GPa until 10 h, and a datum taken at the
+  /// floor sits exactly where 1/K is most inflated. Subtracting it turned a
+  /// contraction into an apparent 800 microstrain of expansion. The absolute
+  /// strain is reported instead, referenced to zero tension, and anyone who
+  /// wants a datum can choose one from the series knowing what it costs.
+  ///
+
+  outfs << setprecision(5) << time;
+  if (volumesReady) {
+    outfs << "," << shrinkagePerGram << "," << shrinkageFraction;
+  } else {
+    outfs << ",,"; // before the first equilibrium there is nothing to report
+  }
+  if (moduliUsable) {
+    outfs << "," << strainMicro;
+  } else {
+    outfs << ","; // no usable stiffness: no strain
+  }
+  outfs << "," << tensionMPa << "," << saturation;
+  outfs << "," << pasteK << "," << skeletonK;
+  outfs << "," << (converged ? 1 : 0);
+  outfs << endl;
+  outfs.close();
+}
+
+void Controller::writeHumidity(double time) {
+  const string outfilename = jobRoot_ + "_Humidity.csv";
+  ofstream outfs(outfilename.c_str(), ios::app);
+  if (!outfs) {
+    throw FileException("Controller", "writeHumidity", outfilename,
+                        "Could not append");
+  }
+
+  const double kelvinRH = lattice_->getKelvinRH();
+  const double activity = chemSys_->getWaterActivity();
+  const double meniscus = lattice_->getMeniscusDiameter();
+
+  const double voxelSaturated = lattice_->getVoxelPoreVolumeFractionSaturated();
+  const double subvoxelSaturated =
+      lattice_->getSubvoxelPoreVolumeFractionSaturated();
+  const double voxelPore = lattice_->getVoxelPoreVolumeFraction();
+  const double subvoxelPore = lattice_->getSubvoxelPoreVolumeFraction();
+
+  outfs << setprecision(5) << time;
+  outfs << "," << kelvinRH << "," << activity << "," << (kelvinRH * activity);
+
+  /// getMeniscusDiameter returns -1 when every pore is still full, which is
+  /// not a diameter; leave the column empty in that case.
+
+  if (meniscus > 0.0) {
+    outfs << "," << meniscus;
+  } else {
+    outfs << ",";
+  }
+
+  outfs << "," << ((voxelPore > 0.0) ? voxelSaturated / voxelPore : 0.0);
+  outfs << "," << ((subvoxelPore > 0.0) ? subvoxelSaturated / subvoxelPore
+                                        : 0.0);
+  const double totalPore = voxelPore + subvoxelPore;
+  outfs << "," << ((totalPore > 0.0)
+                       ? (voxelSaturated + subvoxelSaturated) / totalPore
+                       : 0.0);
+  outfs << endl;
+  outfs.close();
 }
 
 void Controller::writeSettingTimes(void) {
@@ -2533,6 +2785,9 @@ void Controller::writeTxtOutputFiles(double time) {
   }
   outfs << endl;
   outfs.close();
+
+  writeShrinkage(time);
+  writeHumidity(time);
 
   outfilename = jobRoot_ + "_pH.csv";
   outfs.open(outfilename.c_str(), ios::app);

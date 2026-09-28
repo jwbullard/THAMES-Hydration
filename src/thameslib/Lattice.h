@@ -1986,9 +1986,63 @@ public:
   }
 
   /**
+  @brief Get the diameter at which the meniscus actually sits [nm]
+
+  getLargestSaturatedPore names the BIN holding the meniscus, which moves in
+  steps of the bin width, 12 %. Reporting that edge makes the Kelvin humidity
+  jump between a handful of discrete values and the capillary tension jump by
+  a factor of ten between consecutive outputs, which is an artifact of the
+  binning and nothing else.
+
+  The bin itself says where inside it the meniscus is. Water fills the finest
+  pores first, so a meniscus bin that is a fraction f full has drained the
+  coarse part of its range and the interface stands a fraction f of the way up
+  it. Interpolating in the logarithm of diameter, to match the logarithmic
+  spacing of the bins,
+
+      d = d_lo (d_hi / d_lo)^f
+
+  which returns the lower edge as the bin empties and the upper edge as it
+  fills, and so joins continuously onto the neighbouring bins.
+
+  @return the meniscus diameter in nm, or -1.0 if every pore is saturated
+  */
+  double getMeniscusDiameter(void) {
+    const int size = masterPoreSizeDist_.size();
+    for (int i = 0; i < size; i++) {
+      if (masterPoreSizeDist_[i].volfrac > 0.0 &&
+          masterPoreSizeDist_[i].volfracsat < 1.0) {
+        const double upper = masterPoreSizeDist_[i].diam;
+
+        /// The lower edge is the previous bin's diameter. For the finest bin
+        /// there is none, so borrow the spacing of the pair above it rather
+        /// than assume a width.
+
+        double lower = upper;
+        if (i > 0) {
+          lower = masterPoreSizeDist_[i - 1].diam;
+        } else if (size > 1 && masterPoreSizeDist_[1].diam > upper) {
+          lower = upper * upper / masterPoreSizeDist_[1].diam;
+        }
+        if (lower <= 0.0 || lower >= upper)
+          return (upper);
+
+        double filled = masterPoreSizeDist_[i].volfracsat;
+        if (filled < 0.0)
+          filled = 0.0;
+        if (filled > 1.0)
+          filled = 1.0;
+
+        return (lower * pow(upper / lower, filled));
+      }
+    }
+    return (-1.0);
+  }
+
+  /**
   @brief Get the Kelvin relative humidity of the pore solution
 
-  Uses the meniscus bin from the current pore size distribution, so
+  Uses the meniscus position from the current pore size distribution, so
   calculatePoreSizeDistribution must be called first. The Kelvin
   equation with zero contact angle is
 
@@ -1996,14 +2050,16 @@ public:
 
   with gamma = 0.072 J/m2, Vm = 1.8e-5 m3/mol, d the meniscus diameter
   [m], and T [K]. Approximations: gamma is independent of temperature
-  and composition, and d is the upper edge of the meniscus bin (bins
-  are 12 % wide).
+  and composition. The diameter is interpolated within the meniscus bin
+  (see getMeniscusDiameter) rather than snapped to the bin edge, so the
+  humidity, and the capillary tension that follows from it, move
+  continuously instead of in 12 % steps.
 
   @return the Kelvin relative humidity, 1.0 if every pore is saturated
   */
   double getKelvinRH(void) {
     const double kelvinCoeff = 6.23527e-7; // 4 gamma Vm / R [m K]
-    double diam = getLargestSaturatedPore(); // nm; -1 if all full
+    double diam = getMeniscusDiameter(); // nm; -1 if all full
     if (diam <= 0.0)
       return (1.0);
     return (exp(-kelvinCoeff / (diam * 1.0e-9) / temperature_));

@@ -8,6 +8,7 @@
 
 #include "AdaptiveTimeController.h"
 #include "Exceptions.h"
+#include "Homogenization.h"
 #include "KineticController.h"
 #include "Lattice.h"
 #include "Site.h"
@@ -282,6 +283,79 @@ private:
   @param currTime is the current hydration time [h]
   */
   void updatePercolationState(double currTime);
+
+  /**
+  @brief Write one row of the shrinkage time series.
+
+  Two quantities, both with standard test methods behind them, which is the
+  point of emitting them: they can be falsified.
+
+  **Chemical shrinkage** (ASTM C1608) is the volume deficit the reaction
+  leaves behind, because the hydration products occupy less space than the
+  reactants that made them. It comes straight out of the volume bookkeeping as
+  initMicroVolume minus microVolume, with no model in between. Under saturated
+  curing the standard measures it as water drawn into the specimen, which is
+  the same number; under sealed curing the deficit appears as empty pore space
+  instead.
+
+  **Autogenous shrinkage** (ASTM C1698) is the external contraction of a
+  sealed specimen, and unlike chemical shrinkage it is not a volume count: the
+  pore liquid goes into tension as it is consumed, and the solid skeleton
+  contracts under it. The Biot-Bishop estimate is
+
+      eps = -(S sigma_cap / 3)(1/K - 1/K_s)
+
+  with sigma_cap = -(RT/V_m) ln(RH) the tension, S the saturation, K the
+  drained bulk modulus of the paste and K_s that of its solid skeleton. Both
+  moduli come from the self-consistent scheme in Homogenization, evaluated
+  with every pore treated as empty whatever its real saturation, because
+  drained means the fluid carries no load.
+
+  The inputs are written alongside the strain on purpose. The homogenization
+  and the Bishop weighting are both approximations, so anyone who wants a
+  different treatment can recompute from the same columns without rerunning.
+
+  Three caveats, recorded here rather than left for someone to discover:
+  Bishop's S is known to be crude below about 0.8; the estimate is elastic and
+  so must underpredict measured shrinkage at late ages, where creep
+  contributes substantially; and the self-consistent scheme loses all
+  stiffness at a solid fraction of one half, which is a property of the
+  approximation and not of cement, so the strain is not meaningful until the
+  paste is well past setting.
+
+  @param time is the current hydration time [h]
+  */
+  void writeShrinkage(double time);
+
+  /**
+  @brief Write one row of the internal humidity time series.
+
+  These numbers already existed but only inside the per-time pore size
+  distribution files, one file per output, which makes a trajectory tedious to
+  assemble. The three humidities are distinct and are reported separately
+  because they answer different questions: the Kelvin humidity is what the
+  meniscus curvature imposes and is what drives both the rate throttle and the
+  capillary tension; the water activity is what the dissolved ions impose; and
+  their product is what a probe embedded in the specimen would read.
+
+  @param time is the current hydration time [h]
+  */
+  void writeHumidity(double time);
+
+  /**
+  @brief Get the drained bulk moduli of the paste and of its solid skeleton.
+
+  Both by the self-consistent scheme, from the per-phase moduli in
+  ChemicalSystem and the volume fractions in Lattice. Each solid phase is
+  split into its solid part and its sub-voxel porosity, so gel porosity
+  softens the paste as it should. All porosity is passed as empty: see
+  writeShrinkage for why drained is the right modulus here.
+
+  @param pasteK receives the drained bulk modulus of the paste [GPa]
+  @param skeletonK receives the bulk modulus of the solid skeleton [GPa]
+  @return true if both self-consistent solves converged
+  */
+  bool estimateDrainedModuli(double &pasteK, double &skeletonK) const;
 
   /**
   @brief Write the setting-times file from whatever has been detected.

@@ -914,6 +914,7 @@ void ChemicalSystem::parseDoc(const string &docName) {
   cdi = it.value().find("saturated");
   int satstate = cdi.value();
   isSaturated_ = (satstate != 0) ? true : false;
+  cumulativeWaterImbibed_ = 0.0;
 
   // See if electrolyte composition is specified
   cdi = it.value().find("electrolyte_conditions");
@@ -3006,6 +3007,10 @@ int ChemicalSystem::calculateState(double time, bool isFirst = false,
         std::clog << "    water_molesincr = " << water_molesincr << endl;
       }
       DCMoles_[waterDCId_] += water_molesincr;
+      /// Keep a running total: chemical shrinkage is the volume change of the
+      /// reaction, so water that came from outside has to be accounted for
+      /// separately rather than counted as reaction product.
+      cumulativeWaterImbibed_ += water_volincr;
 
       // double waterMolarMass = getDCMolarMass(wDCId);
       microPhaseMass_[ELECTROLYTEID] += (water_molesincr * waterMolarMass_);
