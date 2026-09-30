@@ -676,6 +676,24 @@ class ChemicalSystem {
   int isParrotKillohSize_; /**< dimension of isParrotKilloh_ vector */
 
   int waterDCId_;         /**< the DCId coresp to DCName = "H2O@" */
+
+  /**
+  @brief Unmodified standard Gibbs energy of water, one value per temperature
+  grid point of the DCH lookup arrays [J/mol].
+
+  Snapshotted once, before anything is written, because
+  applyMeniscusWaterCorrection overwrites the live value and would otherwise
+  accumulate its own correction on every step.
+  */
+  std::vector<double> waterG0Baseline_;
+
+  /**
+  @brief The meniscus correction currently applied to G0(H2O@) [J/mol].
+
+  Zero in a saturated system. Reported so the size of the correction is
+  visible without re-deriving it.
+  */
+  double waterG0Shift_;
   double waterMolarMass_; /**< the water molar mass corresp. to waterDCId_ */
   double waterMolarVol_;  /**< the water molar volume corresp. to waterDCId_ */
   double beginAttackTime_;
@@ -5314,6 +5332,63 @@ public:
   @return the water activity from the most recent GEM equilibrium
   */
   double getWaterActivity(void) { return (node_->Get_aDC(waterDCId_)); }
+
+  /**
+  @brief Lower the standard Gibbs energy of water to account for the meniscus.
+
+  GEMS computes the activity of water from solute molalities and knows nothing
+  about capillary curvature: there is no capillary term anywhere in GEMS3K, and
+  the node pressure is a fixed 1 atm. In an unsaturated pore its water is
+  therefore too available, and every water-consuming phase looks more stable
+  than it is, by n RT ln(h) for a phase holding n waters — about a full ln unit
+  for ettringite at h = 0.97, and enough to move a phase sitting near
+  equilibrium from precipitating to dissolving.
+
+  The Kelvin factor IS the Poynting term for water: at a capillary tension of
+  4 MPa, V_w sigma / RT = 0.0292 against -ln(0.9704) = 0.0300, the same number.
+  So curvature and tension are one effect, and it enters through the chemical
+  potential of the solvent:
+
+      mu_w = mu_w0 + RT ln(a_solute) + V_w (P_liq - P0)
+           = mu_w0 + RT ln(a_solute) - V_w sigma
+
+  Rather than patch each phase's saturation index, which is basis-dependent
+  (portlandite dissolution can be written to release two waters or none) and
+  leaves water dissociation out of equilibrium, this shifts ONE standard
+  Gibbs energy and lets GEMS re-equilibrate everything consistently: hydrate
+  stabilities, the water dissociation product, solute speciation and every
+  saturation index that follows from them.
+
+      G0(H2O@) <- G0_baseline(H2O@) + RT ln(h_Kelvin)
+
+  ln h is negative, so water is made MORE stable, which is the physics: a
+  concave meniscus lowers the liquid's chemical potential, which is why water
+  condenses in fine pores, and a lower mu_w is what makes water-consuming
+  reactions less favorable.
+
+  Writes an absolute value against a snapshot taken before the first write, so
+  repeated calls do not compound. A saturated system has h = 1 and restores the
+  baseline exactly, leaving such runs untouched.
+
+  Assumes the hydrate is NOT at the pore liquid's pressure — that it is
+  load-bearing in a skeleton at a different stress state, which is the usual
+  situation in a set paste and how the cement literature treats hydrate/RH
+  equilibria. A crystal freely immersed in tensioned liquid would share that
+  pressure and the shift would instead be -sigma dV_rxn, far smaller.
+
+  Must be called before GEM_run for the step, which is why it lives in
+  KineticController::updateRelativeHumidity.
+
+  @param kelvinRH is the Kelvin relative humidity from the meniscus, in (0, 1]
+  */
+  void applyMeniscusWaterCorrection(const double kelvinRH);
+
+  /**
+  @brief Get the meniscus correction currently applied to G0(H2O@).
+
+  @return the shift in J/mol, zero if saturated or not yet applied
+  */
+  double getWaterG0Shift(void) const { return waterG0Shift_; }
 
   /**
   @brief Get the chemical activity of a dependent component (DC) by name

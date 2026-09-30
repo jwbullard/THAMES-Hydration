@@ -54,6 +54,7 @@ ChemicalSystem::ChemicalSystem(const string &GEMfilename,
   T_ = 298.0;
   // Default pressure in [Pa]
   P_ = 101325.0;
+  waterG0Shift_ = 0.0;
   Vs_ = 1.0;
   Gs_ = 0.0;
   Ms_ = 0.0;
@@ -4416,6 +4417,84 @@ void ChemicalSystem::writeSatElectrolyteGasConditions(void) {
         << "   - after hydration, no attack (electyrolyte/gas) takes place"
         << endl;
   }
+  return;
+}
+
+void ChemicalSystem::applyMeniscusWaterCorrection(const double kelvinRH) {
+
+  if (waterDCId_ < 0)
+    return;
+
+  const DATACH *dch = node_->pCSD();
+  if (dch == NULL || dch->nTp <= 0)
+    return;
+
+  ///
+  /// Snapshot before the first write. DC_G0 returns the LIVE value, so once a
+  /// correction has been applied there is no way back to the baseline; taking
+  /// it here, once, is what keeps repeated calls from compounding.
+  ///
+  /// The `false` argument is not optional: DC_G0 normalises by RT when its
+  /// `norm` parameter is left at its default of true, and Set_DC_G0 wants
+  /// J/mol.
+  ///
+
+  if (waterG0Baseline_.empty()) {
+    waterG0Baseline_.resize(dch->nTp, 0.0);
+    for (long int j = 0; j < dch->nTp; j++) {
+      waterG0Baseline_[j] =
+          node_->DC_G0(waterDCId_, P_, dch->TKval[j], false);
+    }
+  }
+
+  ///
+  /// Find the grid point the run temperature resolves to. GEMS snaps T to a
+  /// lookup point when it lies within Ttol, and Set_DC_G0 writes to that same
+  /// point, so the baseline has to be read from it too. Ttol is 1 K on this
+  /// database and the grid is spaced 2 K, so a run at 298 K writes the
+  /// 297.15 K point.
+  ///
+
+  long int slot = -1;
+  for (long int j = 0; j < dch->nTp; j++) {
+    if (fabs(T_ - dch->TKval[j]) < dch->Ttol) {
+      slot = j;
+      break;
+    }
+  }
+
+  if (slot < 0) {
+    static bool warned = false;
+    if (!warned) {
+      std::clog << endl
+                << "ChemicalSystem::applyMeniscusWaterCorrection - WARNING: "
+                   "temperature "
+                << T_
+                << " K does not resolve to a lookup grid point within Ttol = "
+                << dch->Ttol
+                << " K, so the meniscus correction to G0(H2O@) cannot be "
+                   "applied. Saturation indices of hydrous phases will be too "
+                   "high in an unsaturated system."
+                << endl;
+      warned = true;
+    }
+    return;
+  }
+
+  ///
+  /// ln h is negative, so this LOWERS G0 and makes water more stable, which is
+  /// what a concave meniscus does. h >= 1 restores the baseline exactly, so a
+  /// saturated run is untouched.
+  ///
+
+  double shift = 0.0;
+  if (kelvinRH > 0.0 && kelvinRH < 1.0) {
+    shift = GASCONSTANT * T_ * log(kelvinRH);
+  }
+
+  node_->Set_DC_G0(waterDCId_, P_, T_, waterG0Baseline_[slot] + shift);
+  waterG0Shift_ = shift;
+
   return;
 }
 

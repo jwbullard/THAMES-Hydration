@@ -1544,6 +1544,17 @@ void KineticController::updateRelativeHumidity(void) {
     if (phaseKineticModel_[midx] != nullptr)
       phaseKineticModel_[midx]->setRelativeHumidity(kelvinRH_);
   }
+
+  ///
+  /// The humidity has two separate effects and both belong here. The loop
+  /// above sets the empirical rate throttle f(h), which multiplies a rate. The
+  /// call below shifts the standard Gibbs energy of water, which moves the
+  /// DRIVING FORCE: GEMS has no notion of meniscus curvature, so without it
+  /// every water-consuming phase is credited with more available water than it
+  /// has. Applying it here puts it before GEM_run for this step.
+  ///
+
+  chemSys_->applyMeniscusWaterCorrection(kelvinRH_);
   if (verbose_) {
     double aw = chemSys_->getWaterActivity();
     std::clog << "  KineticController: Kelvin RH = " << kelvinRH_

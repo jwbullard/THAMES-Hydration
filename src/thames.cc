@@ -211,8 +211,50 @@ int main(int argc, char **argv) {
   std::clog << "            number of dependent components: nDC = " << nDC
             << endl;
 
+  ///
+  /// strainenergy must be the same shape as the DCH's own G0 lookup array,
+  /// because that is how GEMS indexes it:
+  ///
+  ///     jj = xCH * gridTP();                 // gridTP() == nTp * nPp
+  ///     G0 = CSD->G0[jj + xTP] + strainenergy[jj + xTP];
+  ///
+  /// in TNode::DC_G0 and again in ipm_simplex.cpp. Sizing it to nDC alone
+  /// left it a factor of nTp*nPp too short: the largest index reached is
+  /// (nDC-1)*nTp*nPp + nTp*nPp - 1, which is 7721 on this database against a
+  /// vector of 198. Every dependent component past the fifth read off the
+  /// end, adding garbage to its standard Gibbs energy.
+  ///
+  /// It never showed because the out-of-bounds branch only runs when the
+  /// temperature resolves to a lookup GRID POINT. Runs happen at 298.15 K,
+  /// which sits exactly Ttol away from both neighbours on this 2 K grid, so
+  /// reads fall through to Lagrange interpolation instead — and that branch
+  /// does not touch strainenergy at all. Put the temperature on a grid point,
+  /// or widen Ttol, and GEMS fails to converge at construction.
+  ///
+
+  int nTp = -1, nPp = -1;
+  {
+    ifstream fgrid(dchName.c_str());
+    string ch;
+    while (fgrid >> ch) {
+      if (ch == "<nTp>")
+        fgrid >> nTp;
+      else if (ch == "<nPp>")
+        fgrid >> nPp;
+      if (nTp > 0 && nPp > 0)
+        break;
+    }
+  }
+  if (nTp <= 0)
+    nTp = 1;
+  if (nPp <= 0)
+    nPp = 1;
+
+  std::clog << "            lookup grid: nTp = " << nTp << ", nPp = " << nPp
+            << " => strainenergy size " << (nDC * nTp * nPp) << endl;
+
   strainenergy.clear();
-  strainenergy.resize(nDC, 0.0);
+  strainenergy.resize(static_cast<size_t>(nDC) * nTp * nPp, 0.0);
 
   //
   // User must provide the name of the file specifying the microstructre
