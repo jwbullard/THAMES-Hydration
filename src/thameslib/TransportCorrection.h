@@ -21,7 +21,7 @@ Current state of the pieces exposed by this header:
     `test_transport_correction`) but NOT called from any kinetic
     model as of 2026-09-12. Reserved for a future switch when we
     want the true SR nonlinearity at the flux balance instead of
-    the linear closed-form. Tracked in `docs/POST_ALPHA_TODOS.md`.
+    the linear closed-form. Tracked in `docs/DEFERRED.md`.
   - `pickDEff` — currently returns the block's global `dEff`
     regardless of shell composition. A per-shell-phase D_eff map
     (Ca+2 through C-S-H vs Ca+2 through AFm, etc.) is a deferred
@@ -95,7 +95,7 @@ double solveSurfaceConcentrationLinear(double k, double C_eq, double dEff,
 NOT CURRENTLY WIRED: all three kinetic models use
 `shellCorrectionFactor` (linear closed-form) as of 2026-09-12.
 Wiring this true-nonlinear path is a POST_ALPHA refinement — see
-"Shell-diffusion long-duration validation run" in POST_ALPHA_TODOS
+"Shell-diffusion long-duration validation run" in docs/DEFERRED.md
 and its "Refinements that may be worth landing first" list.
 
 Solves for C_surf that satisfies

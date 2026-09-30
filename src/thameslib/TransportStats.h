@@ -11,7 +11,7 @@ until reaching an electrolyte voxel or a step cap. The per-site δ
 distribution is aggregated per phase into a K-bin equal-frequency
 histogram so the nonlinear rate law can be evaluated bin-wise by the
 kinetic models without collapsing to a single scalar (see
-`docs/POST_ALPHA_TODOS.md` and `docs/transport_kinetics_brainstorm.md`
+`docs/DEFERRED.md` and `docs/transport_kinetics_brainstorm.md`
 for the physics rationale).
 
 No THAMES dependencies. Header-only, testable in isolation.

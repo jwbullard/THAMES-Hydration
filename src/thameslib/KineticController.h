@@ -79,7 +79,7 @@ private:
   // path via accumulateNucleation / drainNucleationInteger — the two
   // paths coexist and are selected per-phase via jmakEnabled_[midx].
   //
-  // See docs/POST_ALPHA_TODOS.md "CNT growth model needs JMAK-per-voxel"
+  // See docs/DEFERRED.md "CNT growth model needs JMAK-per-voxel"
   // for the physical rationale and mathematical model. Free functions
   // that do the per-cycle math live in JMAKGrowth.{h,cc}.
 
@@ -472,7 +472,7 @@ public:
   match `floor(sum_g N_g * X_g)` — placing new voxels via
   `Lattice::nucleatePhaseRnd` and updating DCMoles / microPhaseMass
   through the same "correct per-100g scaling" path as the classical
-  CNT placement block does. See docs/POST_ALPHA_TODOS.md
+  CNT placement block does. See docs/DEFERRED.md
   "CNT growth model needs JMAK-per-voxel" for the mathematical model.
 
   Called from the CNT dispatch inside `calculateKineticStep` when
@@ -896,7 +896,7 @@ public:
         because the mass balance can't feed them. Added 2026-07-24 after
         S4 validation of `SaturatingRateModel` found the CNT/GEMS
         placement/roll-back oscillation; see `docs/SATURATING_RATE.md`
-        §6 and the corresponding POST_ALPHA_TODOS entry.
+        §6 and the corresponding DEFERRED.md entry.
 
   If `computeNucleationVoxels(dtProposed)` exceeds the effective cap,
   shrinks dt so N lands exactly at the cap; returns the min of the

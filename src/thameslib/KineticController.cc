@@ -838,7 +838,7 @@ void KineticController::parseNucleationBlock(const json::iterator p,
   // ------ Optional JMAK sub-block ------
   // If present, the phase uses per-voxel JMAK growth instead of the
   // classical "1 voxel = 1 nucleation event" placement path. See
-  // docs/POST_ALPHA_TODOS.md "CNT growth model needs JMAK-per-voxel"
+  // docs/DEFERRED.md "CNT growth model needs JMAK-per-voxel"
   // for the physical rationale.
   //
   // Expected JSON (both fields optional; defaults apply if absent):
@@ -2325,7 +2325,7 @@ void KineticController::calculateKineticStep(double time, const double timestep,
           //     X_g evolves via the moment decomposition, and the lattice
           //     is synced to floor(sum_g N_g * X_g). This is the correct
           //     physical model at Portland-paste supersaturation regimes.
-          //     See docs/POST_ALPHA_TODOS.md.
+          //     See docs/DEFERRED.md.
           //
           //   CLASSICAL PATH (no jmak block, or jmak disabled): the
           //     pre-2026-07-28 "1 voxel = 1 nucleation event" placement.
@@ -2873,7 +2873,7 @@ double KineticController::computeNucleationBasedMaxTimestep(
   //       solution can't feed them. This was added 2026-07-24 after S4
   //       validation of SaturatingRateModel showed CNT requesting ~92k
   //       Portlandite voxels/cycle at Portlandite SI ~ 10 while GEMS
-  //       could only support ~125; see docs/POST_ALPHA_TODOS.md entry
+  //       could only support ~125; see docs/DEFERRED.md entry
   //       "CNT vs. Lattice::changeMicrostructure mass-balance mismatch"
   //       and docs/SATURATING_RATE.md §6.
   //

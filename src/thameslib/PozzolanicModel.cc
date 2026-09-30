@@ -685,7 +685,7 @@ double PozzolanicModel::computeNucleationVoxels(double dt_hours) const {
   //   * Site saturation: only relevant for heterogeneous nucleation
   //     (theta < 180) on scarce substrate voxels — a completely different
   //     class of gating, indexed by substrate-voxel count NOT same-phase
-  //     interface count. Not implemented; tracked in docs/POST_ALPHA_TODOS.md
+  //     interface count. Not implemented; tracked in docs/DEFERRED.md
   //     under "Site-saturation gating for heterogeneous CNT."
 
   double S = chemSys_->getMicroPhaseSI(microPhaseId_);
