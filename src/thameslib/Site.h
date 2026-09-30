@@ -429,20 +429,6 @@ public:
   int getWmc0(void) const { return wmc0_; }
 
   /**
-  @brief Determine if a site is occupied by a porous solid
-
-  A porous solid is any phase that is not pure electrolyte but which
-  has some internal porosity (<i>i.e.<i>, 0 < porosity < 1 )
-
-  @return true if the phase occupying this site is a porous solid
-  */
-  bool isPorousSolid(void) {
-    if ((wmc0_ > 0) && (microPhaseId_ > ELECTROLYTEID))
-      return (true);
-    return (false);
-  }
-
-  /**
   @brief Set the "weighted mean curvature" of the site.
 
   @param wmcval is the value of wmc_ to assign to the site

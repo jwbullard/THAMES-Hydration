@@ -884,14 +884,44 @@ public:
   void findInterfaces(void);
 
   /**
-  @brief Determine if a voxel has at least one neighbor that is a porousorous
-  solid
+  @brief Get, for every microstructure phase, whether it currently holds water.
 
-  @param siteId is the id of the site to check
-  @param neighborRange is the number of neighbors to check
-  @return true if at least one neighbor is a porous solid
+  Water fills the finest pores first, so every pore finer than the meniscus is
+  full and every pore coarser than it is empty. A phase therefore still holds
+  water if any of its sub-voxel pore sizes lies below the current meniscus
+  diameter. ELECTROLYTE always holds water, being water; VOID never does.
+
+  Per phase rather than per voxel, which is as close to the truth as the model
+  can get: sub-voxel saturation is tracked for the microstructure as a whole
+  (`masterPoreSizeDist_`), never for individual voxels. True per-voxel gel
+  saturation is a separate and much larger problem.
+
+  Built once per call and consulted as a lookup, since the answer depends only
+  on the phase and on the meniscus position, neither of which changes while a
+  nucleation pass runs.
+
+  @return one flag per microstructure phase, indexed by microstructure phase id
   */
-  bool hasPorousSolidNeighbor(const int siteID, const int neighborRange);
+  std::vector<char> buildMoistPhaseTable(void) const;
+
+  /**
+  @brief Determine whether a voxel has at least one neighbor holding water.
+
+  The condition for new solid to appear in an empty voxel: something next to it
+  must be able to supply ions. A neighbor qualifies if it is ELECTROLYTE, or if
+  it is a solid whose sub-voxel pores are still saturated.
+
+  One hop only. A dry solid does not relay moisture from liquid behind it, even
+  though real transport would; making the test two-hop would be far more
+  permissive and is not obviously more physical at this resolution.
+
+  @param siteID is the id of the site to check
+  @param neighborRange is the number of neighbors to check
+  @param moistPhase is the table from buildMoistPhaseTable
+  @return true if at least one neighbor holds water
+  */
+  bool hasMoistNeighbor(const int siteID, const int neighborRange,
+                        const std::vector<char> &moistPhase);
 
   // ---------------------------------------------------------------------
   // Shell-thickness computation for mass-transport kinetics (Phase 1 of
@@ -2046,7 +2076,7 @@ public:
 
   @return the meniscus diameter in nm, or -1.0 if every pore is saturated
   */
-  double getMeniscusDiameter(void) {
+  double getMeniscusDiameter(void) const {
     const int size = masterPoreSizeDist_.size();
     for (int i = 0; i < size; i++) {
       if (masterPoreSizeDist_[i].volfrac > 0.0 &&

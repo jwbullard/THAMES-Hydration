@@ -1294,11 +1294,61 @@ void Lattice::findInterfaces(void) {
   return;
 }
 
-bool Lattice::hasPorousSolidNeighbor(const int siteID,
-                                     const int neighborRange) {
+vector<char> Lattice::buildMoistPhaseTable(void) const {
+  vector<char> moist(numMicroPhases_, 0);
+
+  ///
+  /// The meniscus diameter is the dividing line: pores finer than it are full,
+  /// pores coarser than it are empty. A negative value means every pore in the
+  /// microstructure is still full, in which case any phase with porosity holds
+  /// water.
+  ///
+
+  const double meniscus = getMeniscusDiameter();
+  const bool everythingFull = (meniscus <= 0.0);
+
+  const vector<vector<struct PoreSizeData>> &psd =
+      chemSys_->getPoreSizeDistributionRef();
+  const int numPhasesWithPSD = static_cast<int>(psd.size());
+
+  for (int phaseId = 0; phaseId < numMicroPhases_; ++phaseId) {
+
+    /// Electrolyte IS water; void holds none by definition.
+
+    if (phaseId == ELECTROLYTEID) {
+      moist[phaseId] = 1;
+      continue;
+    }
+    if (phaseId == VOIDID)
+      continue;
+
+    if (phaseId >= numPhasesWithPSD)
+      continue;
+
+    for (const struct PoreSizeData &row : psd[phaseId]) {
+      if (row.volfrac <= 0.0)
+        continue;
+      if (everythingFull || row.diam < meniscus) {
+        moist[phaseId] = 1;
+        break;
+      }
+    }
+  }
+
+  return moist;
+}
+
+bool Lattice::hasMoistNeighbor(const int siteID, const int neighborRange,
+                               const vector<char> &moistPhase) {
   for (int i = 0; i < neighborRange; ++i) {
-    if (site_[siteID].nb(i)->isPorousSolid())
+    const int nbPhaseId = site_[siteID].nb(i)->getMicroPhaseId();
+    if (nbPhaseId == ELECTROLYTEID)
       return (true);
+    if (nbPhaseId > ELECTROLYTEID &&
+        nbPhaseId < static_cast<int>(moistPhase.size()) &&
+        moistPhase[nbPhaseId]) {
+      return (true);
+    }
   }
   return (false);
 }
@@ -2204,13 +2254,18 @@ int Lattice::nucleatePhaseRnd(const int phaseID, const int numToNucleate) {
   int allPNS = sizeWS;
 
   if (numToNucleate > sizeWS) {
-    // Now look for void sites that neighbor porous solids
-    // We may need them if there are not enough saturated pore voxels
+    // Not enough saturated pore voxels, so look at empty ones too. An empty
+    // voxel can host new solid only if a neighbor still holds water to supply
+    // ions: either liquid next door, or a solid whose sub-voxel pores are
+    // still saturated. As the meniscus retreats into finer pores with age,
+    // fewer phases qualify and this path closes itself.
+
+    const vector<char> moistPhase = buildMoistPhaseTable();
 
     voidNucSites.clear();
     for (k = 0; k < numSites_; ++k) {
       if ((site_[k].getMicroPhaseId() == VOIDID) &&
-          (hasPorousSolidNeighbor(k, NUM_NEAREST_NEIGHBORS))) {
+          (hasMoistNeighbor(k, NUM_NEAREST_NEIGHBORS, moistPhase))) {
         voidNucSites.push_back(k);
       }
     }
@@ -2576,13 +2631,17 @@ int Lattice::nucleatePhaseAff(const int phaseID, const int numToNucleate) {
             << sizeWS << " / " << wAffSumInt << endl;
 
   if (numToNucleate > sizeWS) {
-    // We also will allow void sites that neighbor porous solids
-    // because there are not enough saturated pore voxels
+    // Not enough saturated pore voxels, so allow empty ones whose neighbors
+    // still hold water. Same rule as nucleatePhaseRnd; kept in step with it
+    // deliberately, because this function is currently dormant (its callers
+    // are commented out) and is scheduled for restoration.
+
+    const vector<char> moistPhase = buildMoistPhaseTable();
 
     voidNucSites.clear();
     for (k = 0; k < numSites_; ++k) {
       if ((site_[k].getMicroPhaseId() == VOIDID) &&
-          (hasPorousSolidNeighbor(k, NUM_NEAREST_NEIGHBORS))) {
+          (hasMoistNeighbor(k, NUM_NEAREST_NEIGHBORS, moistPhase))) {
         un.id = site_[k].getId();
         affInt = 0;
         localNb = site_[k].getNb();
@@ -3558,6 +3617,10 @@ double Lattice::emptySubVoxelPorosity(double aqFracToEmpty) {
   for (int i = masterPoreSizeDistSize - 1; (i >= 0) && (aqFracToEmpty > 0.0);
        --i) {
 
+    // A bin with no volume holds no water and cannot be divided by.
+    if (masterPoreSizeDist_[i].volfrac <= 0.0)
+      continue;
+
     // volfrac_filled is the volume fraction of size-i saturated porosity on
     // a total microstructure volume basis
     volfrac_filled =
@@ -3570,8 +3633,13 @@ double Lattice::emptySubVoxelPorosity(double aqFracToEmpty) {
     masterPoreSizeDist_[i].volfracsat =
         newvfracfilled / masterPoreSizeDist_[i].volfrac;
 
-    aqFracEmptied = (volfrac_filled - newvfracfilled);
-    aqFracToEmpty -= aqFracEmptied;
+    // Accumulate. This was an assignment, which returned only whatever the
+    // LAST bin gave up while the loop had correctly drained several. The
+    // caller compared the shortfall against what it asked for and concluded
+    // the system was out of water, so a sealed paste below the Powers limit
+    // stopped with most of its gel water still in place.
+    aqFracEmptied += (volfrac_filled - newvfracfilled);
+    aqFracToEmpty -= (volfrac_filled - newvfracfilled);
   }
   return (aqFracEmptied);
 }
@@ -3604,6 +3672,10 @@ double Lattice::fillSubVoxelPorosity(double aqFracToFill) {
   for (int i = masterPoreSizeDistSize - 1; (i >= 0) && (aqFracToFill > 0.0);
        --i) {
 
+    // A bin with no volume holds no water and cannot be divided by.
+    if (masterPoreSizeDist_[i].volfrac <= 0.0)
+      continue;
+
     // volfrac_empty is the volume fraction of size-i empty porosity on
     // a total microstructure volume basis
     volfrac_empty = masterPoreSizeDist_[i].volfrac *
@@ -3617,8 +3689,9 @@ double Lattice::fillSubVoxelPorosity(double aqFracToFill) {
     masterPoreSizeDist_[i].volfracsat =
         1.0 - (newvfracempty / masterPoreSizeDist_[i].volfrac);
 
-    aqFracFilled = (volfrac_empty - newvfracempty);
-    aqFracToFill -= aqFracFilled;
+    // Accumulate, as in emptySubVoxelPorosity and for the same reason.
+    aqFracFilled += (volfrac_empty - newvfracempty);
+    aqFracToFill -= (volfrac_empty - newvfracempty);
   }
   return (aqFracFilled);
 }

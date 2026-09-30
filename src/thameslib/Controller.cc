@@ -268,6 +268,64 @@ Controller::Controller(Lattice *msh, KineticController *kc, ChemicalSystem *cs,
     outfs << endl;
     outfs.close();
 
+    ///
+    /// The same saturation indices with the meniscus accounted for. GEMS gets
+    /// the activity of water from solute molalities and knows nothing about
+    /// curvature, so in an unsaturated pore its water activity is too high by
+    /// the Kelvin factor and every water-consuming phase looks more stable
+    /// than it is. This file reports SI * h^n, with n the phase's water
+    /// content, so the size of that bias is visible per phase and per time.
+    ///
+    /// Diagnostic only: nothing here feeds back into the simulation. Fixing
+    /// the thermodynamics means shifting G0(H2O@) so that GEMS re-equilibrates
+    /// consistently, which is a separate change.
+    ///
+
+    outfilename = jobRoot_ + "_SI_MeniscusCorrected.csv";
+    outfs.open(outfilename.c_str());
+    if (!outfs) {
+      throw FileException("Controller", "Controller", outfilename,
+                          "Could not append");
+    }
+
+    outfs << runmeta::csvCommentLine() << endl;
+
+    /// Record the water content once, as a comment, so the file explains its
+    /// own numbers without anyone having to re-derive them.
+    ///
+    /// These counts are per DEPENDENT COMPONENT as the database stores it, and
+    /// the database does not use one formula-unit convention throughout: the
+    /// suffixes encode it, so ettr is a whole formula unit of ettringite at 32
+    /// H2O, ettr05 a half at 16, and ettr03_ss a third at 10.7. Each exponent
+    /// is right for its own DC, because that is the basis GEMS uses for that
+    /// DC's saturation index, but the columns are therefore NOT comparable to
+    /// each other at face value. Per whole formula unit, ettringite and
+    /// carbonate-AFt both carry 32 waters against AFm's 12 — which is what
+    /// decides their relative response to a falling humidity.
+
+    outfs << "# H2O per DC as stored (NOT a common formula-unit basis; ettr=32"
+          << " is whole, ettr05=16 half, ettr03=10.7 a third):";
+    for (int i = 1; i < chemSys_->getNumMicroPhases(); i++) {
+      int dcid = chemSys_->getMicroPhaseDCMembers(i, 0);
+      cc = chemSys_->getDCClassCode(dcid);
+      if (cc == 'O' || cc == 'I' || cc == 'J' || cc == 'M') {
+        outfs << " " << chemSys_->getMicroPhaseName(i) << "="
+              << chemSys_->getMicroPhaseWaterStoich(i);
+      }
+    }
+    outfs << endl;
+
+    outfs << "Time(h),KelvinRH";
+    for (int i = 1; i < chemSys_->getNumMicroPhases(); i++) {
+      int dcid = chemSys_->getMicroPhaseDCMembers(i, 0);
+      cc = chemSys_->getDCClassCode(dcid);
+      if (cc == 'O' || cc == 'I' || cc == 'J' || cc == 'M') {
+        outfs << ",SIcorr_" << chemSys_->getMicroPhaseName(i);
+      }
+    }
+    outfs << endl;
+    outfs.close();
+
     outfilename = jobRoot_ + "_CSH.csv";
     outfs.open(outfilename.c_str(), std::ios::app);
     if (!outfs) {
@@ -2765,6 +2823,36 @@ void Controller::writeTxtOutputFiles(double time) {
   outfs01 << endl;
   outfs.close();
   outfs01.close();
+
+  ///
+  /// Meniscus-corrected saturation indices. See the header block in the
+  /// constructor for why. A saturated system has h = 1 and this file then
+  /// simply repeats _SI.csv.
+  ///
+
+  outfilename = jobRoot_ + "_SI_MeniscusCorrected.csv";
+  outfs.open(outfilename.c_str(), ios::app);
+  if (!outfs) {
+    throw FileException("Controller", "writeTxtOutputFiles", outfilename,
+                        "Could not append");
+  }
+
+  const double kelvinRH = lattice_->getKelvinRH();
+  outfs << setprecision(5) << time << "," << kelvinRH;
+  for (int i = 1; i < chemSys_->getNumMicroPhases(); i++) {
+    int dcid = chemSys_->getMicroPhaseDCMembers(i, 0);
+    cc = chemSys_->getDCClassCode(dcid);
+    if (cc == 'O' || cc == 'I' || cc == 'J' || cc == 'M') {
+      const double waterStoich = chemSys_->getMicroPhaseWaterStoich(i);
+      double factor = 1.0;
+      if (kelvinRH > 0.0 && kelvinRH < 1.0 && waterStoich > 0.0) {
+        factor = pow(kelvinRH, waterStoich);
+      }
+      outfs << "," << (chemSys_->getMicroPhaseSI(i) * factor);
+    }
+  }
+  outfs << endl;
+  outfs.close();
 
   outfilename = jobRoot_ + "_Microstructure.csv";
   outfs.open(outfilename.c_str(), ios::app);

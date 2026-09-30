@@ -741,7 +741,30 @@ int main(int argc, char **argv) {
     errorProgram = true;
   } catch (MicrostructureException mex) {
     mex.printException();
-    errorProgram = true;
+
+    ///
+    /// MicrostructureException carries a flag saying whether it is an error at
+    /// all: excp_ false means the simulation reached a physical endpoint and
+    /// stopped on purpose, which is how a sealed paste below the Powers limit
+    /// ends when it consumes the last of its water. Treating that as a crash
+    /// was wrong twice over. It set errorProgram, so the provenance sidecar
+    /// recorded success = false with "No specific error reason recorded" for a
+    /// run the log itself called a normal end; and it hid the one piece of
+    /// information anybody would want, which is WHY the run stopped early.
+    ///
+
+    if (mex.getExcp()) {
+      runmeta::finalize(1, "Microstructure: " + mex.getClassname() +
+                               "::" + mex.getFunctionname(),
+                        mex.getDescription());
+      errorProgram = true;
+    } else {
+      runmeta::finalize(0,
+                        "Simulation ended early: " + mex.getDescription(),
+                        mex.getClassname() + "::" + mex.getFunctionname() +
+                            " stopped the run at a physical endpoint, not on "
+                            "an error. Results up to that point are valid.");
+    }
   }
   if (errorProgram) {
     deleteDynAllocMem(ChemSys, Mic, RNG, ThermalStrainSolver,

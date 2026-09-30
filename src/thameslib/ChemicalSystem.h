@@ -126,8 +126,8 @@ struct PhaseData {
   std::vector<int> shrinkingSA;
   std::vector<double> volRatiosSA;
   // Elastic moduli from simparams.json (optional, -1.0 means use defaults)
-  double elastic_K;  // Bulk modulus (GPa)
-  double elastic_G;  // Shear modulus (GPa)
+  double elastic_K; // Bulk modulus (GPa)
+  double elastic_G; // Shear modulus (GPa)
   bool hasElasticData;
 };
 #endif
@@ -222,8 +222,8 @@ class ChemicalSystem {
   std::vector<int>
       stressPhaseId_; /**< IDs of phases that can have crystallization
                            pressure in the microstructure */
-  std::vector<int> weakPhaseId_;    /**< IDs of solid phases that can be damaged
-                                         by stress in the microstructure */
+  std::vector<int> weakPhaseId_; /**< IDs of solid phases that can be damaged
+                                      by stress in the microstructure */
 
   /**
   @brief Whether each phase counts toward rigidity percolation (set detection).
@@ -680,7 +680,8 @@ class ChemicalSystem {
   double waterMolarVol_;  /**< the water molar volume corresp. to waterDCId_ */
   double beginAttackTime_;
   std::map<std::string, elMod> elasticModuli_;
-  std::map<std::string, elMod> elasticModuliFromJSON_; /**< Elastic moduli read from simparams.json */
+  std::map<std::string, elMod>
+      elasticModuliFromJSON_; /**< Elastic moduli read from simparams.json */
   int aliteDCId_;     /**< the DCId coresp to microPhaseName = "Alite" */
   int beliteDCId_;    /**< the DCId coresp to microPhaseName = "Belite" */
   int aluminateDCId_; /**< the DCId coresp to microPhaseName = "Aluminate" */
@@ -1763,7 +1764,8 @@ public:
   */
   int getDCIdOrMinusOne(const std::string &dcname) const {
     std::map<std::string, int>::const_iterator p = DCIdLookup_.find(dcname);
-    if (p != DCIdLookup_.end()) return p->second;
+    if (p != DCIdLookup_.end())
+      return p->second;
     return -1;
   }
 
@@ -2497,7 +2499,8 @@ public:
     microPhaseWettingWeight_[idx] = pval;
     //} catch (out_of_range &oor) {
     //  EOBException ex("ChemicalSystem", "setMicroPhaseWettingWeight",
-    //                  "microPhaseWettingWeight_", microPhaseWettingWeight_.size(), idx);
+    //                  "microPhaseWettingWeight_",
+    //                  microPhaseWettingWeight_.size(), idx);
     //  ex.printException();
     //  exit(1);
     //}
@@ -2536,7 +2539,8 @@ public:
     // }
     //} catch (out_of_range &oor) {
     //  EOBException ex("ChemicalSystem", "getMicroPhaseWettingWeight",
-    //                  "microPhaseWettingWeight_", microPhaseWettingWeight_.size(), idx);
+    //                  "microPhaseWettingWeight_",
+    //                  microPhaseWettingWeight_.size(), idx);
     //  ex.printException();
     //  exit(1);
     //}
@@ -2566,7 +2570,8 @@ public:
     return microPhaseWettingWeight_[idx];
     //} catch (out_of_range &oor) {
     //  EOBException ex("ChemicalSystem", "getMicroPhaseWettingWeight",
-    //                  "microPhaseWettingWeight_", microPhaseWettingWeight_.size(), idx);
+    //                  "microPhaseWettingWeight_",
+    //                  microPhaseWettingWeight_.size(), idx);
     //  ex.printException();
     //  exit(1);
     //}
@@ -2652,6 +2657,20 @@ public:
   */
   std::vector<std::vector<struct PoreSizeData>>
   getPoreSizeDistribution() const {
+    return poreSizeDistribution_;
+  }
+
+  /**
+  @brief Get a read-only reference to the pore size distributions.
+
+  Same data as getPoreSizeDistribution, without the copy. A vector of vectors
+  is expensive enough to duplicate that callers reading it inside a loop over
+  microstructure phases, or worse over sites, should use this instead.
+
+  @return a const reference to the list of per-phase pore size distributions
+  */
+  const std::vector<std::vector<struct PoreSizeData>> &
+  getPoreSizeDistributionRef() const {
     return poreSizeDistribution_;
   }
 
@@ -3241,7 +3260,7 @@ public:
     // Uses IC_FLOOR (1e-5) rather than ICTHRESH (1e-8) to proactively prevent
     // GEMS R-matrix degeneration from near-zero IC moles. See global.h for
     // warnings about not raising IC_FLOOR further.
-    for (i = 0; i < numICs_ - 1; i++) {  // Skip last IC (charge)
+    for (i = 0; i < numICs_ - 1; i++) { // Skip last IC (charge)
       if (ICMoles[i] < IC_FLOOR) {
         double deficit = IC_FLOOR - ICMoles[i];
 
@@ -3276,17 +3295,28 @@ public:
         // ================================================================
 
         // Select a simple aqueous species for each IC
-        if (icName == "Al") dcName = "Al+3";
-        else if (icName == "C") dcName = "HCO3-";
-        else if (icName == "Ca") dcName = "Ca+2";
-        else if (icName == "Cl") dcName = "Cl-";
-        else if (icName == "Fe") dcName = "Fe+3"; // Fe(III); sync w/ KineticController
-        else if (icName == "K") dcName = "K+";
-        else if (icName == "Mg") dcName = "Mg+2";
-        else if (icName == "Na") dcName = "Na+";
-        else if (icName == "Nit") dcName = "N2@";
-        else if (icName == "S") dcName = "SO4-2";
-        else if (icName == "Si") dcName = "SiO2@";
+        if (icName == "Al")
+          dcName = "Al+3";
+        else if (icName == "C")
+          dcName = "HCO3-";
+        else if (icName == "Ca")
+          dcName = "Ca+2";
+        else if (icName == "Cl")
+          dcName = "Cl-";
+        else if (icName == "Fe")
+          dcName = "Fe+3"; // Fe(III); sync w/ KineticController
+        else if (icName == "K")
+          dcName = "K+";
+        else if (icName == "Mg")
+          dcName = "Mg+2";
+        else if (icName == "Na")
+          dcName = "Na+";
+        else if (icName == "Nit")
+          dcName = "N2@";
+        else if (icName == "S")
+          dcName = "SO4-2";
+        else if (icName == "Si")
+          dcName = "SiO2@";
         // H and O are not boosted - they come from water
 
         if (!dcName.empty()) {
@@ -3327,7 +3357,7 @@ public:
         // Add OH- (charge = -1) to compensate positive charge
         int ohIdx = getDCId("OH-");
         if (ohIdx >= 0 && ohIdx < numDCs_) {
-          double ohAdd = chargeAdded;  // |charge of OH-| = 1
+          double ohAdd = chargeAdded; // |charge of OH-| = 1
           DCMoles_[ohIdx] += ohAdd;
           std::clog << "checkICMoles: Adding " << ohAdd
                     << " mol of OH- to compensate +" << chargeAdded
@@ -3337,7 +3367,7 @@ public:
         // Add H+ (charge = +1) to compensate negative charge
         int hIdx = getDCId("H+");
         if (hIdx >= 0 && hIdx < numDCs_) {
-          double hAdd = -chargeAdded;  // chargeAdded is negative
+          double hAdd = -chargeAdded; // chargeAdded is negative
           DCMoles_[hIdx] += hAdd;
           std::clog << "checkICMoles: Adding " << hAdd
                     << " mol of H+ to compensate " << chargeAdded
@@ -4785,6 +4815,48 @@ public:
       exit(1);
     }
     return DCStoich_[dcidx][icidx];
+  }
+
+  /**
+  @brief Get the water content of a microstructure phase, in H2O per formula
+  unit.
+
+  Counts hydrogen and halves it, averaged over the phase's dependent
+  components. Ettringite comes back 32, the AFm family 12 to 19, the CSHQ end
+  members 2 to 3, and anhydrous clinker 0.
+
+  Used to size the error GEMS makes in an unsaturated pore. GEMS computes the
+  activity of water from solute molalities alone and knows nothing about
+  meniscus curvature (there is no capillary term anywhere in GEMS3K, and
+  THAMES hands it a fixed 1 atm), so in a partially saturated microstructure it
+  works with a water activity that is too high by the Kelvin factor. A phase
+  consuming n moles of water then appears more stable than it is, by
+  n RT ln(h_Kelvin) — about 74 J/mol per water at h = 0.97, so nearly a full ln
+  unit for ettringite and negligible for portlandite.
+
+  Halving the hydrogen count is a proxy, not a reaction balance: the water
+  appearing in a dissolution reaction depends on which aqueous species are
+  taken as the basis, and portlandite can be written to release either two
+  waters or none. It is the right scale for judging which phases the bias
+  matters for, which is what it is used for. Correcting the thermodynamics
+  properly means shifting G0(H2O@) and letting GEMS re-equilibrate, not
+  patching each phase's saturation index.
+
+  @param microPhaseId is the id of the microstructure phase
+  @return the mean number of H2O units per formula unit, 0 if unknown
+  */
+  double getMicroPhaseWaterStoich(const int microPhaseId) {
+    const int hydrogenId = getICId("H");
+    if (hydrogenId < 0)
+      return (0.0);
+    std::vector<int> members = getMicroPhaseDCMembers(microPhaseId);
+    if (members.empty())
+      return (0.0);
+    double total = 0.0;
+    for (int dcid : members) {
+      total += 0.5 * getDCStoich(dcid, hydrogenId);
+    }
+    return (total / static_cast<double>(members.size()));
   }
 
   /**
