@@ -2055,6 +2055,16 @@ public:
   static constexpr double CAPILLARY_BRIDGE_SHARE = 0.15;
 
   /**
+  @brief Remainder below which emptyPorosity treats a request as met
+
+  A volume fraction. The request and the voxels emptied are whole voxels over
+  numSites_, so a fully met request leaves a remainder of zero up to rounding
+  (about 1e-19). One voxel in the largest lattice the UI allows is 3.7e-8, so
+  1e-12 cannot swallow real water.
+  */
+  static constexpr double SUBVOXEL_REMAINDER_TOL = 1.0e-12;
+
+  /**
   @brief Get the diameter at which the meniscus actually sits [nm]
 
   getLargestSaturatedPore names the BIN holding the meniscus, which moves in

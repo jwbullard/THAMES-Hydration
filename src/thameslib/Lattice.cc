@@ -3599,8 +3599,14 @@ double Lattice::emptyPorosity(double aqFracToEmpty) {
   double aqFracEmptied = dFracEmptied / dNumsites;
 
   // What is the remaining volume fraction to remove?
+  //
+  // The request and the voxels emptied are both whole voxels over numSites_,
+  // so whenever every requested voxel was emptied the remainder is zero up to
+  // rounding, about 1e-19. A positive speck of that sent the sub-voxel step
+  // off to drain gel pores for nothing. Anything below SUBVOXEL_REMAINDER_TOL
+  // is that rounding, not water.
   aqFracToEmpty -= aqFracEmptied;
-  if (aqFracToEmpty > 0.0) {
+  if (aqFracToEmpty > SUBVOXEL_REMAINDER_TOL) {
     calculatePoreSizeDistribution();
     double subVoxEmptied = emptySubVoxelPorosity(aqFracToEmpty);
     aqFracEmptied += subVoxEmptied;
@@ -3626,20 +3632,24 @@ double Lattice::emptySubVoxelPorosity(double aqFracToEmpty) {
     volfrac_filled =
         masterPoreSizeDist_[i].volfrac * masterPoreSizeDist_[i].volfracsat;
 
-    // Deduct this amount or aqFracToEmpty, whichever is less
-    double newvfracfilled = volfrac_filled - aqFracToEmpty;
-    if (newvfracfilled < 0.0)
-      newvfracfilled = 0.0;
+    // Deduct this amount or aqFracToEmpty, whichever is less. Book the
+    // amount itself, not the difference between the old and new filled
+    // volumes: for a request far smaller than the bin, that difference
+    // rounds to exactly zero, the request never shrinks, and the loop walks
+    // on to the first bin fine enough to register it. That left a 100 nm bin
+    // at saturation 1 - 3e-14, which getMeniscusDiameter reported as the
+    // meniscus, so Kelvin RH flickered between 0.998 and 0.979 step to step.
+    const double drained = std::min(volfrac_filled, aqFracToEmpty);
     masterPoreSizeDist_[i].volfracsat =
-        newvfracfilled / masterPoreSizeDist_[i].volfrac;
+        (volfrac_filled - drained) / masterPoreSizeDist_[i].volfrac;
 
     // Accumulate. This was an assignment, which returned only whatever the
     // LAST bin gave up while the loop had correctly drained several. The
     // caller compared the shortfall against what it asked for and concluded
     // the system was out of water, so a sealed paste below the Powers limit
     // stopped with most of its gel water still in place.
-    aqFracEmptied += (volfrac_filled - newvfracfilled);
-    aqFracToEmpty -= (volfrac_filled - newvfracfilled);
+    aqFracEmptied += drained;
+    aqFracToEmpty -= drained;
   }
   return (aqFracEmptied);
 }
@@ -3682,16 +3692,15 @@ double Lattice::fillSubVoxelPorosity(double aqFracToFill) {
                     (1.0 - masterPoreSizeDist_[i].volfracsat);
 
     // Deduct this amount or aqFracToFill from the empty porosity, whichever is
-    // less
-    double newvfracempty = volfrac_empty - aqFracToFill;
-    if (newvfracempty < 0.0)
-      newvfracempty = 0.0;
+    // less, booking the amount itself as in emptySubVoxelPorosity and for the
+    // same rounding reason.
+    const double filled = std::min(volfrac_empty, aqFracToFill);
     masterPoreSizeDist_[i].volfracsat =
-        1.0 - (newvfracempty / masterPoreSizeDist_[i].volfrac);
+        1.0 - ((volfrac_empty - filled) / masterPoreSizeDist_[i].volfrac);
 
     // Accumulate, as in emptySubVoxelPorosity and for the same reason.
-    aqFracFilled += (volfrac_empty - newvfracempty);
-    aqFracToFill -= (volfrac_empty - newvfracempty);
+    aqFracFilled += filled;
+    aqFracToFill -= filled;
   }
   return (aqFracFilled);
 }

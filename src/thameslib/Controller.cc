@@ -410,7 +410,8 @@ Controller::Controller(Lattice *msh, KineticController *kc, ChemicalSystem *cs,
     // impose, and the product is what an embedded probe would read.
     outfs << "Time(h),KelvinRH,WaterActivity,InternalRH,"
           << "MeniscusDiameter(nm),SaturationVoxelScale,"
-          << "SaturationSubvoxel,SaturationTotal" << endl;
+          << "SaturationSubvoxel,SaturationTotal,"
+          << "MeniscusG0Shift(J/mol)" << endl;
     outfs.close();
 
     outfilename = jobRoot_ + "_pH.csv";
@@ -911,6 +912,16 @@ void Controller::writeHumidity(double time) {
   outfs << "," << ((totalPore > 0.0)
                        ? (voxelSaturated + subvoxelSaturated) / totalPore
                        : 0.0);
+
+  /// The shift RT ln(h_Kelvin) that applyMeniscusWaterCorrection wrote into
+  /// G0(H2O@) for the GEMS solve of the step ENDING at this row. It was set
+  /// from the meniscus at the start of that step, so it lags the KelvinRH
+  /// column (end of step) by one step, as any explicit coupling must. Zero
+  /// when saturated, and also
+  /// zero when the run temperature is not a DCH grid point (the correction is
+  /// skipped with a warning in that case).
+
+  outfs << "," << chemSys_->getWaterG0Shift();
   outfs << endl;
   outfs.close();
 }
@@ -2593,6 +2604,23 @@ void Controller::doCycle(double elemTimeInterval) {
                 << "                      number of nucleation events < nuclei "
                    "requested number!"
                 << endl;
+
+      ///
+      /// A physical endpoint, not an error: the lattice has no eligible site
+      /// left for a product that must grow. It reaches here by a normal
+      /// return, so neither the exception handlers in thames.cc nor their
+      /// fallback finalize ever run; without this call the sidecar would stay
+      /// at "in_progress" forever.
+      ///
+
+      std::ostringstream diagStream;
+      diagStream << "Stopped at " << currTime << " h: a hydration product "
+                 << "could not be placed because no eligible lattice site "
+                 << "remained. Results up to that point are valid.";
+      runmeta::finalize(0,
+                        "Simulation ended early: no room to place hydration "
+                        "products",
+                        diagStream.str());
     } else {
       std::clog << endl
                 << "                      outputImageTime_.size() = "
@@ -2823,6 +2851,17 @@ void Controller::writeTxtOutputFiles(double time) {
   outfs01 << endl;
   outfs.close();
   outfs01.close();
+
+  ///
+  /// Every writer below that reports the meniscus (this file, _Shrinkage.csv,
+  /// _Humidity.csv) reads the master pore size distribution. Rebuild it here
+  /// from the current water and pore structure so they report the same state
+  /// the next step's kinetics will use. Without this they read whatever
+  /// emptyPorosity left behind, a transient the next rebuild discards, and the
+  /// reported Kelvin RH disagreed with the one driving the rates.
+  ///
+
+  lattice_->calculatePoreSizeDistribution();
 
   ///
   /// Meniscus-corrected saturation indices. See the header block in the
