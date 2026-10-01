@@ -337,7 +337,10 @@ Controller::Controller(Lattice *msh, KineticController *kc, ChemicalSystem *cs,
     for (int i = 0; i < chemSys_->getNumICs(); i++) {
       outfs << "," << chemSys_->getICName(i);
     }
-    outfs << ",Ca/Si" << endl;
+    outfs << ",Ca/Si";
+    // Gel properties THAMES assigns to C-S-H; see CSHGelProperties.
+    outfs << ",GelPorosity,SolidDensity(g/cm3),SatGelDensity(g/cm3),"
+          << "H2O/Si,GelPoreSaturation,Psi" << endl;
     outfs.close();
 
     outfilename = jobRoot_ + "_CSratio_solid.csv";
@@ -2926,6 +2929,14 @@ void Controller::writeTxtOutputFiles(double time) {
   outfs << "," << (chemSys_->getPH()) << endl;
   outfs.close();
 
+  ///
+  /// Refresh the per-phase elemental composition from the current GEMS node.
+  /// It was filled once, at construction, and the per-step GEM_to_MT writes
+  /// only the solution-phase arrays, so _CSH.csv and _CSratio_solid.csv
+  /// printed the composition stored in the input DBR file on every row.
+  ///
+
+  chemSys_->setPGEMPhaseStoich();
   chemSys_->setGEMPhaseStoich();
 
   double *CSHcomp;
@@ -2959,7 +2970,24 @@ void Controller::writeTxtOutputFiles(double time) {
   if (SiMoles < 1.0e-16)
     SiMoles = 1.0e-16;
   double CaSiRatio = CaMoles / SiMoles;
-  outfs << "," << CaSiRatio << endl;
+  outfs << "," << CaSiRatio;
+
+  ///
+  /// The meniscus is current: the pore size distribution was rebuilt above,
+  /// before the meniscus-reading writers. With no CSHQ the cells are left
+  /// empty rather than written as zeros, which would read as measurements.
+  ///
+
+  const CSHGelProperties gel =
+      chemSys_->getCSHGelProperties(lattice_->getMeniscusDiameter());
+  if (gel.present) {
+    outfs << "," << gel.gelPorosity << "," << gel.solidDensity << ","
+          << gel.satGelDensity << "," << gel.waterPerSi << ","
+          << gel.gelPoreSaturation << "," << gel.psi;
+  } else {
+    outfs << ",,,,,,";
+  }
+  outfs << endl;
   outfs.close();
 
   double *phaseRecord;

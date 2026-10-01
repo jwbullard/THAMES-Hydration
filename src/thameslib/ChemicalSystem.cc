@@ -4498,6 +4498,102 @@ void ChemicalSystem::applyMeniscusWaterCorrection(const double kelvinRH) {
   return;
 }
 
+CSHGelProperties
+ChemicalSystem::getCSHGelProperties(const double meniscusDiameter) {
+
+  ///
+  /// Reference values from the literature, used ONLY to express psi on the
+  /// basis Konigsberger et al. (2016) fitted their master curve on. They are
+  /// deliberately local: nothing here reads or writes a GEMS molar volume.
+  ///
+  /// ALLEN_SOLID_CSH_VOLUME_PER_SI: molar volume of C1.7-S-H1.8 per mole of Si,
+  /// 72.14 cm3/mol (Konigsberger et al., CCR 88 (2016) Table 1, from the
+  /// 2.604 g/cm3 and 187.8 g/mol of Allen, Thomas and Jennings, Nat. Mater. 6
+  /// (2007) 311).
+  ///
+  /// ALLEN_SOLID_CSH_WATER_PER_SI: the 1.8 H2O per Si of that solid. Water the
+  /// GEMS CSHQ end-members carry above it is, on the Allen basis, gel water.
+  ///
+  /// Approximation: the run's Ca/Si (about 1.6 in portlandite-saturated
+  /// paste) is not rescaled to Allen's 1.7, roughly a 3 % error in V_sCSH.
+  ///
+
+  constexpr double ALLEN_SOLID_CSH_VOLUME_PER_SI = 72.14e-6; // m3/mol
+  constexpr double ALLEN_SOLID_CSH_WATER_PER_SI = 1.8;
+
+  CSHGelProperties props = {false, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0};
+
+  std::map<std::string, int>::iterator gp = GEMPhaseIdLookup_.find(CSHGEMName);
+  std::map<std::string, int>::iterator mp =
+      microPhaseIdLookup_.find(CSHGEMName);
+  if (gp == GEMPhaseIdLookup_.end() || mp == microPhaseIdLookup_.end())
+    return props;
+  const int gemId = gp->second;
+  const int microId = mp->second;
+
+  /// GEMS phase volume [m3] and mass [g], both in the per-100-g frame, so
+  /// their ratio is a physical density.
+  const double solidVolume = GEMPhaseVolume_[gemId];
+  const double solidMass = GEMPhaseMass_[gemId];
+  if (solidVolume <= 0.0 || solidMass <= 0.0)
+    return props;
+
+  /// Si and H2O held in the CSHQ solid, summed over its end-members. Before
+  /// the first equilibration GEMS reports a CSHQ volume and mass carried over
+  /// from the input DBR but no CSHQ moles; that is not a simulation result,
+  /// so nothing is reported until the solid holds Si.
+
+  const int siId = getICId("Si");
+  const int hId = getICId("H");
+  double siMoles = 0.0;
+  double waterMoles = 0.0;
+  const vector<int> members = getGEMPhaseDCMembers(gemId);
+  for (const int dc : members) {
+    siMoles += DCMoles_[dc] * getDCStoich(dc, siId);
+    waterMoles += 0.5 * DCMoles_[dc] * getDCStoich(dc, hId);
+  }
+  if (siMoles <= 0.0)
+    return props;
+
+  const double phi = microPhasePoreVolumeFraction_[microId];
+  const double waterVm = getDCMolarVolume(waterDCId_); // m3/mol
+  const double waterDensity = DCMolarMass_[waterDCId_] / (waterVm * 1.0e6);
+
+  props.present = true;
+  props.gelPorosity = phi;
+  props.solidDensity = solidMass / (solidVolume * 1.0e6);
+  props.satGelDensity =
+      props.solidDensity * (1.0 - phi) + waterDensity * phi;
+  props.waterPerSi = waterMoles / siMoles;
+
+  /// psi = V_w / (V_sCSH + V_w), with liquid water counted as Konigsberger
+  /// counts it: aqueous water plus the gel water hidden in the GEMS solid.
+
+  const double excessWater =
+      std::max(0.0, waterMoles - ALLEN_SOLID_CSH_WATER_PER_SI * siMoles);
+  const double liquidWater = (DCMoles_[waterDCId_] + excessWater) * waterVm;
+  const double allenSolid = siMoles * ALLEN_SOLID_CSH_VOLUME_PER_SI;
+  props.psi = liquidWater / (allenSolid + liquidWater);
+
+  /// Water fills pores smallest-first, so every CSHQ gel pore finer than the
+  /// meniscus is full and every coarser one is empty.
+
+  props.gelPoreSaturation = 1.0;
+  if (meniscusDiameter > 0.0) {
+    double total = 0.0;
+    double filled = 0.0;
+    for (const PoreSizeData &row : poreSizeDistribution_[microId]) {
+      total += row.volfrac;
+      if (row.diam <= meniscusDiameter)
+        filled += row.volfrac;
+    }
+    if (total > 0.0)
+      props.gelPoreSaturation = filled / total;
+  }
+
+  return props;
+}
+
 void ChemicalSystem::setElectrolyteComposition(bool doAttack) {
   int DCId;
   double DCconc = 0.0; // mol/kgw units

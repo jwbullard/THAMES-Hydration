@@ -46,6 +46,31 @@ struct PoreSizeData {
 };
 
 /**
+@struct CSHGelProperties
+@brief Bulk properties of the C-S-H gel, for reporting in _CSH.csv
+
+THAMES, not GEMS, decides how porous a C-S-H voxel is: GEMS supplies the
+amount and the volume of the CSHQ solid solution, and THAMES inflates that
+volume by its own gel porosity before converting it to voxels. These are the
+quantities needed to compare that choice with NMR and SANS measurements.
+
+Two definitions of "solid C-S-H" meet here and must not be confused. The GEMS
+CSHQ end-members carry about 2.9 H2O per Si, well above the 1.8 of the
+Allen et al. (2007) solid that Konigsberger et al. (2016) build on. The
+densities below use the GEMS solid throughout; only psi converts to the
+Allen basis, and it does so internally without touching any GEMS molar volume.
+*/
+struct CSHGelProperties {
+  bool present;             /**< false if there is no CSHQ, or it has no volume */
+  double gelPorosity;       /**< gel porosity THAMES assigns to a CSHQ voxel */
+  double solidDensity;      /**< GEMS CSHQ mass / GEMS CSHQ volume [g/cm3] */
+  double satGelDensity;     /**< solid plus water-filled gel pores [g/cm3] */
+  double waterPerSi;        /**< H2O per Si in the GEMS CSHQ solid */
+  double gelPoreSaturation; /**< fraction of CSHQ gel pore volume holding water */
+  double psi;               /**< Konigsberger specific precipitation space */
+};
+
+/**
 @struct PhaseData
 @brief Stores data about each phase possible in the system for ease of parsing
 the input files.
@@ -2691,6 +2716,19 @@ public:
   getPoreSizeDistributionRef() const {
     return poreSizeDistribution_;
   }
+
+  /**
+  @brief Bulk properties of the C-S-H gel, for reporting
+
+  Reads the current GEMS amounts and the gel porosity THAMES has assigned;
+  changes nothing. See CSHGelProperties for what each field means and why two
+  definitions of "solid C-S-H" have to be kept apart.
+
+  @param meniscusDiameter is the current meniscus diameter [nm], or a
+  non-positive value when every pore is full
+  @return the properties; present is false if there is no CSHQ
+  */
+  CSHGelProperties getCSHGelProperties(const double meniscusDiameter);
 
   /**
   @brief Set the list of all GEM CSD phases that are associated with a given
