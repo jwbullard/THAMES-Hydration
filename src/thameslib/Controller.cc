@@ -1156,7 +1156,17 @@ void Controller::doCycle(double elemTimeInterval) {
 
   double old_timestep = 0.0;
 
-  double thrTimeToWriteLattice = 0.0167; // threshold ~ 1 minute
+  ///
+  /// How close to an output time a cycle must land to count as that output.
+  /// The step controller already clips steps to land on output times; this
+  /// only absorbs the rounding in lastGoodTime_ + (outTime - lastGoodTime_),
+  /// which can fall one ulp short. It was 0.0167 h (one minute), which with
+  /// sub-minute output spacing made every cycle "close enough" to the next
+  /// output: images were written early and labeled with the output time
+  /// (MSMSE-109162 Fig. 9, carbonation at 1 s spacing).
+  ///
+
+  double thrTimeToWriteLattice = 1.0e-9; // h
 
   /// used to check if all DCMoles_ have right values according to corresponding
   ///   DCUpperLimit_ & DCUpperLimit_
@@ -2114,7 +2124,7 @@ void Controller::doCycle(double elemTimeInterval) {
 
     // lattice_->calculatePoreSizeDistribution();
 
-    // thrTimeToWriteLattice threshold ~ 1 minute i.e 0.0167 hours
+    // thrTimeToWriteLattice is a rounding tolerance (1e-9 h); see its definition
     if ((timeIndexIMG < static_cast<int>(outputImageTime_.size())) &&
         ((currTime >= outputImageTime_[timeIndexIMG]) ||
          (abs(currTime - outputImageTime_[timeIndexIMG]) <
