@@ -150,15 +150,6 @@ int main(int argc, char **argv) {
             << setprecision(3) << elemTimeInterval
             << " hours (used in Parrot-Killoh model)" << endl;
 
-  // Optional multiplier on the computed CSHQ porosity from GEMS. 1.0 = no
-  // correction; values in (0,1) reduce the assumed C-S-H gel porosity to
-  // account for BET-scale water not resolved at the voxel scale. Wired
-  // through to ChemicalSystem via `corPorCSHQ` field for those runs
-  // that want to sweep it; production runs leave it at 1.
-  double corPorCSHQ = 1.0;
-  std::clog << "correction CSHQ porrosity : corPorCSHQ = " << corPorCSHQ
-            << endl;
-
   std::clog << scientific << setprecision(15) << endl;
 
   time_t lt = time(NULL);
@@ -309,8 +300,6 @@ int main(int argc, char **argv) {
                       AppliedStrainSolver, KController, Ctrl, starttime, lt,
                       errorProgram, OutputFolder);
   }
-
-  ChemSys->setCorPorCSHQ(corPorCSHQ);
 
   //
   // Create the random number generator

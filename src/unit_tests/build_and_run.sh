@@ -67,3 +67,11 @@ clang++ -std=c++17 -O2 -Wall \
     -o test_transport_correction \
     test_transport_correction.cc ../thameslib/TransportCorrection.cc
 ./test_transport_correction
+
+echo ""
+echo "=== test_gel_densification ==="
+clang++ -std=c++17 -O2 -Wall \
+    -I../thameslib \
+    -o test_gel_densification \
+    test_gel_densification.cc
+./test_gel_densification

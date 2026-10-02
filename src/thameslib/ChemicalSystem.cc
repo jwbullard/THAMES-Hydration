@@ -731,7 +731,6 @@ ChemicalSystem::ChemicalSystem(const string &GEMfilename,
   }
 
   totVolPors_ = 0.0;
-  corPorCSHQ_ = 1.0;
 
   keepDCLowerLimit_.clear();
   keepDCLowerLimit_.resize(numDCs_, 0);
@@ -1265,6 +1264,11 @@ void ChemicalSystem::parseMicroPhases(const json::iterator cdi, int numEntries,
         phaseData.poreSizeDist.push_back(datarow);
       }
     }
+    if (phaseData.thamesName == CSHGEMName) {
+      p = cdi.value()[i].find("gel_densification");
+      if (p != cdi.value()[i].end())
+        parseGelDensificationBlock(p);
+    }
     p = cdi.value()[i].find("stresscalc");
     if (p != cdi.value()[i].end()) {
       phaseData.stressCalc = p.value();
@@ -1479,6 +1483,56 @@ void ChemicalSystem::parseMicroPhases(const json::iterator cdi, int numEntries,
     }
   }
   return;
+}
+
+void ChemicalSystem::parseGelDensificationBlock(const json::iterator p) {
+  // Expected JSON (every field optional):
+  //   "gel_densification": {
+  //     "enabled":   true,
+  //     "a":         {"value": 0.901, "range": [...], "provenance": "..."},
+  //     "b":         {"value": 0.411, ...},
+  //     "rhoSolid":  {"value": 2.604, ...},
+  //     "psiI_II":   {"value": 0.942, ...},
+  //     "psiII_III": {"value": 0.426, ...}
+  //   }
+
+  auto readOptionalValue = [&](const std::string &key, double dflt) -> double {
+    auto it = p.value().find(key);
+    if (it == p.value().end())
+      return dflt;
+    auto v = it.value().find("value");
+    if (v == it.value().end()) {
+      throw DataException("ChemicalSystem", "parseGelDensificationBlock",
+                          "gel_densification." + key + ".value not found");
+    }
+    return v.value().get<double>();
+  };
+
+  GelDensificationParameters g;
+  auto en = p.value().find("enabled");
+  if (en != p.value().end())
+    g.enabled = en.value().get<bool>();
+  g.a = readOptionalValue("a", g.a);
+  g.b = readOptionalValue("b", g.b);
+  g.rhoSolid = readOptionalValue("rhoSolid", g.rhoSolid);
+  g.psiI_II = readOptionalValue("psiI_II", g.psiI_II);
+  g.psiII_III = readOptionalValue("psiII_III", g.psiII_III);
+
+  if (g.rhoSolid <= 1.0) {
+    throw DataException("ChemicalSystem", "parseGelDensificationBlock",
+                        "gel_densification.rhoSolid must exceed water");
+  }
+  if (!(0.0 < g.psiII_III && g.psiII_III < g.psiI_II && g.psiI_II <= 1.0)) {
+    throw DataException("ChemicalSystem", "parseGelDensificationBlock",
+                        "gel_densification needs 0 < psiII_III < psiI_II <= 1");
+  }
+
+  gelDensification_ = g;
+
+  std::clog << "--->Parsed gel_densification for CSHQ: enabled="
+            << g.enabled << ", a=" << g.a << ", b=" << g.b
+            << ", rhoSolid=" << g.rhoSolid << ", psiI_II=" << g.psiI_II
+            << ", psiII_III=" << g.psiII_III << endl;
 }
 
 void ChemicalSystem::parsePoreSizeDistribution(const json::iterator p,
@@ -2343,13 +2397,40 @@ void ChemicalSystem::calcMicroPhasePorosity(const unsigned int idx) {
   int testPorInt;
   double testPorDbl = 0.0;
 
-  if (microPhaseName_[idx] == "CSHQ") {
-    std::clog << "    ChemicalSystem::calcMicroPhasePorosity - "
-              << microPhaseName_[idx] << " : initial porosity = " << porosity
-              << "  &  corPorCSHQ_ = " << corPorCSHQ_
-              << "   =>   final porosity = ";
-    porosity *= corPorCSHQ_;
-    std::clog << porosity << endl;
+  ///
+  /// C-S-H gel porosity follows the space available to it, not its
+  /// composition (GelDensificationParameters.h). The composition-weighted
+  /// value above stands only when this is switched off, or before the CSHQ
+  /// solid holds any Si (no psi, and no GEMS solid density, to work from).
+  ///
+
+  if (microPhaseName_[idx] == CSHGEMName && gelDensification_.enabled) {
+    const int gemId = static_cast<int>(gemphaseid);
+    double siMoles = 0.0;
+    double waterMoles = 0.0;
+    const double psi = calcCSHPsi(gemId, siMoles, waterMoles);
+    const double solidVolume = GEMPhaseVolume_[gemId];
+    const double solidMass = GEMPhaseMass_[gemId];
+    if (psi >= 0.0 && solidVolume > 0.0 && solidMass > 0.0) {
+      const double waterDensity =
+          DCMolarMass_[waterDCId_] / (getDCMolarVolume(waterDCId_) * 1.0e6);
+      const double solidDensity = solidMass / (solidVolume * 1.0e6);
+      // Target density from psi, then the envelope rule; see
+      // densifiedGelPorosity in GelDensificationParameters.h.
+      const double phi = densifiedGelPorosity(
+          psi, solidDensity, waterDensity, solidVolume, cshSolidCommitted_,
+          cshEnvelopeCommitted_, gelDensification_);
+
+      cshSolidTrial_ = solidVolume;
+      cshEnvelopeTrial_ = solidVolume / (1.0 - phi);
+
+      if (verbose_) {
+        std::clog << "    ChemicalSystem::calcMicroPhasePorosity - CSHQ: "
+                  << "composition phi = " << porosity << ", psi = " << psi
+                  << ", densified phi = " << phi << endl;
+      }
+      porosity = phi;
+    }
   }
 
   testPorInt = porosity * convFactDbl2IntPor_;
@@ -4498,8 +4579,8 @@ void ChemicalSystem::applyMeniscusWaterCorrection(const double kelvinRH) {
   return;
 }
 
-CSHGelProperties
-ChemicalSystem::getCSHGelProperties(const double meniscusDiameter) {
+double ChemicalSystem::calcCSHPsi(const int gemId, double &siMoles,
+                                  double &waterMoles) {
 
   ///
   /// Reference values from the literature, used ONLY to express psi on the
@@ -4521,6 +4602,34 @@ ChemicalSystem::getCSHGelProperties(const double meniscusDiameter) {
   constexpr double ALLEN_SOLID_CSH_VOLUME_PER_SI = 72.14e-6; // m3/mol
   constexpr double ALLEN_SOLID_CSH_WATER_PER_SI = 1.8;
 
+  /// Si and H2O held in the CSHQ solid, summed over its end-members.
+
+  const int siId = getICId("Si");
+  const int hId = getICId("H");
+  siMoles = 0.0;
+  waterMoles = 0.0;
+  const vector<int> members = getGEMPhaseDCMembers(gemId);
+  for (const int dc : members) {
+    siMoles += DCMoles_[dc] * getDCStoich(dc, siId);
+    waterMoles += 0.5 * DCMoles_[dc] * getDCStoich(dc, hId);
+  }
+  if (siMoles <= 0.0)
+    return (-1.0);
+
+  /// psi = V_w / (V_sCSH + V_w), with liquid water counted as Konigsberger
+  /// counts it: aqueous water plus the gel water hidden in the GEMS solid.
+
+  const double waterVm = getDCMolarVolume(waterDCId_); // m3/mol
+  const double excessWater =
+      std::max(0.0, waterMoles - ALLEN_SOLID_CSH_WATER_PER_SI * siMoles);
+  const double liquidWater = (DCMoles_[waterDCId_] + excessWater) * waterVm;
+  const double allenSolid = siMoles * ALLEN_SOLID_CSH_VOLUME_PER_SI;
+  return (liquidWater / (allenSolid + liquidWater));
+}
+
+CSHGelProperties
+ChemicalSystem::getCSHGelProperties(const double meniscusDiameter) {
+
   CSHGelProperties props = {false, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0};
 
   std::map<std::string, int>::iterator gp = GEMPhaseIdLookup_.find(CSHGEMName);
@@ -4538,21 +4647,14 @@ ChemicalSystem::getCSHGelProperties(const double meniscusDiameter) {
   if (solidVolume <= 0.0 || solidMass <= 0.0)
     return props;
 
-  /// Si and H2O held in the CSHQ solid, summed over its end-members. Before
-  /// the first equilibration GEMS reports a CSHQ volume and mass carried over
-  /// from the input DBR but no CSHQ moles; that is not a simulation result,
-  /// so nothing is reported until the solid holds Si.
+  /// Before the first equilibration GEMS reports a CSHQ volume and mass
+  /// carried over from the input DBR but no CSHQ moles; that is not a
+  /// simulation result, so nothing is reported until the solid holds Si.
 
-  const int siId = getICId("Si");
-  const int hId = getICId("H");
   double siMoles = 0.0;
   double waterMoles = 0.0;
-  const vector<int> members = getGEMPhaseDCMembers(gemId);
-  for (const int dc : members) {
-    siMoles += DCMoles_[dc] * getDCStoich(dc, siId);
-    waterMoles += 0.5 * DCMoles_[dc] * getDCStoich(dc, hId);
-  }
-  if (siMoles <= 0.0)
+  const double psi = calcCSHPsi(gemId, siMoles, waterMoles);
+  if (psi < 0.0)
     return props;
 
   const double phi = microPhasePoreVolumeFraction_[microId];
@@ -4565,15 +4667,7 @@ ChemicalSystem::getCSHGelProperties(const double meniscusDiameter) {
   props.satGelDensity =
       props.solidDensity * (1.0 - phi) + waterDensity * phi;
   props.waterPerSi = waterMoles / siMoles;
-
-  /// psi = V_w / (V_sCSH + V_w), with liquid water counted as Konigsberger
-  /// counts it: aqueous water plus the gel water hidden in the GEMS solid.
-
-  const double excessWater =
-      std::max(0.0, waterMoles - ALLEN_SOLID_CSH_WATER_PER_SI * siMoles);
-  const double liquidWater = (DCMoles_[waterDCId_] + excessWater) * waterVm;
-  const double allenSolid = siMoles * ALLEN_SOLID_CSH_VOLUME_PER_SI;
-  props.psi = liquidWater / (allenSolid + liquidWater);
+  props.psi = psi;
 
   /// Water fills pores smallest-first, so every CSHQ gel pore finer than the
   /// meniscus is full and every coarser one is empty.

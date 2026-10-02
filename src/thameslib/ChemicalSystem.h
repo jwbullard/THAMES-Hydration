@@ -26,6 +26,7 @@ as possible.
 // #include "../GEMS3K-standalone/GEMS3K/node.h"
 // #include "../Resources/include/nlohmann/json.hpp"
 #include "Exceptions.h"
+#include "GelDensificationParameters.h"
 #include "global.h"
 #include "utils.h"
 
@@ -756,7 +757,21 @@ class ChemicalSystem {
                          hemihydrate can belong to the clinker) */
 
   double totVolPors_;
-  double corPorCSHQ_;
+
+  /// How CSHQ gel porosity follows the space available to C-S-H; see
+  /// GelDensificationParameters.h. Read from the optional gel_densification
+  /// block on the CSHQ phase in simparams.json.
+  GelDensificationParameters gelDensification_;
+
+  /// C-S-H gel envelope (solid plus gel pores, the volume that becomes
+  /// voxels) and the solid volume inside it, as of the last accepted step,
+  /// plus the values the current attempt would commit. Per-100-g frame [m3].
+  /// Kept in two copies because calculateState also runs on attempts that are
+  /// rejected and retried; only an accepted step may move the envelope.
+  double cshEnvelopeCommitted_ = 0.0;
+  double cshSolidCommitted_ = 0.0;
+  double cshEnvelopeTrial_ = 0.0;
+  double cshSolidTrial_ = 0.0;
 
   std::vector<double> keepDCLowerLimit_;
   std::set<int> suppressedDCIds_; /**< DC indices suppressed by user (unchecked
@@ -921,6 +936,17 @@ public:
   @param phaseData holds the structure of collected phase data from the document
   */
   void parsePoreSizeDistribution(const json::iterator p, PhaseData &phaseData);
+
+  /**
+  @brief Parse the optional gel_densification block of the CSHQ phase
+
+  Every field is optional and falls back to GelDensificationParameters.h.
+  Numeric fields follow the {value, range, provenance} pattern; enabled is a
+  plain boolean.
+
+  @param p is an iterator pointing at the gel_densification object
+  */
+  void parseGelDensificationBlock(const json::iterator p);
 
   /**
   @brief Parse the Rd data (impurity partitioning) for one phase in the JSON
@@ -2729,6 +2755,31 @@ public:
   @return the properties; present is false if there is no CSHQ
   */
   CSHGelProperties getCSHGelProperties(const double meniscusDiameter);
+
+  /**
+  @brief Konigsberger's specific precipitation space for the current state
+
+  psi = V_w / (V_sCSH + V_w) on the Allen et al. (2007) solid basis. The one
+  place psi is computed, so the value reported in _CSH.csv and the value that
+  sets CSHQ gel porosity cannot diverge.
+
+  @param gemId is the GEM phase id of CSHQ
+  @param siMoles receives the Si held in the CSHQ solid [mol, per-100-g frame]
+  @param waterMoles receives the H2O held in the CSHQ solid [mol]
+  @return psi in [0, 1], or a negative value if the solid holds no Si
+  */
+  double calcCSHPsi(const int gemId, double &siMoles, double &waterMoles);
+
+  /**
+  @brief Accept the C-S-H gel envelope of the current step
+
+  Called by Controller once a step is accepted, so that attempts GEMS or the
+  lattice rejects never move the envelope.
+  */
+  void commitCSHEnvelope(void) {
+    cshEnvelopeCommitted_ = cshEnvelopeTrial_;
+    cshSolidCommitted_ = cshSolidTrial_;
+  }
 
   /**
   @brief Set the list of all GEM CSD phases that are associated with a given
@@ -7110,8 +7161,6 @@ public:
                 << DCLowerLimit_[i] << " / " << DCUpperLimit_[i] << std::endl;
     }
   }
-
-  void setCorPorCSHQ(double val) { corPorCSHQ_ = val; }
 
   void setKeepDCLowerLimit(int dcId) {
     keepDCLowerLimit_[dcId] = DCLowerLimit_[dcId];

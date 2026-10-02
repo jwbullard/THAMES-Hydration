@@ -6,3 +6,4 @@ test_percolation
 test_distance_transform
 test_homogenization
 unit_tests_output.txt
+test_gel_densification

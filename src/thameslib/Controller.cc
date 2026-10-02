@@ -1218,6 +1218,9 @@ void Controller::doCycle(double elemTimeInterval) {
     if (timesGEMFailed_loc == 0) {
       lastGoodTime_ = currTime;
 
+      /// The step is accepted: let the C-S-H gel envelope it computed stand.
+      chemSys_->commitCSHEnvelope();
+
       /// Assess connectivity on the successful-cycle path only: a cycle that
       /// GEMS rejected gets retried from the same state, so assessing it
       /// would both waste the passes and record a microstructure that is
