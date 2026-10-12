@@ -384,6 +384,20 @@ ChemicalSystem::ChemicalSystem(const string &GEMfilename,
   /// @todo Check carefully whether this function can throw an exception
   ///
 
+  ///
+  /// GEMS treats a temperature within Ttol of a lookup grid point as BEING
+  /// that grid point, and then uses that point's G0, H0, S0, V0 and Cp
+  /// directly instead of interpolating (check_grid_T; DC_LoadThermodynamicData).
+  /// The DCH files ship with Ttol = 1 K on a 2 K grid, so every temperature
+  /// except the exact midpoints snapped to a neighbour up to 1 K away: a run
+  /// at 297.0 K got 296.15 K data. A rounding-sized tolerance keeps exact grid
+  /// temperatures on the grid and interpolates everything else. Set here, not
+  /// in the data file, so that every copy of the DCH (each operation folder
+  /// holds its own, including older ones) behaves the same.
+  ///
+
+  node_->pCSD()->Ttol = GEMS_GRID_T_TOLERANCE;
+
   node_->GEM_restore_MT(nodeHandle_, nodeStatus_, T_, P_, Vs_, Ms_,
                         &ICMoles_[0], &DCUpperLimit_[0], &DCLowerLimit_[0],
                         &specificSurfaceArea_[0]);
@@ -915,6 +929,36 @@ void ChemicalSystem::parseDoc(const string &docName) {
   int satstate = cdi.value();
   isSaturated_ = (satstate != 0) ? true : false;
   cumulativeWaterImbibed_ = 0.0;
+
+  ///
+  /// Run temperature. GEM_restore_MT has already set T_ from the DBR file's
+  /// <TK>, which every operation gets as one fixed copy at 298.15 K, so until
+  /// now GEMS, the lattice and the report ran at 298.15 K whatever the
+  /// simulation asked for, while the kinetic models (which read this same
+  /// field themselves) used the requested temperature. The DBR value stands
+  /// only if the field is absent.
+  ///
+
+  cdi = it.value().find("temperature");
+  if (cdi != it.value().end()) {
+    const double requestedT = cdi.value();
+    const DATACH *dch = node_->pCSD();
+    const double lowT = dch->TKval[0];
+    const double highT = dch->TKval[dch->nTp - 1];
+    if (requestedT < lowT || requestedT > highT) {
+      std::ostringstream msg;
+      msg << "environment.temperature = " << requestedT
+          << " K is outside the thermodynamic database's range, " << lowT
+          << " to " << highT << " K";
+      throw DataException("ChemicalSystem", "parseDoc", msg.str());
+    }
+    T_ = requestedT;
+
+    // DCH0_ was cached at the DBR temperature before this file was read.
+    for (int i = 0; i < numDCs_; i++) {
+      DCH0_[i] = node_->DC_H0(i, P_, T_);
+    }
+  }
 
   // See if electrolyte composition is specified
   cdi = it.value().find("electrolyte_conditions");
@@ -4507,59 +4551,30 @@ void ChemicalSystem::applyMeniscusWaterCorrection(const double kelvinRH) {
     return;
 
   const DATACH *dch = node_->pCSD();
-  if (dch == NULL || dch->nTp <= 0)
+  if (dch == NULL || dch->nTp <= 0 || dch->nPp <= 0)
     return;
 
   ///
-  /// Snapshot before the first write. DC_G0 returns the LIVE value, so once a
-  /// correction has been applied there is no way back to the baseline; taking
-  /// it here, once, is what keeps repeated calls from compounding.
+  /// Snapshot before the first write, one value per (T, P) lookup point.
+  /// DC_G0 returns the LIVE value, so once a correction has been applied there
+  /// is no way back to the baseline; taking it here, once, is what keeps
+  /// repeated calls from compounding.
   ///
   /// The `false` argument is not optional: DC_G0 normalises by RT when its
   /// `norm` parameter is left at its default of true, and Set_DC_G0 wants
   /// J/mol.
   ///
 
+  const long int numT = dch->nTp;
+  const long int numP = dch->nPp;
   if (waterG0Baseline_.empty()) {
-    waterG0Baseline_.resize(dch->nTp, 0.0);
-    for (long int j = 0; j < dch->nTp; j++) {
-      waterG0Baseline_[j] =
-          node_->DC_G0(waterDCId_, P_, dch->TKval[j], false);
+    waterG0Baseline_.resize(numT * numP, 0.0);
+    for (long int k = 0; k < numP; k++) {
+      for (long int j = 0; j < numT; j++) {
+        waterG0Baseline_[k * numT + j] =
+            node_->DC_G0(waterDCId_, dch->Pval[k], dch->TKval[j], false);
+      }
     }
-  }
-
-  ///
-  /// Find the grid point the run temperature resolves to. GEMS snaps T to a
-  /// lookup point when it lies within Ttol, and Set_DC_G0 writes to that same
-  /// point, so the baseline has to be read from it too. Ttol is 1 K on this
-  /// database and the grid is spaced 2 K, so a run at 298 K writes the
-  /// 297.15 K point.
-  ///
-
-  long int slot = -1;
-  for (long int j = 0; j < dch->nTp; j++) {
-    if (fabs(T_ - dch->TKval[j]) < dch->Ttol) {
-      slot = j;
-      break;
-    }
-  }
-
-  if (slot < 0) {
-    static bool warned = false;
-    if (!warned) {
-      std::clog << endl
-                << "ChemicalSystem::applyMeniscusWaterCorrection - WARNING: "
-                   "temperature "
-                << T_
-                << " K does not resolve to a lookup grid point within Ttol = "
-                << dch->Ttol
-                << " K, so the meniscus correction to G0(H2O@) cannot be "
-                   "applied. Saturation indices of hydrous phases will be too "
-                   "high in an unsaturated system."
-                << endl;
-      warned = true;
-    }
-    return;
   }
 
   ///
@@ -4573,7 +4588,22 @@ void ChemicalSystem::applyMeniscusWaterCorrection(const double kelvinRH) {
     shift = GASCONSTANT * T_ * log(kelvinRH);
   }
 
-  node_->Set_DC_G0(waterDCId_, P_, T_, waterG0Baseline_[slot] + shift);
+  ///
+  /// Set_DC_G0 can write only a lookup grid point, and GEMS interpolates
+  /// between grid points in both T and P. Writing the same shift into every
+  /// point therefore makes the interpolated value at the run's (T, P) exactly
+  /// baseline + shift, wherever the run temperature falls. (It used to write
+  /// only the point the run temperature resolved to, so off-grid temperatures
+  /// got no correction at all.) Every point is rewritten from its baseline,
+  /// so the operation stays absolute, not cumulative.
+  ///
+
+  for (long int k = 0; k < numP; k++) {
+    for (long int j = 0; j < numT; j++) {
+      node_->Set_DC_G0(waterDCId_, dch->Pval[k], dch->TKval[j],
+                       waterG0Baseline_[k * numT + j] + shift);
+    }
+  }
   waterG0Shift_ = shift;
 
   return;

@@ -290,9 +290,10 @@ int main(int argc, char **argv) {
     errorProgram = true;
   } catch (DataException dex) {
     dex.printException();
+    // Record the exception's own message: the same handler catches a missing
+    // GEMS phase and an out-of-range temperature, among others.
     runmeta::finalize(1, "ChemicalSystem constructor: DataException",
-                      "See thames.log for details (typically a microstructure "
-                      "phase not found in GEMS data)");
+                      dex.getDescription());
     errorProgram = true;
   }
   if (errorProgram) {

@@ -225,6 +225,11 @@ inline const int NN_NNN = NUM_NEAREST_NEIGHBORS + NUM_SECONDNEAREST_NEIGHBORS;
 // Reference temperature for kinetic calculations [K]
 inline const double REFTEMP = 298.15;
 
+// How close the run temperature must be to a GEMS lookup grid point to use
+// that point's data directly rather than interpolate [K]. A rounding
+// tolerance; see ChemicalSystem's constructor.
+inline const double GEMS_GRID_T_TOLERANCE = 0.01;
+
 // Reference lattice resolution [micrometers]
 inline const double REFRES = 4.0;
 

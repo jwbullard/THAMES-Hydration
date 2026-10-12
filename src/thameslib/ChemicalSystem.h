@@ -704,8 +704,8 @@ class ChemicalSystem {
   int waterDCId_;         /**< the DCId coresp to DCName = "H2O@" */
 
   /**
-  @brief Unmodified standard Gibbs energy of water, one value per temperature
-  grid point of the DCH lookup arrays [J/mol].
+  @brief Unmodified standard Gibbs energy of water, one value per (T, P)
+  grid point of the DCH lookup arrays, indexed [iP * nTp + iT] [J/mol].
 
   Snapshotted once, before anything is written, because
   applyMeniscusWaterCorrection overwrites the live value and would otherwise
@@ -5464,6 +5464,9 @@ public:
   situation in a set paste and how the cement literature treats hydrate/RH
   equilibria. A crystal freely immersed in tensioned liquid would share that
   pressure and the shift would instead be -sigma dV_rxn, far smaller.
+
+  The same shift is written into every (T, P) grid point, so it applies at any
+  run temperature through GEMS's interpolation, not only at grid temperatures.
 
   Must be called before GEM_run for the step, which is why it lives in
   KineticController::updateRelativeHumidity.
