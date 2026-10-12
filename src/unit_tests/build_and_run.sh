@@ -75,3 +75,11 @@ clang++ -std=c++17 -O2 -Wall \
     -o test_gel_densification \
     test_gel_densification.cc
 ./test_gel_densification
+
+echo ""
+echo "=== test_sum_tree ==="
+clang++ -std=c++17 -O2 -Wall \
+    -I../thameslib \
+    -o test_sum_tree \
+    test_sum_tree.cc
+./test_sum_tree

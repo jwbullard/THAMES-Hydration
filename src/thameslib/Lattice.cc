@@ -5,6 +5,7 @@
 */
 #include "Lattice.h"
 #include "PngWriter.h"
+#include "SumTree.h"
 
 using std::cout;
 using std::endl;
@@ -1575,7 +1576,7 @@ vector<int> Lattice::growPhase(vector<int> growPhaseIDVect,
 
   int wmcIni, wmcEnd;
   int steWmc, stenbWmc, dwmcval;
-  double rng, probRNG;
+  double rng;
 
   int pid;
   int stId, pos, posGrowVect;
@@ -1628,6 +1629,10 @@ vector<int> Lattice::growPhase(vector<int> growPhaseIDVect,
   }
   double affSumDbl = static_cast<double>(affSumInt);
   int growthVectorSize = growthVector.size();
+  // Sum tree mirroring growthVector weights: O(log n) weighted picks (SumTree.h)
+  sumtree::SumTree growTree;
+  auto growW = [](const structGrowVect &g) { return (long long)g.affinityInt; };
+  growTree.rebuild(growthVector, growW);
 
   // std::clog << endl
   //      << "    Lattice::growPhase GROW_INI totalTRC/trc_g/bcl/affSum " <<
@@ -1768,6 +1773,7 @@ vector<int> Lattice::growPhase(vector<int> growPhaseIDVect,
             }
           }
           growthVectorSize = growthVector.size();
+          growTree.rebuild(growthVector, growW);
         }
       }
       if (noPosToGrow)
@@ -1798,18 +1804,14 @@ vector<int> Lattice::growPhase(vector<int> growPhaseIDVect,
       rng = callRNG();
       if (affSumInt > 0) {
         affSumDbl = static_cast<double>(affSumInt);
-        probRNG = growthVector[0].affinityInt / affSumDbl;
-        if (rng <= probRNG) {
-          isitePos = 0;
-        } else {
-          for (isitePos = 1; isitePos < growthVectorSize; isitePos++) {
-            probRNG += (growthVector[isitePos].affinityInt / affSumDbl);
-            if (rng <= probRNG)
-              break;
-          }
-          if (isitePos == growthVectorSize)
-            isitePos--;
-        }
+        int treePos = growTree.pick(rng, affSumDbl);
+        if (sumtree::checkMode())
+          sumtree::check(growTree, growthVector, growW, affSumInt, rng,
+                         affSumDbl, treePos, sumtree::growStats(),
+                         "growPhase");
+        isitePos = (treePos == sumtree::SumTree::PAST_END)
+                       ? growthVectorSize - 1
+                       : treePos;
       } else {
         isitePos = static_cast<int>(rng * growthVectorSize);
       }
@@ -1856,6 +1858,7 @@ vector<int> Lattice::growPhase(vector<int> growPhaseIDVect,
             }
             growthVector.pop_back();
             growthVectorSize--;
+            growTree.swapRemove(posGrPhId);
             ste->setInGrowthVectorPos(plist[j], -1);
             break;
           }
@@ -1935,6 +1938,8 @@ vector<int> Lattice::growPhase(vector<int> growPhaseIDVect,
               if (posGrowVect != -1) {
                 affSumInt += aftyInt;
                 growthVector[posGrowVect].affinityInt += aftyInt;
+                growTree.set(posGrowVect,
+                             growthVector[posGrowVect].affinityInt);
               }
 
             } else {
@@ -1950,6 +1955,7 @@ vector<int> Lattice::growPhase(vector<int> growPhaseIDVect,
                   growStruct.posVect = posVect;
                   growStruct.affinityInt = aftyInt;
                   growthVector.push_back(growStruct);
+                  growTree.push(growStruct.affinityInt);
                   stenb->setInGrowthVectorPos(phaseID, growthVectorSize);
                   growthVectorSize++;
                 }
@@ -1980,6 +1986,7 @@ vector<int> Lattice::growPhase(vector<int> growPhaseIDVect,
                     growStruct.posVect = kk;
                     growStruct.affinityInt = aftyInt;
                     growthVector.push_back(growStruct);
+                    growTree.push(growStruct.affinityInt);
                     stenb->setInGrowthVectorPos(phaseTmpl, growthVectorSize);
                     growthVectorSize++;
                     break;
@@ -2190,6 +2197,7 @@ vector<int> Lattice::growPhase(vector<int> growPhaseIDVect,
           }
         }
         growthVectorSize = growthVector.size();
+        growTree.rebuild(growthVector, growW);
       }
       if (noPosToGrow) {
         nucOK = true;
@@ -2984,7 +2992,7 @@ vector<int> Lattice::dissolvePhase(vector<int> dissPhaseIDVect,
   int isitePos, phaseID;
   int stId, nbid, nbpid;
   int posVect, posnb;
-  double rng, probRNG;
+  double rng;
   int wmcIni, wmcEnd, dwmcval;
   bool phaseid_exist;
   int stWmcInt;
@@ -3038,6 +3046,10 @@ vector<int> Lattice::dissolvePhase(vector<int> dissPhaseIDVect,
     }
   }
   int dissolutionVectorSize = dissolutionVector.size();
+  // Sum tree mirroring dissolutionVector weights: O(log n) weighted picks (SumTree.h)
+  sumtree::SumTree dissTree;
+  auto dissW = [](const structDissVect &d) { return (long long)d.wmcInt; };
+  dissTree.rebuild(dissolutionVector, dissW);
 
   if (sumWmcInt < 0) {
     std::clog << endl
@@ -3118,18 +3130,14 @@ vector<int> Lattice::dissolvePhase(vector<int> dissPhaseIDVect,
       }
 
       sumWmcDbl = static_cast<double>(sumWmcInt);
-      probRNG = dissolutionVector[0].wmcInt / sumWmcDbl;
-      if (rng <= probRNG) {
-        isitePos = 0;
-      } else {
-        for (isitePos = 1; isitePos < dissolutionVectorSize; isitePos++) {
-          probRNG += (dissolutionVector[isitePos].wmcInt / sumWmcDbl);
-          if (rng <= probRNG)
-            break;
-        }
-        if (isitePos == dissolutionVectorSize)
-          isitePos--;
-      }
+      int treePos = dissTree.pick(rng, sumWmcDbl);
+      if (sumtree::checkMode())
+        sumtree::check(dissTree, dissolutionVector, dissW, sumWmcInt, rng,
+                       sumWmcDbl, treePos, sumtree::dissStats(),
+                       "dissolvePhase");
+      isitePos = (treePos == sumtree::SumTree::PAST_END)
+                     ? dissolutionVectorSize - 1
+                     : treePos;
 
       ste = &site_[dissolutionVector[isitePos].id];
       pid = ste->getMicroPhaseId(); // intrebare pid diff phaseid ???
@@ -3266,6 +3274,7 @@ std::clog << endl
                   dissStruct.wmcInt = stWmcInt;
 
                   dissolutionVector.push_back(dissStruct);
+                  dissTree.push(dissStruct.wmcInt);
                   // dissProbStruct(int id_i = 0, double instab_i = 0,
                   //                int posVect_i = 0, double prob_i = 0,
                   //                double prob_01_i = 0) {}
@@ -3281,6 +3290,7 @@ std::clog << endl
               sumWmcInt += dwmcval;
               // dissolutionVector[posnb].wmc += dwmcval;
               dissolutionVector[posnb].wmcInt = stenb->getWmc();
+              dissTree.set(posnb, dissolutionVector[posnb].wmcInt);
             }
 
             // for (int k = 0; k < dissPhaseIDVectSize; k++) {
@@ -3348,6 +3358,7 @@ std::clog << endl
       }
       dissolutionVector.pop_back();
       dissolutionVectorSize--;
+      dissTree.swapRemove(isitePos);
 
       numLeftTot--;
       numChangeTot++;
@@ -3439,6 +3450,7 @@ numChange[i] << endl; std::clog.flush();
             }
           }
           dissolutionVectorSize = dissolutionVector.size();
+          dissTree.rebuild(dissolutionVector, dissW);
         }
       }
     }
@@ -6709,7 +6721,7 @@ vector<int> Lattice::transformPhase(int growPhId, int netsites_growPhId,
   int isitePos, phaseID;
   int stId;
   int posVect;
-  double rng, probRNG;
+  double rng;
 
   int dissPhaseIDVectSize = dissPhaseIDVect.size();
   vector<int> numChange(dissPhaseIDVectSize, 0);
@@ -6772,6 +6784,10 @@ vector<int> Lattice::transformPhase(int growPhId, int netsites_growPhId,
   }
   int dissolutionVectorSize = dissolutionVector.size();
   sumWmcInt = dissolutionVectorSize;
+  // Sum tree mirroring dissolutionVector weights: O(log n) weighted picks (SumTree.h)
+  sumtree::SumTree transTree;
+  auto transW = [](const structDissVect &d) { return (long long)d.wmcInt; };
+  transTree.rebuild(dissolutionVector, transW);
 
   std::clog
       << "    Lattice::transformPhase DISS_INI totalTRC/trc_t/bcl/sumWmcInt : "
@@ -6853,33 +6869,30 @@ vector<int> Lattice::transformPhase(int growPhId, int netsites_growPhId,
       // for (int i = 0; i < dissolutionVectorSize; i++) {
       //   sumWmc +=  dissolutionVector[i].instab;
       // }
-      probRNG = dissolutionVector[0].wmcInt / sumWmcDbl;
-      // probRNG_0 = 1./ sumWmc;
-      // probRNG = probRNG_0;
-      if (rng <= probRNG) {
-        isitePos = 0;
-      } else {
-        for (isitePos = 1; isitePos < dissolutionVectorSize; isitePos++) {
-          probRNG += (dissolutionVector[isitePos].wmcInt / sumWmcDbl);
-          if (rng <= probRNG)
-            break;
-        }
-      }
+      int treePos = transTree.pick(rng, sumWmcDbl);
+      if (sumtree::checkMode())
+        sumtree::check(transTree, dissolutionVector, transW, sumWmcInt, rng,
+                       sumWmcDbl, treePos, sumtree::transStats(),
+                       "transformPhase");
+      isitePos = (treePos == sumtree::SumTree::PAST_END)
+                     ? dissolutionVectorSize
+                     : treePos;
 
       if (isitePos >= dissolutionVectorSize) {
         // isitePosError++;
         std::clog << endl
                   << "transformPhase:     *** isitePosError: "
-                     "bcl/isitePos/rng/probRNG = "
+                     "bcl/isitePos/rng/sumWmc = "
                   << bcl << " / " << isitePos << " / " << rng << " / "
-                  << probRNG << endl;
+                  << sumWmcDbl << endl;
         std::clog << endl << "    exit" << endl;
         exit(1);
       } else {
-        long long int sumWmcT = 0;
-        for (int i = 0; i < dissolutionVectorSize; i++) {
-          sumWmcT += dissolutionVector[isitePos].wmcInt;
-        }
+        // The original O(n) loop added
+        // dissolutionVector[isitePos].wmcInt n times; same value in O(1).
+        long long int sumWmcT =
+            static_cast<long long int>(dissolutionVectorSize) *
+            dissolutionVector[isitePos].wmcInt;
         if (abs(sumWmcInt - sumWmcT) > 0) {
           std::clog << endl
                     << "transformPhase:     *** sumError: "
@@ -7063,6 +7076,7 @@ vector<int> Lattice::transformPhase(int growPhId, int netsites_growPhId,
         }
         dissolutionVector.pop_back();
         dissolutionVectorSize--;
+        transTree.swapRemove(isitePos);
 
         vector<int> extractSteIdVect;
         for (int i = 0; i < waterneighborSize; i++) {
@@ -7105,6 +7119,7 @@ vector<int> Lattice::transformPhase(int growPhId, int netsites_growPhId,
                 }
                 dissolutionVector.pop_back();
                 dissolutionVectorSize--;
+                transTree.swapRemove(posDissVect);
                 sumWmcInt -= 1;
               } // else { // for tests
                 // std::clog << "            * - nothing to do for siteId " <<
@@ -7133,6 +7148,7 @@ vector<int> Lattice::transformPhase(int growPhId, int netsites_growPhId,
         }
         dissolutionVector.pop_back();
         dissolutionVectorSize--;
+        transTree.swapRemove(isitePos);
 
         // same_0 ... same_1
 
@@ -7192,6 +7208,7 @@ vector<int> Lattice::transformPhase(int growPhId, int netsites_growPhId,
                 }
                 dissolutionVector.pop_back();
                 dissolutionVectorSize--;
+                transTree.swapRemove(posDissVect);
                 sumWmcInt -= 1;
               } // else { // for tests
                 // std::clog << "            * - nothing to do for siteId " <<
