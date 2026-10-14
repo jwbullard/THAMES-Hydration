@@ -1339,6 +1339,34 @@ vector<char> Lattice::buildMoistPhaseTable(void) const {
   return moist;
 }
 
+void Lattice::restampWettingWeights(const vector<int> &previous) {
+  bool anyChanged = false;
+  for (int p = ELECTROLYTEID + 1; p < numMicroPhases_; ++p) {
+    if (p >= static_cast<int>(previous.size()) ||
+        previous[p] != microPhaseWettingWeightInt_[p]) {
+      anyChanged = true;
+      break;
+    }
+  }
+  if (!anyChanged)
+    return;
+
+  for (int i = 0; i < numSites_; ++i) {
+    const int phaseId = site_[i].getMicroPhaseId();
+    if (phaseId <= ELECTROLYTEID)
+      continue;
+    const int delta = microPhaseWettingWeightInt_[phaseId] - site_[i].getWmc0();
+    if (delta == 0)
+      continue;
+    site_[i].setWmc0(microPhaseWettingWeightInt_[phaseId]);
+    site_[i].setWmc(site_[i].getWmc() + delta);
+    for (int j = 0; j < NN_NNN; ++j) {
+      Site *nb = site_[i].nb(j);
+      nb->setWmc(nb->getWmc() + delta);
+    }
+  }
+}
+
 bool Lattice::hasMoistNeighbor(const int siteID, const int neighborRange,
                                const vector<char> &moistPhase) {
   for (int i = 0; i < neighborRange; ++i) {
@@ -4299,8 +4327,10 @@ int Lattice::changeMicrostructure(double time, const int simtype,
   // std::clog << endl << " exit Lattice::changeMicrostructure " <<
   // endl;
 
+  const vector<int> previousWettingWeights = microPhaseWettingWeightInt_;
   microPhaseWettingWeightInt_.clear();
   microPhaseWettingWeightInt_ = chemSys_->getMicroPhaseWettingWeightInt();
+  restampWettingWeights(previousWettingWeights);
 
   ///
   /// @todo This function is very large; consider breaking it into small pieces

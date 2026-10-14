@@ -905,6 +905,22 @@ public:
   std::vector<char> buildMoistPhaseTable(void) const;
 
   /**
+  @brief Bring every solid site's stamped wetting weight up to date
+
+  A site's wmc0_ is stamped with its phase's wetting weight when the site
+  changes phase, and its wmc_ is its own wmc0_ plus its 18 NN+NNN neighbors'.
+  A phase whose wetting weight changes over time (C-S-H as it densifies)
+  otherwise leaves its older sites carrying the value they formed with. When
+  any solid phase's weight has changed since the previous step, each solid
+  site whose wmc0_ differs from its phase's current weight is restamped, and
+  the difference is added to its own wmc_ and to each neighbor's. Electrolyte
+  and void keep their fixed weights.
+
+  @param previous is microPhaseWettingWeightInt_ before this step's refresh
+  */
+  void restampWettingWeights(const std::vector<int> &previous);
+
+  /**
   @brief Determine whether a voxel has at least one neighbor holding water.
 
   The condition for new solid to appear in an empty voxel: something next to it
