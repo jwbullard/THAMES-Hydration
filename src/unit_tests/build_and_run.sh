@@ -83,3 +83,11 @@ clang++ -std=c++17 -O2 -Wall \
     -o test_sum_tree \
     test_sum_tree.cc
 ./test_sum_tree
+
+echo ""
+echo "=== test_kinetic_timestep_limit ==="
+clang++ -std=c++17 -O2 -Wall \
+    -I../thameslib \
+    -o test_kinetic_timestep_limit \
+    test_kinetic_timestep_limit.cc
+./test_kinetic_timestep_limit

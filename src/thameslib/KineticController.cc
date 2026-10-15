@@ -4,6 +4,7 @@
 
 */
 #include "KineticController.h"
+#include "KineticTimestepLimit.h"
 
 #include <algorithm>
 #include <limits>
@@ -2793,7 +2794,18 @@ double KineticController::computeKineticsBasedMaxTimestep(
       // |delta_moles| = |rate| * dt
       // |delta_moles| / |moles| = maxRelativeChange
       // dt = maxRelativeChange * |moles| / |rate|
-      double dtConstraint = maxRelativeChange * fabs(dcMoles) / fabs(molarRate);
+      //
+      // with |moles| floored at one voxel's worth of this DC, so that a
+      // sub-voxel remainder cannot shrink dt geometrically toward a time it
+      // never reaches. Derivation and rationale in KineticTimestepLimit.h.
+      double molesPerVoxel = 0.0;
+      if (lattice_ != nullptr) {
+        molesPerVoxel = kinetic_dt::molesPerVoxel(
+            lattice_->getNumSites(), chemSys_->getDCMolarVolume(dcId),
+            lattice_->getInitSolidMass());
+      }
+      double dtConstraint = kinetic_dt::timestepLimit(
+          dcMoles, molesPerVoxel, molarRate, maxRelativeChange);
 
       if (verbose_) {
         std::clog << "  Phase " << phaseKineticModel_[i]->getName()

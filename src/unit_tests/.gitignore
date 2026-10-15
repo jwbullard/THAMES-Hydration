@@ -8,3 +8,4 @@ test_homogenization
 unit_tests_output.txt
 test_gel_densification
 test_sum_tree
+test_kinetic_timestep_limit
