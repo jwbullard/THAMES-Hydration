@@ -10,11 +10,6 @@ src/version.h.in; the generated file (src/version.h) is gitignored.
 #ifndef VERSION_H
 #define VERSION_H
 
-// Numeric back-compat macros (older code reads these).
-#define VERSION       @THAMES_HYDRATION_VERSION@
-#define VERSION_MAJOR @THAMES_HYDRATION_VERSION_MAJOR@
-#define VERSION_MINOR @THAMES_HYDRATION_VERSION_MINOR@
-
 // New identity macros used by RunMetadata to stamp every output.
 #define THAMES_VERSION_STRING "@THAMES_HYDRATION_VERSION_STRING@"
 #define THAMES_VERSION_MAJOR  @THAMES_HYDRATION_VERSION_MAJOR@

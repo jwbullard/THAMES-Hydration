@@ -76,8 +76,6 @@ private:
 // String indicating THAMES version in the input microstructure file
 inline const char VERSIONSTRING[] = "#THAMES:Version:";
 
-inline const char VERSIONBUGFIX[] = "0";
-
 // String indicating the voxel resolution in micrometers
 // for the THAMES input microstructure file
 inline const char IMGRESSTRING[] = "#THAMES:Image_Resolution:";

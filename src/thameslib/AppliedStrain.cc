@@ -1253,13 +1253,7 @@ double AppliedStrain::getBulkModulus(vector<int> *p_vectPhId,
                         "Could not write");
   }
   std::clog << "Printing strain energy field" << endl;
-  std::ostringstream ostrMAJ, ostrMIN;
-  ostrMAJ << VERSION_MAJOR;
-  ostrMIN << VERSION_MINOR;
-  string majVers(ostrMAJ.str());
-  string minVers(ostrMIN.str());
-  string thamesVersion = majVers + "." + minVers + "." + VERSIONBUGFIX;
-  energyFile << VERSIONSTRING << " " << thamesVersion << endl;
+  energyFile << VERSIONSTRING << " " << THAMES_VERSION_STRING << endl;
   energyFile << XSIZESTRING << " " << nx_ << endl;
   energyFile << YSIZESTRING << " " << ny_ << endl;
   energyFile << ZSIZESTRING << " " << nz_ << endl;

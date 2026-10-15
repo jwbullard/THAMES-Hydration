@@ -190,12 +190,7 @@ Lattice::Lattice(ChemicalSystem *cs, RanGen *rg, int seedRNG,
     exit(0);
   }
 
-  ostringstream ostrMAJ, ostrMIN;
-  ostrMAJ << VERSION_MAJOR;
-  ostrMIN << VERSION_MINOR;
-  string majVers(ostrMAJ.str());
-  string minVers(ostrMIN.str());
-  thamesVersion_ = majVers + "." + minVers + "." + VERSIONBUGFIX;
+  thamesVersion_ = THAMES_VERSION_STRING;
   std::clog << endl
             << "Lattice::Lattice - .img output files generated using "
                "THAMES Version: "
