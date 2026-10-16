@@ -51,6 +51,13 @@ static void ensureDir(const string &dir, const string &funcName) {
   }
 }
 
+// getline() keeps a trailing '\r' from Windows-authored (CRLF) input on
+// POSIX, which turns "thames-dat.lst" into a file name that does not exist.
+static void readInputLine(std::istream &in, string &line) {
+  getline(in, line);
+  if (!line.empty() && line.back() == '\r') line.pop_back();
+}
+
 /**
 @brief The main block for running THAMES.
 
@@ -171,7 +178,7 @@ int main(int argc, char **argv) {
   //
 
   std::clog << endl << "What is the name of the GEM input file? " << endl;
-  getline(cin, buff);
+  readInputLine(cin, buff);
   const string gemInputName(buff);
   std::clog << "   - gemInputName      :  " << gemInputName << endl;
   std::clog.flush();
@@ -254,7 +261,7 @@ int main(int argc, char **argv) {
 
   std::clog << endl
             << "What is the name of the simulation parameter file? " << endl;
-  getline(cin, buff);
+  readInputLine(cin, buff);
   const string simParamName(buff);
   std::clog << "   - simParamName        :  " << simParamName << endl;
 
@@ -313,7 +320,7 @@ int main(int argc, char **argv) {
   //
 
   std::clog << endl << "What is the name of the MICROSTRUCTURE file? " << endl;
-  getline(cin, buff);
+  readInputLine(cin, buff);
   const string initMicName(buff);
   std::clog << "   - initMicName       :  " << initMicName << endl;
 
@@ -703,7 +710,7 @@ int main(int argc, char **argv) {
 
   std::clog << endl
             << "What shall be the root name of all output files?" << endl;
-  getline(cin, buff);
+  readInputLine(cin, buff);
   jobRoot.assign(buff);
   std::clog << "   - files root name   :  " << jobRoot << endl;
 
