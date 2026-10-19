@@ -12,6 +12,28 @@ using std::map;
 using std::string;
 using std::vector;
 
+namespace {
+
+///
+/// Reference values from the literature, used ONLY to express C-S-H water on
+/// the basis Konigsberger et al. (2016) fitted their master curve on, which is
+/// also the basis of Muller et al.'s NMR gel porosity. They are deliberately
+/// private to this file: nothing here reads or writes a GEMS molar volume.
+///
+/// ALLEN_SOLID_CSH_VOLUME_PER_SI: molar volume of C1.7-S-H1.8 per mole of Si,
+/// 72.14 cm3/mol (Konigsberger et al., CCR 88 (2016) Table 1, from the
+/// 2.604 g/cm3 and 187.8 g/mol of Allen, Thomas and Jennings, Nat. Mater. 6
+/// (2007) 311).
+///
+/// ALLEN_SOLID_CSH_WATER_PER_SI: the 1.8 H2O per Si of that solid (interlayer
+/// water and hydroxyl). Water the GEMS CSHQ end-members carry above it is, on
+/// the Allen basis, gel water.
+///
+constexpr double ALLEN_SOLID_CSH_VOLUME_PER_SI = 72.14e-6; // m3/mol
+constexpr double ALLEN_SOLID_CSH_WATER_PER_SI = 1.8;
+
+} // namespace
+
 ChemicalSystem::ChemicalSystem(const string &GEMfilename,
                                const string &jsonFileName, const bool verbose,
                                const bool warning, bool testSimparams) {
@@ -4613,24 +4635,10 @@ double ChemicalSystem::calcCSHPsi(const int gemId, double &siMoles,
                                   double &waterMoles) {
 
   ///
-  /// Reference values from the literature, used ONLY to express psi on the
-  /// basis Konigsberger et al. (2016) fitted their master curve on. They are
-  /// deliberately local: nothing here reads or writes a GEMS molar volume.
-  ///
-  /// ALLEN_SOLID_CSH_VOLUME_PER_SI: molar volume of C1.7-S-H1.8 per mole of Si,
-  /// 72.14 cm3/mol (Konigsberger et al., CCR 88 (2016) Table 1, from the
-  /// 2.604 g/cm3 and 187.8 g/mol of Allen, Thomas and Jennings, Nat. Mater. 6
-  /// (2007) 311).
-  ///
-  /// ALLEN_SOLID_CSH_WATER_PER_SI: the 1.8 H2O per Si of that solid. Water the
-  /// GEMS CSHQ end-members carry above it is, on the Allen basis, gel water.
-  ///
+  /// psi is expressed on the Allen basis (constants at the top of this file).
   /// Approximation: the run's Ca/Si (about 1.6 in portlandite-saturated
   /// paste) is not rescaled to Allen's 1.7, roughly a 3 % error in V_sCSH.
   ///
-
-  constexpr double ALLEN_SOLID_CSH_VOLUME_PER_SI = 72.14e-6; // m3/mol
-  constexpr double ALLEN_SOLID_CSH_WATER_PER_SI = 1.8;
 
   /// Si and H2O held in the CSHQ solid, summed over its end-members.
 
@@ -4660,7 +4668,7 @@ double ChemicalSystem::calcCSHPsi(const int gemId, double &siMoles,
 CSHGelProperties
 ChemicalSystem::getCSHGelProperties(const double meniscusDiameter) {
 
-  CSHGelProperties props = {false, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0};
+  CSHGelProperties props = {false, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0};
 
   std::map<std::string, int>::iterator gp = GEMPhaseIdLookup_.find(CSHGEMName);
   std::map<std::string, int>::iterator mp =
@@ -4698,6 +4706,14 @@ ChemicalSystem::getCSHGelProperties(const double meniscusDiameter) {
       props.solidDensity * (1.0 - phi) + waterDensity * phi;
   props.waterPerSi = waterMoles / siMoles;
   props.psi = psi;
+
+  /// The same envelope, with the gel water GEMS holds inside its solid
+  /// (above Allen's 1.8 H2O per Si) counted as pore water, as NMR counts it.
+  /// The envelope is solidVolume / (1 - phi) on either basis.
+  const double excessWater =
+      std::max(0.0, waterMoles - ALLEN_SOLID_CSH_WATER_PER_SI * siMoles);
+  props.allenGelPorosity =
+      phi + excessWater * waterVm * (1.0 - phi) / solidVolume;
 
   /// Water fills pores smallest-first, so every CSHQ gel pore finer than the
   /// meniscus is full and every coarser one is empty.

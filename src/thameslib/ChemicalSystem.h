@@ -69,6 +69,9 @@ struct CSHGelProperties {
   double waterPerSi;        /**< H2O per Si in the GEMS CSHQ solid */
   double gelPoreSaturation; /**< fraction of CSHQ gel pore volume holding water */
   double psi;               /**< Konigsberger specific precipitation space */
+  double allenGelPorosity;  /**< gel porosity on the Allen/NMR basis: GEMS
+                                 solid water above 1.8 H2O/Si counted as pore
+                                 water; compare with Muller et al. */
 };
 
 /**

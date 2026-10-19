@@ -340,7 +340,7 @@ Controller::Controller(Lattice *msh, KineticController *kc, ChemicalSystem *cs,
     outfs << ",Ca/Si";
     // Gel properties THAMES assigns to C-S-H; see CSHGelProperties.
     outfs << ",GelPorosity,SolidDensity(g/cm3),SatGelDensity(g/cm3),"
-          << "H2O/Si,GelPoreSaturation,Psi" << endl;
+          << "H2O/Si,GelPoreSaturation,Psi,GelPorosityAllen" << endl;
     outfs.close();
 
     outfilename = jobRoot_ + "_CSratio_solid.csv";
@@ -2996,9 +2996,10 @@ void Controller::writeTxtOutputFiles(double time) {
   if (gel.present) {
     outfs << "," << gel.gelPorosity << "," << gel.solidDensity << ","
           << gel.satGelDensity << "," << gel.waterPerSi << ","
-          << gel.gelPoreSaturation << "," << gel.psi;
+          << gel.gelPoreSaturation << "," << gel.psi << ","
+          << gel.allenGelPorosity;
   } else {
-    outfs << ",,,,,,";
+    outfs << ",,,,,,,";
   }
   outfs << endl;
   outfs.close();
