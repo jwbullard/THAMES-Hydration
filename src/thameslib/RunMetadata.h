@@ -67,6 +67,14 @@ std::string csvCommentLine();
 /// called too early — never crashes).
 bool isInitialized();
 
+/// Exit code stored by the first finalize() call, or 0 if finalize() has not
+/// been called (or initialize() never ran). The process exit code must agree
+/// with this: a path that records a failure with finalize(1, ...) and then
+/// returns normally (e.g. Controller::doCycle breaking out of the cycle loop
+/// after too many GEMS failures) would otherwise exit 0, and the UI would show
+/// a failed run as completed.
+int recordedExitCode();
+
 }  // namespace runmeta
 
 #endif  // SRC_THAMESLIB_RUNMETADATA_H_

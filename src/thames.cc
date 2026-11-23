@@ -889,7 +889,10 @@ void deleteDynAllocMem(ChemicalSystem *ChemSys, Lattice *Mic, RanGen *RNG,
   std::clog << endl << "STOP Program" << endl;
   timeCount(st_time, lt);
 
-  if (errorProgram) {
+  // A failure recorded in the provenance sidecar must also fail the process,
+  // even when the path that recorded it returned normally (see
+  // runmeta::recordedExitCode).
+  if (errorProgram || runmeta::recordedExitCode() != 0) {
     exit(1);
   } else {
     exit(0);

@@ -432,4 +432,8 @@ std::string csvCommentLine() {
 
 bool isInitialized() { return g_initialized; }
 
+int recordedExitCode() {
+  return (g_initialized && g_finalized) ? g.exit_code : 0;
+}
+
 }  // namespace runmeta
